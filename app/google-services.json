@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "593247185155",
+    "project_id": "hanieapp-f7658",
+    "storage_bucket": "hanieapp-f7658.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:593247185155:android:b7d39cdd872f6a79bd2136",
+        "android_client_info": {
+          "package_name": "com.aistudio.hanita.zxwpm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyATYvZ_WqGBCJq0IzbqPOUPXaycivNjv7I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
