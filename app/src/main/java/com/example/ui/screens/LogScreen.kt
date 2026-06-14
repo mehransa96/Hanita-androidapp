@@ -1,12 +1,16 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Opacity
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -60,6 +64,50 @@ fun LogScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(modifier = Modifier.height(16.dp))
+            
+            // Nice Header Graphic
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(0.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(54.dp)
+                            .background(MaterialTheme.colorScheme.surface, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add, // Placeholder for log icon
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "ثبت وضعیت روزانه",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "درک بهتر الگوهای بدن شما",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
             SectionTitle("شدت خونریزی")
             FlowSelector(selectedFlow) { selectedFlow = it }
             
@@ -137,17 +185,19 @@ fun SectionTitle(title: String) {
 
 @Composable
 fun FlowSelector(selected: String, onSelect: (String) -> Unit) {
-    val options = listOf(
-        "NONE" to "هیچ",
-        "LIGHT" to "کم",
-        "MEDIUM" to "متوسط",
-        "HEAVY" to "زیاد"
+    val options: List<Pair<String, Pair<String, androidx.compose.ui.graphics.vector.ImageVector>>> = listOf(
+        "NONE" to Pair("هیچ", Icons.Filled.Opacity),
+        "LIGHT" to Pair("کم", Icons.Filled.Opacity),
+        "MEDIUM" to Pair("متوسط", Icons.Filled.Opacity),
+        "HEAVY" to Pair("زیاد", Icons.Filled.Opacity)
     )
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        options.forEach { (key, label) ->
+        options.forEach { data ->
+            val key = data.first
+            val label = data.second.first
             val isSelected = selected == key
             FilterChip(
                 selected = isSelected,
@@ -159,7 +209,7 @@ fun FlowSelector(selected: String, onSelect: (String) -> Unit) {
                     containerColor = SleekSurface,
                     labelColor = SleekTextMedium
                 ),
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(16.dp),
                 border = FilterChipDefaults.filterChipBorder(
                     enabled = true,
                     selected = isSelected,

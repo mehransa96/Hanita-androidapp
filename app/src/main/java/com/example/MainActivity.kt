@@ -31,6 +31,7 @@ import com.example.ui.screens.ChatBotScreen
 import com.example.ui.screens.MeditationMusicScreen
 import com.example.ui.screens.RemindersScreen
 import com.example.ui.screens.AvatarGeneratorScreen
+import com.example.ui.screens.CycleAnalysisScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.MahitaViewModel
 
@@ -103,12 +104,19 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToMeditation = { navController.navigate("meditation") },
                                     onNavigateToReminders = { navController.navigate("reminders") },
                                     onNavigateToAvatarGenerator = { navController.navigate("avatargenerator") },
+                                    onNavigateToCycleAnalysis = { navController.navigate("cycle_analysis") },
                                     onLogout = {
                                         viewModel.logout()
                                         navController.navigate("login") {
                                             popUpTo("dashboard") { inclusive = true }
                                         }
                                     }
+                                )
+                            }
+                            composable("cycle_analysis") {
+                                CycleAnalysisScreen(
+                                    viewModel = viewModel,
+                                    onNavigateBack = { navController.popBackStack() }
                                 )
                             }
                             composable("avatargenerator") {
@@ -130,6 +138,7 @@ class MainActivity : ComponentActivity() {
                             }
                             composable("health") {
                                 com.example.ui.screens.HealthScreen(
+                                    viewModel = viewModel,
                                     onNavigateBack = { navController.popBackStack() }
                                 )
                             }

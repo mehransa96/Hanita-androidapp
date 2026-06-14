@@ -29,11 +29,19 @@ import com.example.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HealthScreen(onNavigateBack: () -> Unit) {
+fun HealthScreen(
+    viewModel: com.example.ui.viewmodel.MahitaViewModel,
+    onNavigateBack: () -> Unit
+) {
+    val initialWeight by viewModel.userWeight.collectAsState()
     var waterIntake by remember { mutableIntStateOf(3) }
     var sleepHours by remember { mutableFloatStateOf(7.5f) }
-    var weight by remember { mutableStateOf("65") }
+    var weight by remember { mutableStateOf(initialWeight) }
     var steps by remember { mutableStateOf("4500") }
+
+    LaunchedEffect(initialWeight) {
+        weight = initialWeight
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -62,26 +70,77 @@ fun HealthScreen(onNavigateBack: () -> Unit) {
         ) {
             Spacer(modifier = Modifier.height(4.dp))
             
+            // Welcome Section
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(0.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(54.dp)
+                            .background(MaterialTheme.colorScheme.surface, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Add, 
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "گزارش سلامتی شما",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "ثبت اطلاعات سلامتی هانیتا",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            
             WaterTrackerCard(waterIntake) { newWater ->
                 if (newWater in 0..12) waterIntake = newWater
             }
             
             SleepTrackerCard(sleepHours) { sleepHours = it }
             
+            val context = androidx.compose.ui.platform.LocalContext.current
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                WeightCard(weight, { weight = it }, Modifier.weight(1f))
+                WeightCard(
+                    weight = weight, 
+                    onWeightChange = { weight = it }, 
+                    onSaveClick = {
+                        viewModel.setWeight(weight)
+                        android.widget.Toast.makeText(context, "تغییرات وزن ذخیره و با فایربیس همگام شد.", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.weight(1f)
+                )
                 StepsCard(steps, { steps = it }, Modifier.weight(1f))
             }
             
             Spacer(modifier = Modifier.height(8.dp))
             
-            val context = androidx.compose.ui.platform.LocalContext.current
             Button(
                 onClick = {
-                    android.widget.Toast.makeText(context, "تغییرات با موفقیت ذخیره شد.", android.widget.Toast.LENGTH_SHORT).show()
+                    viewModel.setWeight(weight)
+                    android.widget.Toast.makeText(context, "تغییرات سلامتی با موفقیت ذخیره و ابری شد.", android.widget.Toast.LENGTH_SHORT).show()
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -138,8 +197,8 @@ fun WaterTrackerCard(waterIntake: Int, onWaterChange: (Int) -> Unit) {
             ) {
                 Box(
                     modifier = Modifier
-                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                        .size(40.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+                        .size(44.dp)
                         .bounceClick { onWaterChange(waterIntake - 1) },
                     contentAlignment = Alignment.Center
                 ) {
@@ -148,15 +207,15 @@ fun WaterTrackerCard(waterIntake: Int, onWaterChange: (Int) -> Unit) {
                 
                 Text(
                     text = "$waterIntake / 8",
-                    fontSize = 24.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.primary
                 )
                 
                 Box(
                     modifier = Modifier
-                        .background(Color(0xFFE0F2FE), CircleShape)
-                        .size(40.dp)
+                        .background(Color(0xFFE0F2FE), RoundedCornerShape(12.dp))
+                        .size(44.dp)
                         .bounceClick { onWaterChange(waterIntake + 1) },
                     contentAlignment = Alignment.Center
                 ) {
@@ -242,7 +301,12 @@ fun SleepTrackerCard(sleepHours: Float, onSleepChange: (Float) -> Unit) {
 }
 
 @Composable
-fun WeightCard(weight: String, onWeightChange: (String) -> Unit, modifier: Modifier = Modifier) {
+fun WeightCard(
+    weight: String, 
+    onWeightChange: (String) -> Unit, 
+    onSaveClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
@@ -275,6 +339,18 @@ fun WeightCard(weight: String, onWeightChange: (String) -> Unit, modifier: Modif
                 ),
                 shape = RoundedCornerShape(12.dp)
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = onSaveClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .bounceClick { },
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706))
+            ) {
+                Text("ذخیره تغییرات وزن", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
         }
     }
 }
@@ -305,7 +381,7 @@ fun StepsCard(steps: String, onStepsChange: (String) -> Unit, modifier: Modifier
                 onValueChange = onStepsChange,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
-                textStyle = LocalTextStyle.current.copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 18.sp),
+                textStyle = LocalTextStyle.current.copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 24.sp, color = Color(0xFF16A34A)),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,

@@ -22,7 +22,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -58,6 +62,7 @@ fun DashboardScreen(
     onNavigateToMeditation: () -> Unit,
     onNavigateToReminders: () -> Unit,
     onNavigateToAvatarGenerator: () -> Unit,
+    onNavigateToCycleAnalysis: () -> Unit,
     onLogout: () -> Unit
 ) {
     val cycleInfo by viewModel.cycleInfo.collectAsState()
@@ -116,12 +121,16 @@ fun DashboardScreen(
             PredictionsCard(cycleInfo)
             
             Spacer(modifier = Modifier.height(16.dp))
+
+            AISmartAnalysisBanner(onNavigateToCycleAnalysis)
+            
+            Spacer(modifier = Modifier.height(16.dp))
             
             PredictionNotificationCard(predictionInfo)
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            CycleHistoryChart(modifier = Modifier.fillMaxWidth())
+            CycleHistoryChart(averageCycleLength = averageCycleLength, modifier = Modifier.fillMaxWidth())
             
             Spacer(modifier = Modifier.height(16.dp))
             
@@ -136,6 +145,73 @@ fun DashboardScreen(
         onDismiss = { showSettingsDialog = false },
         viewModel = viewModel
     )
+}
+
+@Composable
+fun AISmartAnalysisBanner(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("ai_analysis_banner")
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { onClick() },
+        border = BorderStroke(1.dp, SleekBorder.copy(alpha = 0.4f)),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically, 
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(SleekPrimaryLight),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AutoAwesome,
+                        contentDescription = null,
+                        tint = SleekPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "تحلیل هوشمند چرخه وقاعدگی با هوش مصنوعی هانیتا",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SleekPrimaryDark
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "پیش‌بینی دقیق تاریخ پریود بعدی، شناسایی الگوهای بدنى و روحی با Gemini AI",
+                        fontSize = 10.sp,
+                        color = SleekTextMedium
+                    )
+                }
+            }
+            Text(
+                text = "✨ کشف",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = SleekPrimary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(SleekPrimaryLight)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -210,10 +286,17 @@ fun HeaderRow(
 
 @Composable
 fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modifier) {
-    val gradientColors = listOf(SleekPrimary, SleekPrimaryVariant)
-    val trackColor = SleekPrimaryLight
-    val primaryColor = SleekPrimary
-
+    val localSleekPrimary = SleekPrimary
+    val localSleekPrimaryVariant = SleekPrimaryVariant
+    val localSleekPrimaryLight = SleekPrimaryLight
+    
+    val gradientColors = if (info.isPms) {
+        listOf(Color(0xFFF59E0B), Color(0xFFD97706))
+    } else {
+        listOf(localSleekPrimary, localSleekPrimaryVariant)
+    }
+    val trackColor = if (info.isPms) Color(0xFFFEF3C7) else localSleekPrimaryLight
+    
     val animatedSweepAngle by androidx.compose.animation.core.animateFloatAsState(
         targetValue = (info.currentDay / cycleLength.toFloat()) * 360f,
         animationSpec = androidx.compose.animation.core.tween(
@@ -225,37 +308,66 @@ fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modi
     
     val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.5f,
-        targetValue = 1.0f,
+        initialValue = 0.3f,
+        targetValue = 0.8f,
         animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(1000, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            animation = androidx.compose.animation.core.tween(1500, easing = androidx.compose.animation.core.FastOutSlowInEasing),
             repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
         ),
         label = "pulseAlpha"
     )
 
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.97f,
+        targetValue = 1.03f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(2500, easing = androidx.compose.animation.core.EaseInOutSine),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "pulseScale"
+    )
+  
     Box(
         modifier = modifier.padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
+        // Glowing background behind the circle
+        Box(
+            modifier = Modifier
+                .fillMaxSize(0.85f)
+                .aspectRatio(1f)
+                .scale(pulseScale)
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            (if (info.isPeriod) Color(0xFFFFEBEE) else if (info.isFertile) localSleekPrimaryLight else if (info.isPms) Color(0xFFFFF8E1) else Color(0xFFF3E5F5)).copy(alpha = pulseAlpha * 0.4f),
+                            Color.Transparent
+                        )
+                    ),
+                    shape = CircleShape
+                )
+        )
+
         Canvas(modifier = Modifier.fillMaxSize().aspectRatio(1f)) {
             val strokeWidth = 14.dp.toPx()
-            val radius = (size.minDimension - strokeWidth) / 2
+            val radius = (size.minDimension - strokeWidth * 2) / 2
+            val centerOffset = center
             
-            // Outer glow for fertile/period
-            if (info.isPeriod || info.isFertile) {
-                drawCircle(
-                    color = (if (info.isPeriod) Color.Red else primaryColor).copy(alpha = pulseAlpha * 0.2f),
-                    radius = radius + (strokeWidth * 1.5f)
-                )
-            }
-            
+            // Outer Aura Ring
             drawCircle(
-                color = trackColor,
+                color = (if (info.isPeriod) Color(0xFFFF5252) else if (info.isFertile) localSleekPrimary else if (info.isPms) Color(0xFFFFB300) else localSleekPrimaryVariant).copy(alpha = pulseAlpha * 0.15f),
+                radius = radius + (strokeWidth * 1.2f),
+                style = Stroke(width = strokeWidth * 0.8f)
+            )
+            
+            // Base track ring
+            drawCircle(
+                color = trackColor.copy(alpha = 0.6f),
                 radius = radius,
                 style = Stroke(width = strokeWidth)
             )
-
+ 
+            // Active arc
             drawArc(
                 brush = Brush.linearGradient(colors = gradientColors),
                 startAngle = -90f,
@@ -263,19 +375,39 @@ fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modi
                 useCenter = false,
                 style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
             )
-        }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Spark dot at the forward running edge of the arc
+            val angleRad = Math.toRadians((animatedSweepAngle - 90).toDouble())
+            val dotX = centerOffset.x + radius * Math.cos(angleRad).toFloat()
+            val dotY = centerOffset.y + radius * Math.sin(angleRad).toFloat()
+
+            drawCircle(
+                color = (if (info.isPeriod) Color(0xFFFF5252) else if (info.isPms) Color(0xFFFFB300) else localSleekPrimaryVariant).copy(alpha = 0.6f),
+                radius = strokeWidth * 1.1f,
+                center = androidx.compose.ui.geometry.Offset(dotX, dotY)
+            )
+
+            drawCircle(
+                color = Color.White,
+                radius = strokeWidth * 0.5f,
+                center = androidx.compose.ui.geometry.Offset(dotX, dotY)
+            )
+        }
+ 
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.scale(pulseScale)
+        ) {
             Text(
                 text = "روز ${info.currentDay} سیکل",
                 style = MaterialTheme.typography.labelMedium,
-                color = SleekPrimary,
+                color = if (info.isPms) Color(0xFFD97706) else localSleekPrimary,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = if (info.isPeriod) "پریود" else if (info.isFertile) "پنجره باروری" else "روز معمولی",
+                text = if (info.isPeriod) "پریود" else if (info.isFertile) "پنجره باروری" else if (info.isPms) "پیش‌قاعدگی (PMS)" else "روز معمولی",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
                 color = SleekTextMedium
             )
@@ -283,15 +415,15 @@ fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modi
             Box(
                 modifier = Modifier
                     .background(
-                        color = if (info.isFertile) SleekPrimary else SleekBorder, 
+                        color = if (info.isFertile) SleekPrimary else if (info.isPms) Color(0xFFF59E0B) else SleekBorder, 
                         shape = RoundedCornerShape(12.dp)
                     )
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = if (info.isFertile) "بارداری: زیاد" else "بارداری: کم",
+                    text = if (info.isFertile) "بارداری: زیاد" else if (info.isPms) "بارداری: کم" else "بارداری: کم / متوسط",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = if (info.isFertile) Color.White else SleekTextMedium,
+                    color = if (info.isFertile || info.isPms) Color.White else SleekTextMedium,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -303,7 +435,7 @@ fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modi
 fun PredictionsCard(info: CycleInfo) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Card(
             modifier = Modifier.weight(1f),
@@ -312,10 +444,10 @@ fun PredictionsCard(info: CycleInfo) {
             shape = RoundedCornerShape(20.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("پریود بعدی", style = MaterialTheme.typography.labelSmall, color = SleekTextLight)
-                Spacer(modifier = Modifier.height(2.dp))
-                Text("${info.daysUntilNextPeriod} روز دیگر", fontSize = 16.sp, color = SleekPrimaryDark, fontWeight = FontWeight.Black)
+            Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("پریود بعدی", style = MaterialTheme.typography.labelSmall, color = SleekTextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("${info.daysUntilNextPeriod} روز", fontSize = 13.sp, color = SleekPrimaryDark, fontWeight = FontWeight.Black)
             }
         }
         
@@ -326,11 +458,32 @@ fun PredictionsCard(info: CycleInfo) {
             shape = RoundedCornerShape(20.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("تخمک‌گذاری", style = MaterialTheme.typography.labelSmall, color = SleekTextLight)
-                Spacer(modifier = Modifier.height(2.dp))
+            Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("تخمک‌گذاری", style = MaterialTheme.typography.labelSmall, color = SleekTextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
                 val daysToOvulation = if (info.currentDay <= 14) 14 - info.currentDay else (28 - info.currentDay) + 14
-                Text("حدود $daysToOvulation روز", fontSize = 16.sp, color = Indigo500, fontWeight = FontWeight.Black)
+                Text("حدود $daysToOvulation روز", fontSize = 13.sp, color = Indigo500, fontWeight = FontWeight.Black)
+            }
+        }
+
+        Card(
+            modifier = Modifier.weight(1f),
+            colors = CardDefaults.cardColors(containerColor = SleekSurface),
+            border = BorderStroke(1.dp, SleekBorder.copy(alpha = 0.5f)),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("دوره PMS", style = MaterialTheme.typography.labelSmall, color = SleekTextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                val pmsText = if (info.isPms) {
+                    "فعال 🌪️"
+                } else if (info.daysUntilNextPeriod > 6) {
+                    "${info.daysUntilNextPeriod - 6} روز دیگر"
+                } else {
+                    "پایان یافته"
+                }
+                Text(pmsText, fontSize = 13.sp, color = Amber500, fontWeight = FontWeight.Black)
             }
         }
     }
@@ -571,48 +724,228 @@ fun AlertBanner(info: CycleInfo) {
 }
 
 @Composable
-fun CycleHistoryChart(modifier: Modifier = Modifier) {
-    val mockCycleLengths = listOf(28, 29, 27, 30, 26, 28)
+fun CycleHistoryChart(averageCycleLength: Int = 28, modifier: Modifier = Modifier) {
+    val mockCycleLengths = remember(averageCycleLength) {
+        listOf(
+            averageCycleLength - 1,
+            averageCycleLength + 1,
+            averageCycleLength - 2,
+            averageCycleLength + 2,
+            averageCycleLength,
+            averageCycleLength - 1
+        ).map { it.coerceIn(21, 40) }
+    }
+    val months = listOf("دی", "بهمن", "اسفند", "فروردین", "اردیبهشت", "خرداد")
     val average = mockCycleLengths.average().toInt()
-    val max = mockCycleLengths.maxOrNull() ?: 30
+    val maxVal = (mockCycleLengths.maxOrNull() ?: 30).coerceAtLeast(32)
+    val minVal = (mockCycleLengths.minOrNull() ?: 24).coerceAtMost(24) - 2
     
+    val pColor = SleekPrimary
+    val pLightColor = SleekPrimaryLight
+    val bColor = SleekBorder
+
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = SleekSurface),
-        border = BorderStroke(1.dp, SleekBorder.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, bColor.copy(alpha = 0.5f)),
         shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("تحلیل چرخه", style = MaterialTheme.typography.titleSmall, color = SleekTextDark, fontWeight = FontWeight.Bold)
-                Text("میانگین: $average روز", style = MaterialTheme.typography.labelSmall, color = SleekPrimary)
-            }
-            Spacer(modifier = Modifier.height(12.dp))
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(60.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                mockCycleLengths.forEachIndexed { _, length ->
-                    val heightRatio = length.toFloat() / max.toFloat()
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = "$length",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            color = SleekTextMedium,
-                            modifier = Modifier.padding(bottom = 2.dp)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(0.5f)
-                                .fillMaxHeight(heightRatio)
-                                .background(if (length == average) SleekPrimary else SleekPrimaryLight, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                Column {
+                    Text(
+                        text = "نوسانات ۶ ماه گذشته (طرح Recharts)",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = SleekTextDark,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "نمودار خطی هماهنگی و منظم بودن دوره‌ها",
+                        fontSize = 10.sp,
+                        color = SleekTextMedium
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(pLightColor)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "میانگین: $average روز",
+                        fontSize = 10.sp,
+                        color = SleekPrimaryDark,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(20.dp))
+            
+            // Recharts style Area/Line Chart using Compose Canvas
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(130.dp)
+                    .padding(horizontal = 8.dp)
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val width = size.width
+                    val height = size.height
+                    val pointsCount = mockCycleLengths.size
+                    
+                    // Draw horizontal dotted gridlines
+                    val gridLinesCount = 3
+                    val gridSpacing = height / (gridLinesCount + 1)
+                    for (i in 1..gridLinesCount) {
+                        val y = i * gridSpacing
+                        drawLine(
+                            color = bColor.copy(alpha = 0.4f),
+                            start = androidx.compose.ui.geometry.Offset(0f, y),
+                            end = androidx.compose.ui.geometry.Offset(width, y),
+                            strokeWidth = 1f,
+                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
                         )
                     }
+
+                    // Calculate point offsets
+                    val stepX = width / (pointsCount - 1)
+                    val points = mockCycleLengths.mapIndexed { idx, length ->
+                        val ratio = (length - minVal).toFloat() / (maxVal - minVal).toFloat()
+                        val paddingY = 20f
+                        val usableHeight = height - paddingY * 2
+                        val y = height - paddingY - (ratio * usableHeight)
+                        val x = idx * stepX
+                        androidx.compose.ui.geometry.Offset(x, y)
+                    }
+
+                    // Create smooth cubic path
+                    val linePath = androidx.compose.ui.graphics.Path()
+                    if (points.isNotEmpty()) {
+                        linePath.moveTo(points.first().x, points.first().y)
+                        for (i in 1 until points.size) {
+                            val prev = points[i - 1]
+                            val curr = points[i]
+                            val controlPoint1 = androidx.compose.ui.geometry.Offset((prev.x + curr.x) / 2, prev.y)
+                            val controlPoint2 = androidx.compose.ui.geometry.Offset((prev.x + curr.x) / 2, curr.y)
+                            linePath.cubicTo(
+                                controlPoint1.x, controlPoint1.y,
+                                controlPoint2.x, controlPoint2.y,
+                                curr.x, curr.y
+                            )
+                        }
+                    }
+
+                    // Fill gradient under the curve (Area Chart)
+                    val areaPath = androidx.compose.ui.graphics.Path().apply {
+                        addPath(linePath)
+                        lineTo(width, height)
+                        lineTo(0f, height)
+                        close()
+                    }
+                    
+                    drawPath(
+                        path = areaPath,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                pColor.copy(alpha = 0.25f),
+                                pColor.copy(alpha = 0.00f)
+                            ),
+                            startY = 0f,
+                            endY = height
+                        )
+                    )
+
+                    // Draw the primary line cap
+                    drawPath(
+                        path = linePath,
+                        color = pColor,
+                        style = Stroke(
+                            width = 3.dp.toPx(),
+                            cap = StrokeCap.Round,
+                            join = androidx.compose.ui.graphics.StrokeJoin.Companion.Round
+                        )
+                    )
+
+                    // Draw circular anchors/dots
+                    points.forEach { point ->
+                        drawCircle(
+                            color = pColor.copy(alpha = 0.15f),
+                            radius = 7.dp.toPx(),
+                            center = point
+                        )
+                        drawCircle(
+                            color = pColor,
+                            radius = 4.dp.toPx(),
+                            center = point
+                        )
+                        drawCircle(
+                            color = Color.White,
+                            radius = 1.5.dp.toPx(),
+                            center = point
+                        )
+                    }
+                }
+
+                // Values display
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    mockCycleLengths.forEachIndexed { _, length ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                            contentAlignment = Alignment.TopCenter
+                        ) {
+                            val ratio = (length - minVal).toFloat() / (maxVal - minVal).toFloat()
+                            val topPaddingDp = (100 - (ratio * 70).coerceIn(0f, 100f)).dp
+                            
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = topPaddingDp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color.White)
+                                    .border(0.5.dp, SleekBorder, RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    text = "$length روز",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SleekPrimaryDark
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(10.dp))
+            
+            // Month labels
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                months.forEach { month ->
+                    Text(
+                        text = month,
+                        fontSize = 9.sp,
+                        color = SleekTextMedium,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.width(36.dp),
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
@@ -634,8 +967,27 @@ fun SettingsDialog(
     val daysBefore by viewModel.daysBefore.collectAsState()
     val averageCycleLength by viewModel.averageCycleLength.collectAsState()
     val userName by viewModel.userName.collectAsState()
+    val userWeight by viewModel.userWeight.collectAsState()
     val currentTheme by viewModel.appTheme.collectAsState()
     val currentFont by viewModel.appFont.collectAsState()
+    val lastPeriodDate by viewModel.lastPeriodDate.collectAsState()
+
+    var editWeight by remember { mutableStateOf(userWeight) }
+    LaunchedEffect(userWeight) {
+        editWeight = userWeight
+    }
+
+    var editStartDate by remember { mutableStateOf(lastPeriodDate) }
+    var editDuration by remember { mutableStateOf(averageCycleLength.toString()) }
+
+    LaunchedEffect(lastPeriodDate) {
+        if (editStartDate.isBlank() && lastPeriodDate.isNotBlank()) {
+            editStartDate = lastPeriodDate
+        }
+    }
+    LaunchedEffect(averageCycleLength) {
+        editDuration = averageCycleLength.toString()
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -811,35 +1163,154 @@ fun SettingsDialog(
 
                 HorizontalDivider(color = SleekBorder)
 
-                // Profile Configuration Section
-                Text(
-                    "پروفایل و طول چرخه قاعدگی",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = SleekPrimary
-                )
-                
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                // Profile Component Card for Menstrual Cycle & Personal Info Sync
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = SleekSurface),
+                    border = BorderStroke(1.dp, SleekBorder.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("نام کاربری: $userName", fontSize = 12.sp, color = SleekTextMedium)
-                        Text("طول چرخه پیش‌فرض: $averageCycleLength روز", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SleekPrimary)
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Slider(
-                        value = averageCycleLength.toFloat(),
-                        onValueChange = { viewModel.setAverageCycleLength(it.toInt()) },
-                        valueRange = 21f..45f,
-                        steps = 23,
-                        colors = SliderDefaults.colors(
-                            thumbColor = SleekPrimary,
-                            activeTrackColor = SleekPrimary,
-                            inactiveTrackColor = SleekBorder
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "تنظیمات اطلاعات چرخه قاعدگی هانیتا",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = SleekPrimary
+                            )
+                            Text(
+                                text = "کاربر: $userName",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SleekTextMedium
+                            )
+                        }
+
+                        // 1. Weight Form Field
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = editWeight,
+                                onValueChange = { editWeight = it },
+                                label = { Text("وزن فعلی شما (kg)", fontSize = 11.sp) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1.2f),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = SleekPrimary,
+                                    unfocusedBorderColor = SleekBorder
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            Button(
+                                onClick = {
+                                    viewModel.setWeight(editWeight)
+                                    android.widget.Toast.makeText(context, "وزن شما با موفقیت در فایربیس ذخیره شد.", android.widget.Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = SleekPrimary),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.height(45.dp)
+                            ) {
+                                Text("ذخیره وزن", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+
+                        HorizontalDivider(color = SleekBorder.copy(alpha = 0.4f))
+
+                        // 2. Menstrual Cycle Form Fields
+                        Text(
+                            text = "فرم اطلاعات شروع و طول چرخه (سیستم هوشمند)",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.sp,
+                            color = SleekTextMedium
                         )
-                    )
+
+                        OutlinedTextField(
+                            value = editStartDate,
+                            onValueChange = { editStartDate = it },
+                            label = { Text("تاریخ شروع آخرین قاعدگی (YYYY-MM-DD)", fontSize = 11.sp) },
+                            placeholder = { Text("مثال: 2026-06-13", fontSize = 11.sp, color = SleekTextLight) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = SleekPrimary,
+                                unfocusedBorderColor = SleekBorder
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.CalendarMonth,
+                                    contentDescription = "تاریخ آخرین قاعدگی",
+                                    tint = SleekPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = editDuration,
+                                onValueChange = { editDuration = it },
+                                label = { Text("طول کل چرخه (روز)", fontSize = 11.sp) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = SleekPrimary,
+                                    unfocusedBorderColor = SleekBorder
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.Settings,
+                                        contentDescription = "طول دوره",
+                                        tint = SleekPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            )
+
+                            Button(
+                                onClick = {
+                                    val durationInt = editDuration.toIntOrNull()
+                                    if (durationInt == null || durationInt !in 21..45) {
+                                        android.widget.Toast.makeText(context, "لطفاً طول چرخه معتبر بین ۲۱ تا ۴۵ روز وارد کنید.", android.widget.Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    if (editStartDate.isNotBlank()) {
+                                        try {
+                                            java.time.LocalDate.parse(editStartDate, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                                        } catch (e: Exception) {
+                                            android.widget.Toast.makeText(context, "فرمت تاریخ شروع نامعتبر است (باید YYYY-MM-DD باشد)", android.widget.Toast.LENGTH_SHORT).show()
+                                            return@Button
+                                        }
+                                    }
+                                    viewModel.updateCycleSettings(editStartDate, durationInt)
+                                    android.widget.Toast.makeText(context, "اطلاعات چرخه شما ذخیره و در فایربیس ابری همگام‌سازی شد.", android.widget.Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA78BFA)),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.height(45.dp).weight(1.3f)
+                            ) {
+                                Text("ذخیره چرخه در فایربیس", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
                 }
 
                 if (isNotificationEnabled) {

@@ -41,6 +41,16 @@ import com.example.utils.JalaliCalendar
 import com.example.utils.JalaliDate
 import java.time.LocalDate
 
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.GoogleAuthProvider
+import com.example.R
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import androidx.compose.ui.platform.LocalContext
+
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun LoginScreen(
@@ -187,7 +197,7 @@ fun LoginScreen(
                 }
             }
         }
-    }
+}
 }
 
 @Composable
@@ -196,6 +206,27 @@ fun StepWelcome(
     onNameChange: (String) -> Unit,
     onNext: () -> Unit
 ) {
+    val context = LocalContext.current
+    val auth = remember { FirebaseAuth.getInstance() }
+    
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)!!
+            val credential = GoogleAuthProvider.getCredential(account.idToken, null)
+            auth.signInWithCredential(credential).addOnCompleteListener {
+                if (it.isSuccessful) {
+                    onNameChange(account.displayName ?: "کاربر عزیز")
+                    onNext()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         // Step 1 Welcome Illustration using elegant canvas petals style
         Canvas(modifier = Modifier.size(120.dp)) {
@@ -243,7 +274,7 @@ fun StepWelcome(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "جهت شخصی‌سازی پیش‌بینی‌ها، لطفاً نام زیبای خودت رو بنویس:",
+            text = "برای شخصی‌سازی پیش‌بینی‌ها، لطفاً با حساب کاربری خود وارد شوید یا نام خود را بنویسید:",
             style = MaterialTheme.typography.bodyMedium,
             color = Color.White.copy(alpha = 0.7f),
             textAlign = TextAlign.Center,
@@ -252,10 +283,39 @@ fun StepWelcome(
         
         Spacer(modifier = Modifier.height(24.dp))
 
+        Button(
+            onClick = {
+                val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(context.getString(R.string.default_web_client_id))
+                    .requestEmail()
+                    .build()
+                val googleSignInClient = GoogleSignIn.getClient(context, gso)
+                launcher.launch(googleSignInClient.signInIntent)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.White,
+                contentColor = Color(0xFF1C1834)
+            )
+        ) {
+            Text("ورود با حساب گوگل", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "یا",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.White.copy(alpha = 0.5f)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
         OutlinedTextField(
             value = name,
             onValueChange = onNameChange,
-            label = { Text("نام شما", color = Color.White.copy(alpha = 0.6f)) },
+            label = { Text("ورود مهمان (نام شما)", color = Color.White.copy(alpha = 0.6f)) },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("username_input"),

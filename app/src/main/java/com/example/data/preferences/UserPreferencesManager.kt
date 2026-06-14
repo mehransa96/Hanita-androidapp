@@ -20,6 +20,12 @@ class UserPreferencesManager(context: Context) {
     private val _userName = MutableStateFlow(prefs.getString("user_name", "") ?: "")
     val userName: StateFlow<String> = _userName.asStateFlow()
 
+    private val _userWeight = MutableStateFlow(prefs.getString("user_weight", "65") ?: "65")
+    val userWeight: StateFlow<String> = _userWeight.asStateFlow()
+
+    private val _lastPeriodDate = MutableStateFlow(prefs.getString("last_period_date", "") ?: "")
+    val lastPeriodDate: StateFlow<String> = _lastPeriodDate.asStateFlow()
+
     private val _userAvatar = MutableStateFlow(prefs.getString("user_avatar", "avatar_default") ?: "avatar_default")
     val userAvatar: StateFlow<String> = _userAvatar.asStateFlow()
 
@@ -28,6 +34,12 @@ class UserPreferencesManager(context: Context) {
 
     private val _isNotificationEnabled = MutableStateFlow(prefs.getBoolean("is_notification_enabled", true))
     val isNotificationEnabled: StateFlow<Boolean> = _isNotificationEnabled.asStateFlow()
+
+    private val _isAiRemindersEnabled = MutableStateFlow(prefs.getBoolean("is_ai_reminders_enabled", true))
+    val isAiRemindersEnabled: StateFlow<Boolean> = _isAiRemindersEnabled.asStateFlow()
+
+    private val _isOvulationRemindersEnabled = MutableStateFlow(prefs.getBoolean("is_ovulation_reminders_enabled", true))
+    val isOvulationRemindersEnabled: StateFlow<Boolean> = _isOvulationRemindersEnabled.asStateFlow()
 
     private val _daysBefore = MutableStateFlow(prefs.getInt("days_before_notification", 1))
     val daysBefore: StateFlow<Int> = _daysBefore.asStateFlow()
@@ -71,6 +83,16 @@ class UserPreferencesManager(context: Context) {
         _isNotificationEnabled.value = enabled
     }
 
+    fun setAiRemindersEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("is_ai_reminders_enabled", enabled).apply()
+        _isAiRemindersEnabled.value = enabled
+    }
+
+    fun setOvulationRemindersEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("is_ovulation_reminders_enabled", enabled).apply()
+        _isOvulationRemindersEnabled.value = enabled
+    }
+
     fun setDaysBefore(days: Int) {
         prefs.edit().putInt("days_before_notification", days).apply()
         _daysBefore.value = days
@@ -94,6 +116,16 @@ class UserPreferencesManager(context: Context) {
     fun setUserAvatar(avatar: String) {
         prefs.edit().putString("user_avatar", avatar).apply()
         _userAvatar.value = avatar
+    }
+
+    fun setUserWeight(weight: String) {
+        prefs.edit().putString("user_weight", weight).apply()
+        _userWeight.value = weight
+    }
+
+    fun setLastPeriodDate(dateStr: String) {
+        prefs.edit().putString("last_period_date", dateStr).apply()
+        _lastPeriodDate.value = dateStr
     }
 
     private fun getMedicationRemindersFromPrefs(): List<MedicineReminder> {
@@ -120,5 +152,13 @@ class UserPreferencesManager(context: Context) {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    fun getCycleAnalysisReport(): String {
+        return prefs.getString("cycle_analysis_report", "") ?: ""
+    }
+
+    fun saveCycleAnalysisReport(report: String) {
+        prefs.edit().putString("cycle_analysis_report", report).apply()
     }
 }

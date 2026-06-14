@@ -98,8 +98,14 @@ fun MeditationMusicScreen(
         try {
             mediaPlayer.reset()
             if (currentTrack != null) {
-                // Using a reliable high-quality meditation/nature sound URL
-                val url = "https://cdn.pixabay.com/download/audio/2022/05/16/audio_9bc57c0e86.mp3"
+                val songIndex = when (currentTrack?.categoryId) {
+                    "meditation" -> 1
+                    "nature" -> 2
+                    "healing" -> 3
+                    "lofi" -> 4
+                    else -> 1
+                }
+                val url = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-$songIndex.mp3"
                 mediaPlayer.setDataSource(context, android.net.Uri.parse(url))
                 mediaPlayer.prepareAsync()
                 mediaPlayer.setOnPreparedListener {

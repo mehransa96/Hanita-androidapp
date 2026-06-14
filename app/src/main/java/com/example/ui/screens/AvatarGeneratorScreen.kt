@@ -41,6 +41,36 @@ import com.example.ui.viewmodel.MahitaViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+
+@Composable
+fun AvatarRenderer(avatarId: String, modifier: Modifier = Modifier) {
+    if (avatarId.startsWith("gen_base64_")) {
+        val base64String = avatarId.removePrefix("gen_base64_")
+        try {
+            val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
+            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Avatar",
+                    modifier = modifier,
+                    contentScale = ContentScale.Crop
+                )
+                return
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    
+    FantasyAvatarCanvas(avatarId = avatarId, modifier = modifier)
+}
+
 @Composable
 fun FantasyAvatarCanvas(avatarId: String, modifier: Modifier = Modifier) {
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -233,42 +263,34 @@ fun AvatarGeneratorScreen(
             isGenerating = true
             coroutineScope.launch {
                 // Step 1: Initialize connection
-                generationStep = "در حال فراخوانی موتور تصویرساز Imagen 3..."
-                progress = 0.1f
-                delay(800)
-
-                // Step 2: Prompt interpretation
-                generationStep = "تلفیق جزئیات درخواست با سبک هنری ${fantasyStyles.firstOrNull { it.first == selectedStyle }?.second}..."
-                progress = 0.35f
-                delay(900)
-
-                // Step 3: Drawing shapes
-                generationStep = "رسم ذرات درخشان فانتزی و آرایه‌های نوری جادویی..."
-                progress = 0.65f
-                delay(800)
-
-                // Step 4: Polish color palette
-                generationStep = "افزایش غلظت رنگ‌ها، بهبود درخشندگی و ثبات بافت اثر دیجیتال..."
-                progress = 0.85f
-                delay(700)
-
-                // Step 5: Final output
-                val newId = "gen_${selectedStyle}_${System.currentTimeMillis()}"
-                val styleLabel = fantasyStyles.firstOrNull { it.first == selectedStyle }?.second ?: "سفارشی"
-                val newOption = AvatarOption(newId, "طرح $styleLabel (سفارشی)", true, selectedStyle)
+                generationStep = "در حال تولید تصویر با استفاده از Gemini 3 Pro Image..."
+                progress = 0.3f
                 
-                avatarOptionsList.add(1, newOption) // Put generated at the top priority slot
-                selectedAvatarId = newId
+                val styleString = fantasyStyles.firstOrNull { it.first == selectedStyle }?.second ?: ""
+                val fullPrompt = "$userPrompt. The style should be: $styleString"
                 
-                progress = 1.0f
-                generationStep = "آواتار فانتزی شما با موفقیت تولید شد! 🎉"
-                delay(500)
+                val base64Image = viewModel.generateAvatarImageWithAI(fullPrompt, selectedResolution)
+
+                if (base64Image != null) {
+                    val newId = "gen_base64_$base64Image"
+                    val styleLabel = fantasyStyles.firstOrNull { it.first == selectedStyle }?.second ?: "سفارشی"
+                    val newOption = AvatarOption(newId, "طرح $styleLabel (AI - $selectedResolution)", true, "custom")
+                    
+                    avatarOptionsList.add(1, newOption)
+                    selectedAvatarId = newId
+                    progress = 1.0f
+                    generationStep = "آواتار شما تولید شد! 🎉"
+                    snackbarHostState.showSnackbar("آواتار جادویی آماده ثبت است!")
+                } else {
+                    progress = 1.0f
+                    generationStep = "خطا در تولید تصویر! سهمیه مجاز محدودیت دارد یا ارتباط شبکه قطع است."
+                    snackbarHostState.showSnackbar("تولید آواتار با خطا مواجه شد.")
+                }
                 
+                delay(1000)
                 isGenerating = false
                 userPrompt = ""
                 focusManager.clearFocus()
-                
-                snackbarHostState.showSnackbar("آواتار جادویی نوظهور آماده ثبت است! کلید ثبت نهایی را فشرده کنید.")
             }
         }
     }
@@ -341,7 +363,7 @@ fun AvatarGeneratorScreen(
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surface)
                         ) {
-                            FantasyAvatarCanvas(
+                            AvatarRenderer(
                                 avatarId = selectedAvatarId,
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -426,6 +448,35 @@ fun AvatarGeneratorScreen(
                         }
                     }
 
+                    var selectedResolution by remember { mutableStateOf("1K") }
+                    val resolutions = listOf("1K", "2K", "4K")
+                    
+                    Text("کیفیت تصویر را انتخاب کنید:", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        resolutions.forEach { res ->
+                            val active = selectedResolution == res
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (active) Color(0xFF6366F1) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .clickable { selectedResolution = res }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = res,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (active) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
                     // Loading State with live procedural metrics
                     AnimatedVisibility(
                         visible = isGenerating,
@@ -502,7 +553,7 @@ fun AvatarGeneratorScreen(
                                     .size(52.dp)
                                     .clip(CircleShape)
                             ) {
-                                FantasyAvatarCanvas(
+                                AvatarRenderer(
                                     avatarId = item.id,
                                     modifier = Modifier.fillMaxSize()
                                 )

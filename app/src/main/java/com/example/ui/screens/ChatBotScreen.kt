@@ -55,7 +55,14 @@ import java.util.concurrent.TimeUnit
 // --- Network & APIs ---
 data class GeminiPart(val text: String)
 data class GeminiContent(val role: String?, val parts: List<GeminiPart>)
-data class GeminiRequest(val contents: List<GeminiContent>, val systemInstruction: GeminiContent? = null)
+data class GeminiRequest(
+    val contents: List<GeminiContent>,
+    val systemInstruction: GeminiContent? = null,
+    val tools: List<GeminiTool>? = null
+)
+
+class GeminiGoogleSearchTool()
+data class GeminiTool(val googleSearch: GeminiGoogleSearchTool? = GeminiGoogleSearchTool())
 data class GeminiResponse(val candidates: List<GeminiCandidate>?)
 data class GeminiCandidate(val content: GeminiContent?)
 
@@ -162,7 +169,8 @@ fun ChatBotScreen(onNavigateBack: () -> Unit) {
 
                     val request = GeminiRequest(
                         contents = apiContents,
-                        systemInstruction = systemMessage
+                        systemInstruction = systemMessage,
+                        tools = listOf(GeminiTool())
                     )
 
                     val apiKey = BuildConfig.GEMINI_API_KEY

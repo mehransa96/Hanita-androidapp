@@ -1,0 +1,20 @@
+package com.example.data.dao
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.example.data.model.CycleRecord
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface CycleRecordDao {
+    @Query("SELECT * FROM cycle_records")
+    fun getAllCycleRecords(): Flow<List<CycleRecord>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCycleRecord(cycleRecord: CycleRecord)
+
+    @Query("DELETE FROM cycle_records WHERE id = :id")
+    suspend fun deleteCycleRecord(id: String)
+}

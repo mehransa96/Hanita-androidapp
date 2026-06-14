@@ -10,6 +10,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -57,6 +58,8 @@ fun RemindersScreen(
     val coroutineScope = rememberCoroutineScope()
 
     val isNotificationEnabled by viewModel.isNotificationEnabled.collectAsState()
+    val isAiRemindersEnabled by viewModel.isAiRemindersEnabled.collectAsState()
+    val isOvulationRemindersEnabled by viewModel.isOvulationRemindersEnabled.collectAsState()
     val daysBefore by viewModel.daysBefore.collectAsState()
     val cycleInfo by viewModel.cycleInfo.collectAsState()
     val medicationReminders by viewModel.medicationReminders.collectAsState()
@@ -262,6 +265,179 @@ fun RemindersScreen(
                                     Icon(imageVector = Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("ارسال تست هشدار چرخه 🔔", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Section 1.5: AI Personalized Reminders & Predictions
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Psychology,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Column {
+                                    Text("پیش‌بینی و یادآور هوشمند هوش مصنوعی 🧠✨", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(
+                                        text = "شخصی‌سازی هشدارها بر اساس تحلیل الگوهای اختصاصی بدن شما",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Switch 1: AI period reminder
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("اعلان هوشمند پیش‌بینی شروع دوره بعدی", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                    Text("ارسال پیام همراه با توصیه‌های تغذیه و سلامت شخصی‌سازی شده توسط Gemini", fontSize = 10.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.6f))
+                                }
+                                Switch(
+                                    checked = isAiRemindersEnabled,
+                                    onCheckedChange = { viewModel.setAiRemindersEnabled(it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = MaterialTheme.colorScheme.secondary
+                                    )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Switch 2: AI ovulation reminder
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("اعلان هوشمند پنجره تخمک‌گذاری و باروری", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                    Text("اطلاع‌رسانی دوران طلایی انرژی بدن همراه با معرفی بهترین تمرینات ورزشی و پویا", fontSize = 10.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.6f))
+                                }
+                                Switch(
+                                    checked = isOvulationRemindersEnabled,
+                                    onCheckedChange = { viewModel.setOvulationRemindersEnabled(it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = MaterialTheme.colorScheme.secondary
+                                    )
+                                )
+                            }
+
+                            if (isAiRemindersEnabled || isOvulationRemindersEnabled) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.05f))
+                                        .border(0.5.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                        .padding(12.dp)
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "📥 پیش‌نمایش پیام سفارشی‌شده هوش مصنوعی شما:",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.secondary
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        
+                                        if (isAiRemindersEnabled) {
+                                            val aiMsg = viewModel.getPersonalizedAiReminderMessage()
+                                            Text(
+                                                text = "📌 ${aiMsg.first}:\n${aiMsg.second}",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                                lineHeight = 15.sp
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                        }
+                                        
+                                        if (isOvulationRemindersEnabled) {
+                                            val ovMsg = viewModel.getOvulationReminderMessage()
+                                            Text(
+                                                text = "📌 ${ovMsg.first}:\n${ovMsg.second}",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                                lineHeight = 15.sp
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (isAiRemindersEnabled) {
+                                        Button(
+                                            onClick = {
+                                                val aiMsg = viewModel.getPersonalizedAiReminderMessage()
+                                                triggerTestNotification(aiMsg.first, aiMsg.second)
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
+                                                contentColor = MaterialTheme.colorScheme.secondary
+                                            ),
+                                            contentPadding = PaddingValues(horizontal = 8.dp)
+                                        ) {
+                                            Icon(imageVector = Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("تست یادآور دوره 🧠", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+
+                                    if (isOvulationRemindersEnabled) {
+                                        Button(
+                                            onClick = {
+                                                val ovMsg = viewModel.getOvulationReminderMessage()
+                                                triggerTestNotification(ovMsg.first, ovMsg.second)
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
+                                                contentColor = MaterialTheme.colorScheme.secondary
+                                            ),
+                                            contentPadding = PaddingValues(horizontal = 8.dp)
+                                        ) {
+                                            Icon(imageVector = Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("تست یادآور باروری 🌸", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                 }
                             }
                         }

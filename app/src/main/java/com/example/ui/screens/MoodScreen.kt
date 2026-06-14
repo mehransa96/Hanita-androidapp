@@ -61,14 +61,71 @@ fun MoodScreen(
     val durationSeconds = 180 // 3 minutes track standard
     var isFavorited by remember { mutableStateOf(false) }
 
-    // Sound Playback ticker simulation
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val mediaPlayer = remember { android.media.MediaPlayer() }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                mediaPlayer.release()
+            } catch(e: Exception) {}
+        }
+    }
+
+    LaunchedEffect(currentPlayingMusic) {
+        try {
+            mediaPlayer.reset()
+            if (currentPlayingMusic != null) {
+                val songIndex = when (currentPhaseKey) {
+                    "period" -> 5
+                    "ovulation" -> 6
+                    "follicular" -> 7
+                    else -> 8
+                }
+                val url = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-$songIndex.mp3"
+                mediaPlayer.setDataSource(context, android.net.Uri.parse(url))
+                mediaPlayer.prepareAsync()
+                mediaPlayer.setOnPreparedListener {
+                    if (isPlaying) it.start()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    LaunchedEffect(isPlaying) {
+        try {
+            if (isPlaying) {
+                if (currentPlayingMusic != null) {
+                    mediaPlayer.start()
+                }
+            } else {
+                if (mediaPlayer.isPlaying) mediaPlayer.pause()
+            }
+        } catch (e: Exception) {}
+    }
+
+    // Sound Playback ticker simulation and real sync
     LaunchedEffect(isPlaying, currentPlayingMusic) {
         if (isPlaying && currentPlayingMusic != null) {
             while (isPlaying && currentPlayingMusic != null) {
                 delay(1000)
-                if (currentPositionSeconds < durationSeconds) {
-                    currentPositionSeconds += 1
-                } else {
+                try {
+                    if (mediaPlayer.isPlaying) {
+                        currentPositionSeconds = mediaPlayer.currentPosition / 1000
+                    } else {
+                        if (currentPositionSeconds < durationSeconds) {
+                            currentPositionSeconds += 1
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (currentPositionSeconds < durationSeconds) {
+                        currentPositionSeconds += 1
+                    }
+                }
+                
+                if (currentPositionSeconds >= durationSeconds) {
                     // Automove next track logic
                     val currentIndex = recommendedMusic.indexOf(currentPlayingMusic)
                     if (currentIndex != -1 && currentIndex < recommendedMusic.lastIndex) {
