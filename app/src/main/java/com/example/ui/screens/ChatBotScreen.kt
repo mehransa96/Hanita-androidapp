@@ -25,6 +25,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
@@ -52,50 +54,7 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
-// --- Network & APIs ---
-data class GeminiPart(val text: String)
-data class GeminiContent(val role: String?, val parts: List<GeminiPart>)
-data class GeminiRequest(
-    val contents: List<GeminiContent>,
-    val systemInstruction: GeminiContent? = null,
-    val tools: List<GeminiTool>? = null
-)
-
-class GeminiGoogleSearchTool()
-data class GeminiTool(val googleSearch: GeminiGoogleSearchTool? = GeminiGoogleSearchTool())
-data class GeminiResponse(val candidates: List<GeminiCandidate>?)
-data class GeminiCandidate(val content: GeminiContent?)
-
-interface GeminiService {
-    @POST("v1beta/models/gemini-3.5-flash:generateContent")
-    suspend fun generateContent(
-        @Query("key") apiKey: String,
-        @Body request: GeminiRequest
-    ): GeminiResponse
-}
-
-object GeminiClient {
-    private const val BASE_URL = "https://generativelanguage.googleapis.com/"
-
-    private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(45, TimeUnit.SECONDS)
-        .readTimeout(45, TimeUnit.SECONDS)
-        .writeTimeout(45, TimeUnit.SECONDS)
-        .build()
-
-    private val moshi = Moshi.Builder()
-        .add(KotlinJsonAdapterFactory())
-        .build()
-
-    val service: GeminiService by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .client(okHttpClient)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
-            .build()
-            .create(GeminiService::class.java)
-    }
-}
+import com.example.ui.viewmodel.*
 
 // --- Chat state classes ---
 data class ChatMessage(
@@ -107,13 +66,20 @@ data class ChatMessage(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatBotScreen(onNavigateBack: () -> Unit) {
+fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigateBack: () -> Unit) {
     val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val listState = rememberLazyListState()
 
     var textInput by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var highThinkingEnabled by remember { mutableStateOf(false) }
+    var isRecordingAudio by remember { mutableStateOf(false) }
+
+    val allLogs by viewModel.allLogs.collectAsState()
+    val userName by viewModel.userName.collectAsState()
+    val startPeriod by viewModel.lastPeriodDate.collectAsState()
+    val cycleL by viewModel.averageCycleLength.collectAsState()
 
     // Chat History Starts with a warm welcome in Persian
     val messages = remember {
@@ -128,6 +94,7 @@ fun ChatBotScreen(onNavigateBack: () -> Unit) {
 
     // Quick suggestions based on common questions asked by women
     val suggestedQuestions = listOf(
+        "📊 چرخه و علائم من را تحلیل کن",
         "چطور درد پریود را کاهش بدم؟ 🌸",
         "تغذیه مناسب دوران قاعدگی چیست؟ 🍎",
         "علت نوسانات خلقی قبل پریود چیست؟ 🔮",
@@ -143,9 +110,24 @@ fun ChatBotScreen(onNavigateBack: () -> Unit) {
         }
     }
 
-    val sendMessage: (String) -> Unit = { userText ->
-        if (userText.isNotBlank()) {
-            val userMsg = ChatMessage(id = java.util.UUID.randomUUID().toString(), text = userText, isUser = true)
+    val sendMessage: (String) -> Unit = { rawUserText ->
+        if (rawUserText.isNotBlank()) {
+            val isAnalysisRequest = rawUserText.contains("تحلیل کن")
+            val displayUserText = rawUserText
+            
+            var internalSystemPromptContext = ""
+            if (isAnalysisRequest) {
+                val logsSummaryText = if (allLogs.isEmpty()) {
+                    "سابقه ثبت روزانه علائم فعال: ندارد. تاریخ شروع آخرین پریود: $startPeriod و فواصل فرضی معمول چرخه: $cycleL روز است."
+                } else {
+                    allLogs.take(25).joinToString("\n") { log ->
+                        "تاریخ: ${log.dateStr} | سطح خونریزی: ${log.periodFlow} | علائم بدنی: ${log.symptoms} | نوسانات روحی: ${log.moods} | یادداشت کاربر: ${log.notes}"
+                    }
+                }
+                internalSystemPromptContext = "\nلطفا سوابق زیر مربوط به چرخه من را بررسی کن و یک تحلیل سلامت روان و توصیه‌های شخصی با لحن خواهرانه و گرم ارائه بده:\n$logsSummaryText"
+            }
+
+            val userMsg = ChatMessage(id = java.util.UUID.randomUUID().toString(), text = displayUserText, isUser = true)
             messages.add(userMsg)
             textInput = ""
             focusManager.clearFocus()
@@ -154,23 +136,34 @@ fun ChatBotScreen(onNavigateBack: () -> Unit) {
 
             coroutineScope.launch {
                 try {
-                    val systemMessage = GeminiContent(
+                    val systemMessage = GemAnalysisContent(
                         role = "system",
-                        parts = listOf(GeminiPart("You are a compassionate, expert AI health advisor named 'هانیتا' (Hanita), specializing in women's health. Provide polite, precise, medically supportive, yet friendly answers in Persian language (Farsi). Add friendly emojis when appropriate, but maintain standard health guidance. Always include a tiny disclaimer at the bottom of the response: 'توصیه هانیتا؛ همواره در موارد پزشکی با پزشک متخصص مشورت کنید.'."))
+                        parts = listOf(GemAnalysisPart(text = "You are a compassionate, expert AI health advisor named 'هانیتا' (Hanita), specializing in women's health. Provide polite, precise, medically supportive, yet friendly answers in Persian language (Farsi). Add friendly emojis. Format the output with bold headings for readability. Always include a tiny disclaimer at the bottom: 'توصیه هانیتا؛ همواره در موارد پزشکی با پزشک مشورت کنید.'"))
                     )
 
                     // Gather history for context
                     val apiContents = messages.map { msg ->
-                        GeminiContent(
+                        GemAnalysisContent(
                             role = if (msg.isUser) "user" else "model",
-                            parts = listOf(GeminiPart(msg.text))
+                            parts = listOf(GemAnalysisPart(text = msg.text))
                         )
+                    }.toMutableList()
+                    
+                    if (isAnalysisRequest) {
+                        // Append hidden context to the latest user message
+                        val lastIndex = apiContents.indexOfLast { it.role == "user" }
+                        if (lastIndex != -1) {
+                            apiContents[lastIndex] = GemAnalysisContent("user", listOf(GemAnalysisPart(text = displayUserText + "\n" + internalSystemPromptContext)))
+                        }
                     }
 
-                    val request = GeminiRequest(
+                    val request = GemAnalysisRequest(
                         contents = apiContents,
                         systemInstruction = systemMessage,
-                        tools = listOf(GeminiTool())
+                        tools = listOf(GemTool(googleSearch = GemGoogleSearchTool())),
+                        generationConfig = if (highThinkingEnabled) GemGenerationConfig(
+                            thinkingConfig = GemThinkingConfig(thinkingLevel = "HIGH")
+                        ) else null
                     )
 
                     val apiKey = BuildConfig.GEMINI_API_KEY
@@ -189,7 +182,11 @@ fun ChatBotScreen(onNavigateBack: () -> Unit) {
                     }
 
                     val response = withContext(Dispatchers.IO) {
-                        GeminiClient.service.generateContent(apiKey, request)
+                        if (highThinkingEnabled) {
+                            GeminiAnalysisClient.service.generateContentPro(apiKey, request)
+                        } else {
+                            GeminiAnalysisClient.service.generateContent(apiKey, request)
+                        }
                     }
 
                     val botReplyText = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
@@ -265,8 +262,24 @@ fun ChatBotScreen(onNavigateBack: () -> Unit) {
                         }
                         Column {
                             Text("گفتگو با هانیتا 🌸", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("یاز اول سلامت زنان (مبتنی بر هوش مصنوعی)", style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.6f))
+                            Text("مشاور هوشمند سلامت زنان", style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.6f))
                         }
+                    }
+                },
+                actions = {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
+                        Text(
+                            text = "تفکر عمیق",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (highThinkingEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Switch(
+                            checked = highThinkingEnabled,
+                            onCheckedChange = { highThinkingEnabled = it },
+                            modifier = Modifier.scale(0.8f)
+                        )
                     }
                 },
                 navigationIcon = {
@@ -425,7 +438,7 @@ fun ChatBotScreen(onNavigateBack: () -> Unit) {
                     TextField(
                         value = textInput,
                         onValueChange = { textInput = it },
-                        placeholder = { Text("پاسخ یا سوال خود را اینجا بنویسید...", fontSize = 13.sp) },
+                        placeholder = { Text(if (isRecordingAudio) "در حال شنیدن... (درحال تبدیل صدا به متن)" else "پاسخ یا سوال خود را اینجا بنویسید...", fontSize = 13.sp) },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("chat_input_field"),
@@ -449,6 +462,43 @@ fun ChatBotScreen(onNavigateBack: () -> Unit) {
                             }
                         )
                     )
+
+                    // Audio Recording Mic
+                    val infiniteTransition = rememberInfiniteTransition(label = "recordingScale")
+                    val recordScale by infiniteTransition.animateFloat(
+                        initialValue = 1f,
+                        targetValue = if (isRecordingAudio) 1.2f else 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(600, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = ""
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .scale(recordScale)
+                            .clip(CircleShape)
+                            .background(if (isRecordingAudio) Color.Red.copy(alpha = 0.8f) else MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable {
+                                if (isRecordingAudio) {
+                                    isRecordingAudio = false
+                                    // Mock transcription since emulator lacks mic bytes
+                                    textInput += " [صدای ضبط شده: لطفا شرایط بدنی و روحیه من رو با دقت تحلیل کن] "
+                                } else {
+                                    isRecordingAudio = true
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Mic,
+                            contentDescription = "ضبط صدا",
+                            tint = if (isRecordingAudio) Color.White else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
 
                     Box(
                         modifier = Modifier

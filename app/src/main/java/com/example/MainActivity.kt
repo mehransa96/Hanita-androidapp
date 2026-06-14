@@ -31,16 +31,147 @@ import com.example.ui.screens.ChatBotScreen
 import com.example.ui.screens.MeditationMusicScreen
 import com.example.ui.screens.RemindersScreen
 import com.example.ui.screens.AvatarGeneratorScreen
-import com.example.ui.screens.CycleAnalysisScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.MahitaViewModel
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Setup Uncaught Exception Logger to diagnose and gracefully recover from crashes
+        val originalHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                val prefs = getSharedPreferences("crash_reports", android.content.Context.MODE_PRIVATE)
+                val writer = java.io.StringWriter()
+                throwable.printStackTrace(java.io.PrintWriter(writer))
+                val stackTrace = writer.toString()
+                prefs.edit().putString("last_crash", stackTrace).commit()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            originalHandler?.uncaughtException(thread, throwable)
+        }
+
         enableEdgeToEdge()
         setContent {
-            val viewModel: MahitaViewModel = viewModel()
+            val crashPrefs = remember { getSharedPreferences("crash_reports", android.content.Context.MODE_PRIVATE) }
+            var crashStackTrace by remember { mutableStateOf(crashPrefs.getString("last_crash", null)) }
+
+            if (crashStackTrace != null) {
+                // Beautiful Recovery and Crash Diagnosis Screen in Farsi
+                MyApplicationTheme(themeCode = "COSMIC_BLOSSOM", fontCode = "CLASSIC") {
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.background
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(24.dp)
+                                    .verticalScroll(rememberScrollState()),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = "سامانه ایمن بازیابی خطا 🌸",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "پوزش می‌طلبیم؛ برنامه با یک خطای فنی متوقف شد. برای بازیابی می‌توانید حافظه موقت را بازنشانی کرده یا سیستم را دوباره اجرا کنید.",
+                                    fontSize = 13.sp,
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 200.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp).verticalScroll(rememberScrollState())) {
+                                        Text(
+                                            text = "گزارش خطا (جهت ارسال به پشتیبان):",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = crashStackTrace ?: "No Trace",
+                                            fontSize = 10.sp,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(24.dp))
+                                
+                                Button(
+                                    onClick = {
+                                        // 1. Clear Preferences
+                                        val prefs = getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE)
+                                        prefs.edit().clear().commit()
+                                        crashPrefs.edit().clear().commit()
+                                        
+                                        // 2. Clear / Delete Room Database
+                                        try {
+                                            deleteDatabase("hanita_database")
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
+                                        
+                                        // 3. Restart Application
+                                        val intent = packageManager.getLaunchIntentForPackage(packageName)
+                                        if (intent != null) {
+                                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                            startActivity(intent)
+                                            finish()
+                                        } else {
+                                            crashStackTrace = null
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Text("بازنشانی پایگاه‌داده و راه‌اندازی تازه 🔄", fontWeight = FontWeight.Bold)
+                                }
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                OutlinedButton(
+                                    onClick = {
+                                        crashPrefs.edit().remove("last_crash").commit()
+                                        crashStackTrace = null
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("تلاش مجدد (بدون حذف داده‌ها) 🚀")
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                val viewModel: MahitaViewModel = viewModel()
             val appTheme by viewModel.appTheme.collectAsState()
             val appFont by viewModel.appFont.collectAsState()
 
@@ -104,19 +235,12 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToMeditation = { navController.navigate("meditation") },
                                     onNavigateToReminders = { navController.navigate("reminders") },
                                     onNavigateToAvatarGenerator = { navController.navigate("avatargenerator") },
-                                    onNavigateToCycleAnalysis = { navController.navigate("cycle_analysis") },
                                     onLogout = {
                                         viewModel.logout()
                                         navController.navigate("login") {
                                             popUpTo("dashboard") { inclusive = true }
                                         }
                                     }
-                                )
-                            }
-                            composable("cycle_analysis") {
-                                CycleAnalysisScreen(
-                                    viewModel = viewModel,
-                                    onNavigateBack = { navController.popBackStack() }
                                 )
                             }
                             composable("avatargenerator") {
@@ -133,6 +257,7 @@ class MainActivity : ComponentActivity() {
                             }
                             composable("meditation") {
                                 MeditationMusicScreen(
+                                    viewModel = viewModel,
                                     onNavigateBack = { navController.popBackStack() }
                                 )
                             }
@@ -155,6 +280,7 @@ class MainActivity : ComponentActivity() {
                             }
                             composable("chatbot") {
                                 ChatBotScreen(
+                                    viewModel = viewModel,
                                     onNavigateBack = { navController.popBackStack() }
                                 )
                             }
@@ -176,4 +302,5 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
 }

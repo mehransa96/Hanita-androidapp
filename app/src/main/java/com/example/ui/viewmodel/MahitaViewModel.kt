@@ -558,6 +558,42 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+
+    suspend fun createOrEditImageFlash(prompt: String, resolution: String): String? {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val apiKey = com.example.BuildConfig.GEMINI_API_KEY
+                val request = GemAnalysisRequest(
+                    contents = listOf(GemAnalysisContent(role = "user", parts = listOf(GemAnalysisPart(text = "Modify or create image: $prompt")))),
+                    generationConfig = GemGenerationConfig(
+                        imageConfig = GemImageConfig(imageSize = resolution),
+                        responseModalities = listOf("IMAGE")
+                    )
+                )
+                val response = GeminiAnalysisClient.service.generateImageEdit(apiKey, request)
+                response.candidates?.firstOrNull()?.content?.parts?.firstOrNull { it.inlineData != null }?.inlineData?.data
+            } catch (e: Exception) {
+                android.util.Log.e("MahitaViewModel", "Error in createOrEditImageFlash: ${e.message}")
+                null
+            }
+        }
+    }
+
+    suspend fun generateMusicClip(prompt: String): String? {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val apiKey = com.example.BuildConfig.GEMINI_API_KEY
+                val request = GemAnalysisRequest(
+                    contents = listOf(GemAnalysisContent(role = "user", parts = listOf(GemAnalysisPart(text = "Compose music: $prompt"))))
+                )
+                val response = GeminiAnalysisClient.service.generateMusic(apiKey, request)
+                response.candidates?.firstOrNull()?.content?.parts?.firstOrNull { it.inlineData != null }?.inlineData?.data
+            } catch (e: Exception) {
+                android.util.Log.e("MahitaViewModel", "Error generating music: ${e.message}")
+                null
+            }
+        }
+    }
 }
 
 data class CycleAnalysisResult(
@@ -594,12 +630,16 @@ class GemGoogleSearchTool
 data class GemTool(val googleSearch: GemGoogleSearchTool? = null)
 
 @com.squareup.moshi.JsonClass(generateAdapter = true)
+data class GemThinkingConfig(val thinkingLevel: String)
+
+@com.squareup.moshi.JsonClass(generateAdapter = true)
 data class GemImageConfig(val aspectRatio: String? = null, val imageSize: String? = null)
 
 @com.squareup.moshi.JsonClass(generateAdapter = true)
 data class GemGenerationConfig(
     val imageConfig: GemImageConfig? = null,
-    val responseModalities: List<String>? = null
+    val responseModalities: List<String>? = null,
+    val thinkingConfig: GemThinkingConfig? = null
 )
 
 @com.squareup.moshi.JsonClass(generateAdapter = true)
@@ -622,7 +662,25 @@ interface GeminiAnalysisService {
         @Query("key") apiKey: String,
         @Body request: GemAnalysisRequest
     ): GemAnalysisResponse
+
+    @POST("v1beta/models/gemini-3.1-pro-preview:generateContent")
+    suspend fun generateContentPro(
+        @Query("key") apiKey: String,
+        @Body request: GemAnalysisRequest
+    ): GemAnalysisResponse
+
+    @POST("v1beta/models/lyria-3-clip-preview:generateContent")
+    suspend fun generateMusic(
+        @Query("key") apiKey: String,
+        @Body request: GemAnalysisRequest
+    ): GemAnalysisResponse
     
+    @POST("v1beta/models/gemini-3.1-flash-image-preview:generateContent")
+    suspend fun generateImageEdit(
+        @Query("key") apiKey: String,
+        @Body request: GemAnalysisRequest
+    ): GemAnalysisResponse
+
     @POST("v1beta/models/gemini-3-pro-image-preview:generateContent")
     suspend fun generateImage(
         @Query("key") apiKey: String,

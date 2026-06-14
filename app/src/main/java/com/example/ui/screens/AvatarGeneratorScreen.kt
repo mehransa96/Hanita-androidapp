@@ -51,20 +51,23 @@ import androidx.compose.ui.layout.ContentScale
 fun AvatarRenderer(avatarId: String, modifier: Modifier = Modifier) {
     if (avatarId.startsWith("gen_base64_")) {
         val base64String = avatarId.removePrefix("gen_base64_")
-        try {
-            val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
-            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "Avatar",
-                    modifier = modifier,
-                    contentScale = ContentScale.Crop
-                )
-                return
+        val bitmap = remember(base64String) {
+            try {
+                val imageBytes = Base64.decode(base64String, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        }
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Avatar",
+                modifier = modifier,
+                contentScale = ContentScale.Crop
+            )
+            return
         }
     }
     
@@ -227,6 +230,7 @@ fun AvatarGeneratorScreen(
     var isGenerating by remember { mutableStateOf(false) }
     var generationStep by remember { mutableStateOf("") }
     var progress by remember { mutableFloatStateOf(0f) }
+    var selectedResolution by remember { mutableStateOf("1K") }
 
     // List of artistic styles to influence the generator
     val fantasyStyles = listOf(
@@ -448,7 +452,6 @@ fun AvatarGeneratorScreen(
                         }
                     }
 
-                    var selectedResolution by remember { mutableStateOf("1K") }
                     val resolutions = listOf("1K", "2K", "4K")
                     
                     Text("کیفیت تصویر را انتخاب کنید:", fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -509,7 +512,44 @@ fun AvatarGeneratorScreen(
                         ) {
                             Icon(imageVector = Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("تولید آواتار با هوش مصنوعی (Imagen)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("تولید آواتار با هوش مصنوعی (Gemini 3 Pro)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        
+                        // Edit Image Button
+                        val selectedImageOption = avatarOptionsList.firstOrNull { it.id == selectedAvatarId }
+                        if (selectedImageOption != null && userPrompt.isNotBlank()) {
+                            OutlinedButton(
+                                onClick = {
+                                    isGenerating = true
+                                    coroutineScope.launch {
+                                        generationStep = "در حال ویرایش تصویر با Gemini 3.1 Flash Image..."
+                                        progress = 0.5f
+                                        val base64Image = viewModel.createOrEditImageFlash(userPrompt, selectedResolution)
+                                        if (base64Image != null) {
+                                            val newId = "gen_base64_$base64Image"
+                                            val newOption = AvatarOption(newId, "ویرایش شده: $userPrompt", true, "custom")
+                                            avatarOptionsList.add(1, newOption)
+                                            selectedAvatarId = newId
+                                            progress = 1.0f
+                                            generationStep = "آواتار شما ویرایش شد! 🎉"
+                                            snackbarHostState.showSnackbar("آواتار جادویی آماده ثبت است!")
+                                        } else {
+                                            progress = 1.0f
+                                            generationStep = "خطا در ویرایش تصویر!"
+                                            snackbarHostState.showSnackbar("ویرایش آواتار با خطا مواجه شد.")
+                                        }
+                                        delay(1000)
+                                        isGenerating = false
+                                        userPrompt = ""
+                                        focusManager.clearFocus()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(imageVector = Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("ویرایش تصویر فعلی بر اساس متن بالا (Gemini 3.1 Flash Image)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }

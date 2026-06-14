@@ -31,6 +31,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -62,7 +66,6 @@ fun DashboardScreen(
     onNavigateToMeditation: () -> Unit,
     onNavigateToReminders: () -> Unit,
     onNavigateToAvatarGenerator: () -> Unit,
-    onNavigateToCycleAnalysis: () -> Unit,
     onLogout: () -> Unit
 ) {
     val cycleInfo by viewModel.cycleInfo.collectAsState()
@@ -121,10 +124,6 @@ fun DashboardScreen(
             PredictionsCard(cycleInfo)
             
             Spacer(modifier = Modifier.height(16.dp))
-
-            AISmartAnalysisBanner(onNavigateToCycleAnalysis)
-            
-            Spacer(modifier = Modifier.height(16.dp))
             
             PredictionNotificationCard(predictionInfo)
             
@@ -145,73 +144,6 @@ fun DashboardScreen(
         onDismiss = { showSettingsDialog = false },
         viewModel = viewModel
     )
-}
-
-@Composable
-fun AISmartAnalysisBanner(onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("ai_analysis_banner")
-            .clip(RoundedCornerShape(20.dp))
-            .clickable { onClick() },
-        border = BorderStroke(1.dp, SleekBorder.copy(alpha = 0.4f)),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically, 
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(SleekPrimaryLight),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.AutoAwesome,
-                        contentDescription = null,
-                        tint = SleekPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = "تحلیل هوشمند چرخه وقاعدگی با هوش مصنوعی هانیتا",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SleekPrimaryDark
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "پیش‌بینی دقیق تاریخ پریود بعدی، شناسایی الگوهای بدنى و روحی با Gemini AI",
-                        fontSize = 10.sp,
-                        color = SleekTextMedium
-                    )
-                }
-            }
-            Text(
-                text = "✨ کشف",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = SleekPrimary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(SleekPrimaryLight)
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            )
-        }
-    }
 }
 
 @Composable
@@ -286,61 +218,77 @@ fun HeaderRow(
 
 @Composable
 fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modifier) {
+    var isPressed by remember { mutableStateOf(false) }
+    var rotationOffset by remember { mutableStateOf(0f) }
+
+    val interactionScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 400f),
+        label = "interactionScale"
+    )
+
     val localSleekPrimary = SleekPrimary
     val localSleekPrimaryVariant = SleekPrimaryVariant
-    val localSleekPrimaryLight = SleekPrimaryLight
-    
-    val gradientColors = if (info.isPms) {
-        listOf(Color(0xFFF59E0B), Color(0xFFD97706))
-    } else {
-        listOf(localSleekPrimary, localSleekPrimaryVariant)
-    }
-    val trackColor = if (info.isPms) Color(0xFFFEF3C7) else localSleekPrimaryLight
+    val localSleekBorder = SleekBorder
     
     val animatedSweepAngle by androidx.compose.animation.core.animateFloatAsState(
         targetValue = (info.currentDay / cycleLength.toFloat()) * 360f,
         animationSpec = androidx.compose.animation.core.tween(
-            durationMillis = 1500, 
+            durationMillis = 1800, 
             easing = androidx.compose.animation.core.FastOutSlowInEasing
         ),
         label = "sweepAngle"
     )
     
     val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 0.8f,
+    val ambientRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(20000, easing = androidx.compose.animation.core.LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+        ),
+        label = "ambientRotation"
+    )
+    
+    val pulseGlow by infiniteTransition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 0.9f,
         animationSpec = androidx.compose.animation.core.infiniteRepeatable(
             animation = androidx.compose.animation.core.tween(1500, easing = androidx.compose.animation.core.FastOutSlowInEasing),
             repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
         ),
-        label = "pulseAlpha"
-    )
-
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.97f,
-        targetValue = 1.03f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(2500, easing = androidx.compose.animation.core.EaseInOutSine),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-        ),
-        label = "pulseScale"
+        label = "pulseGlow"
     )
   
     Box(
-        modifier = modifier.padding(8.dp),
+        modifier = modifier
+            .padding(8.dp)
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { isPressed = true },
+                    onDragEnd = { isPressed = false; rotationOffset = 0f },
+                    onDragCancel = { isPressed = false; rotationOffset = 0f },
+                    onDrag = { change, dragAmount -> 
+                        rotationOffset += dragAmount.x / 3f
+                    }
+                )
+            },
         contentAlignment = Alignment.Center
     ) {
-        // Glowing background behind the circle
+        val baseRotation = ambientRotation + rotationOffset
+        
+        // 3D-like glow shadow
         Box(
             modifier = Modifier
                 .fillMaxSize(0.85f)
                 .aspectRatio(1f)
-                .scale(pulseScale)
+                .scale(interactionScale * 1.05f)
                 .background(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            (if (info.isPeriod) Color(0xFFFFEBEE) else if (info.isFertile) localSleekPrimaryLight else if (info.isPms) Color(0xFFFFF8E1) else Color(0xFFF3E5F5)).copy(alpha = pulseAlpha * 0.4f),
+                            localSleekPrimary.copy(alpha = pulseGlow * 0.4f),
+                            SleekSecondary.copy(alpha = pulseGlow * 0.2f),
                             Color.Transparent
                         )
                     ),
@@ -348,55 +296,89 @@ fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modi
                 )
         )
 
-        Canvas(modifier = Modifier.fillMaxSize().aspectRatio(1f)) {
-            val strokeWidth = 14.dp.toPx()
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .aspectRatio(1f)
+                .scale(interactionScale)
+                .graphicsLayer { rotationZ = baseRotation * 0.4f }
+        ) {
+            val strokeWidth = 18.dp.toPx()
             val radius = (size.minDimension - strokeWidth * 2) / 2
-            val centerOffset = center
             
-            // Outer Aura Ring
+            // Outer 3D faint orbit
             drawCircle(
-                color = (if (info.isPeriod) Color(0xFFFF5252) else if (info.isFertile) localSleekPrimary else if (info.isPms) Color(0xFFFFB300) else localSleekPrimaryVariant).copy(alpha = pulseAlpha * 0.15f),
-                radius = radius + (strokeWidth * 1.2f),
-                style = Stroke(width = strokeWidth * 0.8f)
+                color = localSleekPrimaryVariant.copy(alpha = 0.1f),
+                radius = radius + (strokeWidth * 1.5f),
+                style = Stroke(width = strokeWidth * 0.3f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(15f, 25f)))
             )
             
-            // Base track ring
+            // Background track (multi-layered)
             drawCircle(
-                color = trackColor.copy(alpha = 0.6f),
+                color = localSleekBorder.copy(alpha = 0.4f),
                 radius = radius,
                 style = Stroke(width = strokeWidth)
             )
- 
-            // Active arc
+            drawCircle(
+                color = Color.White.copy(alpha = 0.1f),
+                radius = radius - strokeWidth * 0.1f,
+                style = Stroke(width = strokeWidth * 0.8f)
+            )
+        }
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .aspectRatio(1f)
+                .scale(interactionScale)
+                .graphicsLayer { rotationZ = rotationOffset }
+        ) {
+            val strokeWidth = 18.dp.toPx()
+            val radius = (size.minDimension - strokeWidth * 2) / 2
+            
+            val gradientColors = if (info.isPms) {
+                listOf(Color(0xFFFFB300), Color(0xFFFF8F00))
+            } else if (info.isPeriod) {
+                listOf(Color(0xFFFF5252), Color(0xFFD32F2F))
+            } else {
+                listOf(Color(0xFFA78BFA), Color(0xFF818CF8))
+            }
+            
+            // 3D Shadow under the main arc
             drawArc(
-                brush = Brush.linearGradient(colors = gradientColors),
-                startAngle = -90f,
+                color = Color.Black.copy(alpha = 0.15f),
+                startAngle = -90f + 2f,
                 sweepAngle = animatedSweepAngle,
                 useCenter = false,
                 style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
             )
+            
+            // Main progress arc
+            drawArc(
+                brush = Brush.sweepGradient(colors = gradientColors, center = androidx.compose.ui.geometry.Offset(size.minDimension/2, size.minDimension/2)),
+                startAngle = -90f,
+                sweepAngle = animatedSweepAngle,
+                useCenter = false,
+                style = Stroke(width = strokeWidth * 0.85f, cap = StrokeCap.Round)
+            )
 
-            // Spark dot at the forward running edge of the arc
+            // Sparkle dot overlay
             val angleRad = Math.toRadians((animatedSweepAngle - 90).toDouble())
+            val centerOffset = center
             val dotX = centerOffset.x + radius * Math.cos(angleRad).toFloat()
             val dotY = centerOffset.y + radius * Math.sin(angleRad).toFloat()
 
             drawCircle(
-                color = (if (info.isPeriod) Color(0xFFFF5252) else if (info.isPms) Color(0xFFFFB300) else localSleekPrimaryVariant).copy(alpha = 0.6f),
-                radius = strokeWidth * 1.1f,
-                center = androidx.compose.ui.geometry.Offset(dotX, dotY)
-            )
-
-            drawCircle(
                 color = Color.White,
-                radius = strokeWidth * 0.5f,
-                center = androidx.compose.ui.geometry.Offset(dotX, dotY)
+                radius = strokeWidth * 0.6f,
+                center = androidx.compose.ui.geometry.Offset(dotX, dotY),
+                blendMode = androidx.compose.ui.graphics.BlendMode.Overlay
             )
         }
  
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.scale(pulseScale)
+            modifier = Modifier.scale(interactionScale)
         ) {
             Text(
                 text = "روز ${info.currentDay} سیکل",

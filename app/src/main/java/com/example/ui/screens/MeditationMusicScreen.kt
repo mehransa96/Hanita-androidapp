@@ -30,15 +30,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
+import com.example.ui.viewmodel.MahitaViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 data class MeditationTrack(val id: String, val title: String, val artist: String, val categoryId: String, val durationSec: Int)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MeditationMusicScreen(
+    viewModel: MahitaViewModel,
     onNavigateBack: () -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    var showLyriaModal by remember { mutableStateOf(false) }
     val categories = listOf(
         "meditation" to "🧘 مدیتیشن عمیق",
         "nature" to "🌲 آوای طبیعت",
@@ -188,6 +193,11 @@ fun MeditationMusicScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "بازگشت")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showLyriaModal = true }) {
+                        Icon(Icons.Filled.AutoAwesome, contentDescription = "تولید موسیقی با Lyria", tint = MaterialTheme.colorScheme.primary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -619,6 +629,73 @@ fun MeditationMusicScreen(
                 }
             }
         }
+    }
+
+    if (showLyriaModal) {
+        var musicPrompt by remember { mutableStateOf("") }
+        var isGeneratingMusic by remember { mutableStateOf(false) }
+        var musicResult by remember { mutableStateOf<String?>(null) }
+        
+        AlertDialog(
+            onDismissRequest = { if (!isGeneratingMusic) showLyriaModal = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text("آهنگساز هوشمند Lyria", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        "توصیف کن چه حس و نغمه‌ای برای این لحظه‌ات می‌خواهی؟ (تولید با lyria-3-clip-preview تا 30 ثانیه)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = musicPrompt,
+                        onValueChange = { musicPrompt = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("مثال: آرامش‌بخش با پیانو ملایم...") },
+                        maxLines = 3,
+                        enabled = !isGeneratingMusic
+                    )
+                    if (isGeneratingMusic) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                        Text("در حال تنظیم نت‌ها...", fontSize = 11.sp, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp))
+                    }
+                    if (musicResult != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("✅ قطعه موسیقی شما تولید و آماده پخش است!", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isGeneratingMusic = true
+                        coroutineScope.launch {
+                            val res = viewModel.generateMusicClip(musicPrompt)
+                            isGeneratingMusic = false
+                            if (res != null) {
+                                musicResult = "Success!"
+                            } else {
+                                musicResult = "Failure!"
+                            }
+                        }
+                    },
+                    enabled = musicPrompt.isNotBlank() && !isGeneratingMusic
+                ) {
+                    Text("تولید نغمه 🎵")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLyriaModal = false }, enabled = !isGeneratingMusic) {
+                    Text("بستن")
+                }
+            }
+        )
     }
 }
 
