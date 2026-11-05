@@ -49,6 +49,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        const val EXTRA_NAVIGATE_TO = "navigate_to"
+        private val DEEP_LINK_ROUTES = setOf("log", "calendar", "reminders")
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -176,6 +181,16 @@ class MainActivity : ComponentActivity() {
                         val isLoggedIn by viewModel.isLoggedIn.collectAsState()
                         com.example.ui.components.AiConsentDialog(viewModel)
                         NotificationPermissionRequest(isLoggedIn)
+
+                        // Notification shortcuts ("record today's symptoms", "open calendar").
+                        // Only known screens are accepted, and only for an onboarded user.
+                        val deepLink = remember { intent?.getStringExtra(EXTRA_NAVIGATE_TO) }
+                        LaunchedEffect(deepLink, isLoggedIn) {
+                            if (isLoggedIn && deepLink in DEEP_LINK_ROUTES) {
+                                intent?.removeExtra(EXTRA_NAVIGATE_TO)
+                                navController.navigate(deepLink!!) { launchSingleTop = true }
+                            }
+                        }
 
                         NavHost(
                             navController = navController, 
