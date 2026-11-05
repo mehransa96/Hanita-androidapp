@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.utils.privateOnLockScreen
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -177,7 +178,7 @@ fun RemindersScreen(
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            val notification = NotificationCompat.Builder(context, channelId)
+            val notification = NotificationCompat.Builder(context, channelId).privateOnLockScreen(context, channelId)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setContentTitle(title)
                 .setContentText(body)

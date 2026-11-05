@@ -1450,8 +1450,14 @@ fun PredictionsCard(info: CycleInfo) {
             Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("تخمک‌گذاری", style = MaterialTheme.typography.labelSmall, color = SleekTextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
-                val daysToOvulation = if (info.currentDay <= 14) 14 - info.currentDay else (28 - info.currentDay) + 14
-                Text("حدود $daysToOvulation روز", fontSize = 13.sp, color = Indigo500, fontWeight = FontWeight.Black)
+                val cycleLength = info.currentDay + info.daysUntilNextPeriod - 1
+                val ovulationDay = com.example.domain.CyclePredictor.ovulationDay(cycleLength)
+                val daysToOvulation = if (info.currentDay <= ovulationDay) ovulationDay - info.currentDay
+                else (cycleLength - info.currentDay) + ovulationDay
+                Text(
+                    if (daysToOvulation == 0) "امروز (تخمینی)" else "حدود $daysToOvulation روز",
+                    fontSize = 13.sp, color = Indigo500, fontWeight = FontWeight.Black
+                )
             }
         }
 
@@ -2527,7 +2533,7 @@ fun SettingsDialog(
                 )
                 
                 Text(
-                    "با فعال‌سازی همگام‌سازی، کلیه اطلاعات چرخه‌های قاعدگی شما به‌صورت ایمن در سرور ابری Firebase ذخیره شده و در تمامی دستگاه‌هایتان همگام می‌شود.",
+                    "اطلاعات شما به‌طور پیش‌فرض فقط روی همین گوشی ذخیره می‌شود. اگر با حساب گوگل وارد شده باشید، یک نسخه پشتیبان رمزنگاری‌شده فقط برای حساب خودتان در Firebase نگهداری می‌شود و هیچ کاربر دیگری به آن دسترسی ندارد.",
                     fontSize = 11.sp,
                     color = SleekTextMedium,
                     lineHeight = 16.sp
@@ -2574,6 +2580,51 @@ fun SettingsDialog(
                         if (isSyncing) "در حال همگام‌سازی..." else "همگام‌سازی دستی با سرور",
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
+                    )
+                }
+
+                var confirmCloudDelete by remember { mutableStateOf(false) }
+                if (viewModel.isCloudSyncAvailable()) {
+                    OutlinedButton(
+                        onClick = { confirmCloudDelete = true },
+                        enabled = !isSyncing,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("حذف نسخه ابری اطلاعات من", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                if (confirmCloudDelete) {
+                    AlertDialog(
+                        onDismissRequest = { confirmCloudDelete = false },
+                        title = { Text("حذف نسخه ابری؟") },
+                        text = { Text("همه اطلاعات ذخیره‌شده شما در سرور حذف می‌شود. اطلاعات روی این گوشی باقی می‌ماند.") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                confirmCloudDelete = false
+                                viewModel.deleteCloudData()
+                            }) { Text("حذف شود", color = MaterialTheme.colorScheme.error) }
+                        },
+                        dismissButton = { TextButton(onClick = { confirmCloudDelete = false }) { Text("انصراف") } }
+                    )
+                }
+
+                HorizontalDivider(color = SleekBorder)
+                val aiConsent by viewModel.aiConsentGiven.collectAsState()
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("اجازه ارسال سوابق برای تحلیل هوشمند", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SleekPrimary)
+                        Text(
+                            "در صورت لغو، هیچ سابقه‌ای برای هوش مصنوعی ارسال نمی‌شود.",
+                            fontSize = 11.sp,
+                            color = SleekTextMedium
+                        )
+                    }
+                    Switch(
+                        checked = aiConsent,
+                        onCheckedChange = { checked ->
+                            if (checked) viewModel.requireAiConsent { } else viewModel.revokeAiConsent()
+                        }
                     )
                 }
             }

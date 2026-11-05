@@ -14,3 +14,16 @@
 # Line numbers in stacktraces for crash diagnostics
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# Moshi (reflection via KotlinJsonAdapterFactory) needs Kotlin metadata and the model classes.
+-keep class kotlin.Metadata { *; }
+-keepclassmembers class kotlin.Metadata { public <methods>; }
+-keep class com.example.ui.viewmodel.CycleAnalysisResult { *; }
+-keep class com.example.ui.viewmodel.CycleAnalysisResult$* { *; }
+-keep class com.example.data.preferences.** { *; }
+-dontwarn org.jetbrains.annotations.**
+
+# Firebase AI Logic / Firestore ship their own consumer rules; silence optional deps.
+-dontwarn com.google.firebase.**
+-dontwarn io.ktor.**
+-dontwarn org.slf4j.**

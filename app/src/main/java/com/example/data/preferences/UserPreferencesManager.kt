@@ -68,6 +68,15 @@ class UserPreferencesManager(context: Context) {
     private val _medicationReminders = MutableStateFlow(getMedicationRemindersFromPrefs())
     val medicationReminders: StateFlow<List<MedicineReminder>> = _medicationReminders.asStateFlow()
 
+    private val _aiConsentGiven = MutableStateFlow(prefs.getBoolean("ai_data_consent", false))
+    /** Whether the user agreed to send cycle data to the AI service (asked once, revocable). */
+    val aiConsentGiven: StateFlow<Boolean> = _aiConsentGiven.asStateFlow()
+
+    fun setAiConsentGiven(given: Boolean) {
+        prefs.edit().putBoolean("ai_data_consent", given).apply()
+        _aiConsentGiven.value = given
+    }
+
     private val _customPhysicalSymptoms = MutableStateFlow(
         prefs.getStringSet("custom_physical_symptoms", emptySet())?.toList() ?: emptyList()
     )
@@ -174,10 +183,11 @@ class UserPreferencesManager(context: Context) {
     private fun getMedicationRemindersFromPrefs(): List<MedicineReminder> {
         val json = prefs.getString("medication_reminders_json", null)
         if (json.isNullOrBlank()) {
+            // Templates only: all disabled until the user turns one on.
             return listOf(
-                MedicineReminder("ref1", "قرص آهن (سولفات آهن)", "21:00", "۱ عدد شبانه", true, "pill"),
-                MedicineReminder("ref2", "ایبوپروفن (مسکن مسکن قاعدگی)", "08:00", "در صورت بروز دردهای شکمی شدید", false, "capsule"),
-                MedicineReminder("ref3", "منیزیم و ویتامین ب۶", "14:30", "۱ ساشه بعد از وعده ناهار برای تسکین عضلانی", true, "powder")
+                MedicineReminder("ref1", "قرص آهن (سولفات آهن)", "21:00", "طبق دستور پزشک", false, "pill"),
+                MedicineReminder("ref2", "مسکن (طبق تجویز پزشک)", "08:00", "طبق دستور پزشک", false, "capsule"),
+                MedicineReminder("ref3", "منیزیم و ویتامین ب۶", "14:30", "طبق دستور پزشک", false, "powder")
             )
         }
         return try {

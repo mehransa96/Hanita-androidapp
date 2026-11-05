@@ -1,288 +1,249 @@
 package com.example.utils
 
 import android.util.Log
+import com.example.data.dao.CycleRecordDao
 import com.example.data.dao.DailyLogDao
+import com.example.data.model.CycleRecord
 import com.example.data.model.DailyLog
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-import com.example.data.dao.CycleRecordDao
-import com.example.data.model.CycleRecord
-
+/**
+ * Optional, end-user-controlled cloud backup of the cycle data.
+ *
+ * Security model:
+ *  - Data is written ONLY for a user signed in with Firebase Authentication.
+ *  - Every document lives under `users/{uid}/...`, where `uid` is the Firebase Auth id
+ *    (never a display name), and `firestore.rules` allows each user to read/write only their own tree.
+ *  - Without a signed-in user (offline / name-only mode) nothing leaves the device.
+ */
 class FirestoreManager(
     private val dailyLogDao: DailyLogDao,
-    private val cycleRecordDao: CycleRecordDao? = null
+    private val cycleRecordDao: CycleRecordDao
 ) {
     private val firestore: FirebaseFirestore? by lazy {
         try {
             FirebaseFirestore.getInstance()
         } catch (e: Exception) {
-            Log.e("FirestoreManager", "Failed to initialize Firebase Firestore: ${e.message}")
+            Log.w(TAG, "Firestore unavailable (Firebase not configured).")
             null
         }
     }
 
-    /**
-     * Upload single log to Firestore
-     */
-    suspend fun uploadLog(userName: String, log: DailyLog) {
-        if (userName.isBlank()) return
-        val db = firestore ?: return
-        
-        withContext(Dispatchers.IO) {
-            try {
-                val data = mapOf(
-                    "dateStr" to log.dateStr,
-                    "periodFlow" to log.periodFlow,
-                    "symptoms" to log.symptoms,
-                    "moods" to log.moods,
-                    "notes" to log.notes
-                )
-                db.collection("users")
-                    .document(userName)
-                    .collection("logs")
-                    .document(log.dateStr)
-                    .set(data, SetOptions.merge())
-                    .addOnSuccessListener {
-                        Log.d("FirestoreManager", "Successfully uploaded log for ${log.dateStr}")
-                    }
-                    .addOnFailureListener { e ->
-                        Log.e("FirestoreManager", "Failed to upload log: ${e.message}")
-                    }
-            } catch (e: Exception) {
-                Log.e("FirestoreManager", "Error in uploadLog: ${e.message}")
-            }
+    private val auth: FirebaseAuth? by lazy {
+        try {
+            FirebaseAuth.getInstance()
+        } catch (e: Exception) {
+            null
         }
     }
 
-    /**
-     * Upload all local logs to Firestore
-     */
-    suspend fun uploadAllLogs(userName: String, logs: List<DailyLog>): Boolean {
-        if (userName.isBlank()) return false
-        val db = firestore ?: return false
+    /** The signed-in Firebase user id, or null in offline mode. */
+    fun currentUid(): String? = auth?.currentUser?.uid
 
-        return withContext(Dispatchers.IO) {
-            try {
-                val batch = db.batch()
-                val userLogsRef = db.collection("users").document(userName).collection("logs")
+    fun isCloudAvailable(): Boolean = firestore != null && currentUid() != null
 
-                for (log in logs) {
-                    val logDocRef = userLogsRef.document(log.dateStr)
-                    val data = mapOf(
-                        "dateStr" to log.dateStr,
-                        "periodFlow" to log.periodFlow,
-                        "symptoms" to log.symptoms,
-                        "moods" to log.moods,
-                        "notes" to log.notes
-                    )
-                    batch.set(logDocRef, data, SetOptions.merge())
-                }
-
-                // Execute the batch
-                var success = false
-                try {
-                    batch.commit().await()
-                    success = true
-                    Log.d("FirestoreManager", "Successfully batch-uploaded ${logs.size} logs.")
-                } catch (e: Exception) {
-                    Log.e("FirestoreManager", "Batch upload await failed: ${e.message}")
-                }
-                success
-            } catch (e: Exception) {
-                Log.e("FirestoreManager", "Error in uploadAllLogs: ${e.message}")
-                false
-            }
+    fun signOut() {
+        try {
+            auth?.signOut()
+        } catch (_: Exception) {
         }
     }
 
-    /**
-     * Fetch all logs from Firestore for the given user, and save to local DB
-     */
-    suspend fun downloadAndSyncLogs(userName: String): Boolean {
-        if (userName.isBlank()) return false
-        val db = firestore ?: return false
+    private fun userDoc(uid: String) = firestore!!.collection(USERS).document(uid)
 
-        return withContext(Dispatchers.IO) {
-            try {
-                val querySnapshot = db.collection("users")
-                    .document(userName)
-                    .collection("logs")
-                    .get()
-                    .await()
+    private fun DailyLog.toMap(): Map<String, Any?> = mapOf(
+        "dateStr" to dateStr,
+        "periodFlow" to periodFlow,
+        "symptoms" to symptoms,
+        "moods" to moods,
+        "notes" to notes,
+        "emoji" to emoji,
+        "takenMeds" to takenMeds,
+        "waterIntake" to waterIntake,
+        "bbt" to bbt?.toDouble(),
+        "weight" to weight?.toDouble(),
+        "updatedAt" to updatedAt
+    )
 
-                if (!querySnapshot.isEmpty) {
-                    for (document in querySnapshot.documents) {
-                        val dateStr = document.id
-                        val periodFlow = document.getString("periodFlow") ?: "NONE"
-                        val symptoms = document.getString("symptoms") ?: ""
-                        val moods = document.getString("moods") ?: ""
-                        val notes = document.getString("notes") ?: ""
-
-                        val dailyLog = DailyLog(
-                            dateStr = dateStr,
-                            periodFlow = periodFlow,
-                            symptoms = symptoms,
-                            moods = moods,
-                            notes = notes
-                        )
-                        dailyLogDao.insertLog(dailyLog)
-                    }
-                    Log.d("FirestoreManager", "Synced ${querySnapshot.size()} logs from Firestore.")
-                    true
-                } else {
-                    Log.d("FirestoreManager", "No logs found in Firestore for $userName.")
-                    false
-                }
-            } catch (e: Exception) {
-                Log.e("FirestoreManager", "Error syncing from Firestore: ${e.message}")
-                false
-            }
-        }
+    private fun DocumentSnapshot.toDailyLog(): DailyLog? {
+        val date = getString("dateStr") ?: id
+        if (!DATE_REGEX.matches(date)) return null
+        return DailyLog(
+            dateStr = date,
+            periodFlow = getString("periodFlow")?.takeIf { it.length in 1..20 } ?: "NONE",
+            symptoms = getString("symptoms").orEmpty().take(MAX_TEXT),
+            moods = getString("moods").orEmpty().take(MAX_TEXT),
+            notes = getString("notes").orEmpty().take(MAX_TEXT),
+            emoji = getString("emoji").orEmpty().take(16),
+            takenMeds = getString("takenMeds").orEmpty().take(MAX_TEXT),
+            waterIntake = (getLong("waterIntake") ?: 0L).toInt().coerceIn(0, 30),
+            bbt = getDouble("bbt")?.toFloat(),
+            weight = getDouble("weight")?.toFloat(),
+            updatedAt = getLong("updatedAt") ?: 0L
+        )
     }
 
-    /**
-     * Upload user weight to Firestore
-     */
-    suspend fun uploadWeight(userName: String, weight: String): Boolean {
-        if (userName.isBlank()) return false
-        val db = firestore ?: return false
+    suspend fun uploadLog(log: DailyLog): Boolean {
+        val uid = currentUid() ?: return false
+        firestore ?: return false
         return withContext(Dispatchers.IO) {
             try {
-                val data = mapOf("weight" to weight)
-                db.collection("users")
-                    .document(userName)
-                    .set(data, SetOptions.merge())
-                    .await()
-                Log.d("FirestoreManager", "Successfully uploaded weight: $weight")
+                // Re-read the stored row so the uploaded timestamp matches the local one.
+                val stored = dailyLogDao.getLogByDate(log.dateStr) ?: log
+                userDoc(uid).collection(LOGS).document(stored.dateStr).set(stored.toMap()).await()
                 true
             } catch (e: Exception) {
-                Log.e("FirestoreManager", "Failed to upload weight: ${e.message}")
+                Log.w(TAG, "uploadLog failed: ${e.javaClass.simpleName}")
                 false
             }
         }
     }
 
-    /**
-     * Upload menstrual cycle data to Firestore
-     */
-    suspend fun uploadCycleData(userName: String, startDate: String, duration: Int): Boolean {
-        if (userName.isBlank()) return false
-        val db = firestore ?: return false
-        return withContext(Dispatchers.IO) {
-            try {
-                val data = mapOf(
-                    "cycleStartDate" to startDate,
-                    "cycleDuration" to duration
-                )
-                db.collection("users")
-                    .document(userName)
-                    .set(data, SetOptions.merge())
-                    .await()
-                Log.d("FirestoreManager", "Successfully uploaded cycle data to Firestore: $startDate, $duration")
-                true
-            } catch (e: Exception) {
-                Log.e("FirestoreManager", "Failed to upload cycle data: ${e.message}")
-                false
-            }
-        }
-    }
-
-    /**
-     * Delete cycle record from Firestore
-     */
-    suspend fun deleteCycleRecord(userName: String, cycleId: String): Boolean {
-        if (userName.isBlank()) return false
-        val db = firestore ?: return false
-        return withContext(Dispatchers.IO) {
-            try {
-                db.collection("users")
-                    .document(userName)
-                    .collection("cycles")
-                    .document(cycleId)
-                    .delete()
-                    .await()
-                Log.d("FirestoreManager", "Successfully deleted cycle record from Firestore")
-                true
-            } catch (e: Exception) {
-                Log.e("FirestoreManager", "Failed to delete cycle record: ${e.message}")
-                false
-            }
-        }
-    }
-
-    /**
-     * Upload full cycle record to Firestore
-     */
-    suspend fun uploadCycleRecord(userName: String, cycleRecord: CycleRecord): Boolean {
-        if (userName.isBlank()) return false
-        val db = firestore ?: return false
+    suspend fun uploadCycleRecord(cycleRecord: CycleRecord): Boolean {
+        val uid = currentUid() ?: return false
+        firestore ?: return false
+        if (cycleRecord.id.isBlank()) return false
         return withContext(Dispatchers.IO) {
             try {
                 val data = mapOf(
                     "id" to cycleRecord.id,
                     "startDate" to cycleRecord.startDate,
                     "endDate" to cycleRecord.endDate,
-                    "notes" to cycleRecord.notes
+                    "notes" to cycleRecord.notes.take(MAX_TEXT)
                 )
-                db.collection("users")
-                    .document(userName)
-                    .collection("cycles")
-                    .document(cycleRecord.id.ifEmpty { java.util.UUID.randomUUID().toString() })
-                    .set(data, SetOptions.merge())
-                    .await()
-                Log.d("FirestoreManager", "Successfully uploaded cycle record")
+                userDoc(uid).collection(CYCLES).document(cycleRecord.id).set(data, SetOptions.merge()).await()
                 true
             } catch (e: Exception) {
-                Log.e("FirestoreManager", "Failed to upload cycle record: ${e.message}")
+                Log.w(TAG, "uploadCycleRecord failed: ${e.javaClass.simpleName}")
                 false
             }
         }
     }
 
-    /**
-     * Download and sync cycle records from Firestore
-     */
-    suspend fun downloadAndSyncCycleRecords(userName: String): Boolean {
-        if (userName.isBlank() || cycleRecordDao == null) return false
-        val db = firestore ?: return false
-
+    suspend fun deleteCycleRecord(cycleId: String): Boolean {
+        val uid = currentUid() ?: return false
+        firestore ?: return false
         return withContext(Dispatchers.IO) {
             try {
-                val querySnapshot = db.collection("users")
-                    .document(userName)
-                    .collection("cycles")
-                    .get()
-                    .await()
-
-                if (!querySnapshot.isEmpty) {
-                    for (document in querySnapshot.documents) {
-                        val id = document.getString("id") ?: document.id
-                        val startDate = document.getString("startDate") ?: ""
-                        val endDate = document.getString("endDate") ?: ""
-                        val notes = document.getString("notes") ?: ""
-
-                        val cycleRecord = CycleRecord(
-                            id = id,
-                            startDate = startDate,
-                            endDate = endDate,
-                            notes = notes
-                        )
-                        cycleRecordDao.insertCycleRecord(cycleRecord)
-                    }
-                    Log.d("FirestoreManager", "Synced ${querySnapshot.size()} cycle records from Firestore.")
-                    true
-                } else {
-                    Log.d("FirestoreManager", "No cycle records found in Firestore for $userName.")
-                    false
-                }
+                userDoc(uid).collection(CYCLES).document(cycleId).delete().await()
+                true
             } catch (e: Exception) {
-                Log.e("FirestoreManager", "Error syncing cycle records from Firestore: ${e.message}")
+                Log.w(TAG, "deleteCycleRecord failed: ${e.javaClass.simpleName}")
                 false
             }
         }
+    }
+
+    suspend fun uploadProfile(cycleLength: Int, weight: String?): Boolean {
+        val uid = currentUid() ?: return false
+        firestore ?: return false
+        return withContext(Dispatchers.IO) {
+            try {
+                val data = buildMap<String, Any> {
+                    put("cycleDuration", cycleLength)
+                    weight?.toDoubleOrNull()?.let { put("weight", it) }
+                }
+                userDoc(uid).set(data, SetOptions.merge()).await()
+                true
+            } catch (e: Exception) {
+                Log.w(TAG, "uploadProfile failed: ${e.javaClass.simpleName}")
+                false
+            }
+        }
+    }
+
+    data class SyncResult(val downloaded: Int, val uploaded: Int, val success: Boolean)
+
+    /**
+     * Two-way merge: for every day the newest version (by `updatedAt`) wins on both sides,
+     * so a sync never overwrites newer local data with older cloud data.
+     */
+    suspend fun syncAll(): SyncResult {
+        val uid = currentUid() ?: return SyncResult(0, 0, false)
+        firestore ?: return SyncResult(0, 0, false)
+        return withContext(Dispatchers.IO) {
+            try {
+                val logsRef = userDoc(uid).collection(LOGS)
+                val remote = logsRef.get().await().documents.mapNotNull { it.toDailyLog() }.associateBy { it.dateStr }
+                val local = dailyLogDao.getAllLogsList().associateBy { it.dateStr }
+
+                var downloaded = 0
+                for ((date, remoteLog) in remote) {
+                    val localLog = local[date]
+                    if (localLog == null || remoteLog.updatedAt > localLog.updatedAt) {
+                        dailyLogDao.insertLog(remoteLog) // keeps the remote timestamp
+                        downloaded++
+                    }
+                }
+
+                val toUpload = local.values.filter { localLog ->
+                    val remoteLog = remote[localLog.dateStr]
+                    remoteLog == null || localLog.updatedAt > remoteLog.updatedAt
+                }
+                // Firestore batches are limited to 500 writes.
+                toUpload.chunked(400).forEach { chunk ->
+                    val batch = firestore!!.batch()
+                    chunk.forEach { batch.set(logsRef.document(it.dateStr), it.toMap()) }
+                    batch.commit().await()
+                }
+
+                val cyclesSnapshot = userDoc(uid).collection(CYCLES).get().await()
+                for (doc in cyclesSnapshot.documents) {
+                    val id = doc.getString("id") ?: doc.id
+                    if (cycleRecordDao.getCycleRecordById(id) == null) {
+                        cycleRecordDao.insertCycleRecord(
+                            CycleRecord(
+                                id = id,
+                                startDate = doc.getString("startDate").orEmpty(),
+                                endDate = doc.getString("endDate").orEmpty(),
+                                notes = doc.getString("notes").orEmpty().take(MAX_TEXT)
+                            )
+                        )
+                    }
+                }
+                SyncResult(downloaded, toUpload.size, true)
+            } catch (e: Exception) {
+                Log.w(TAG, "syncAll failed: ${e.javaClass.simpleName}")
+                SyncResult(0, 0, false)
+            }
+        }
+    }
+
+    /** Lets the user erase everything stored in the cloud for their account. */
+    suspend fun deleteAllCloudData(): Boolean {
+        val uid = currentUid() ?: return false
+        val db = firestore ?: return false
+        return withContext(Dispatchers.IO) {
+            try {
+                for (collection in listOf(LOGS, CYCLES)) {
+                    val docs = userDoc(uid).collection(collection).get().await().documents
+                    docs.chunked(400).forEach { chunk ->
+                        val batch = db.batch()
+                        chunk.forEach { batch.delete(it.reference) }
+                        batch.commit().await()
+                    }
+                }
+                userDoc(uid).delete().await()
+                true
+            } catch (e: Exception) {
+                Log.w(TAG, "deleteAllCloudData failed: ${e.javaClass.simpleName}")
+                false
+            }
+        }
+    }
+
+    companion object {
+        private const val TAG = "FirestoreManager"
+        private const val USERS = "users"
+        private const val LOGS = "logs"
+        private const val CYCLES = "cycles"
+        private const val MAX_TEXT = 2_000
+        private val DATE_REGEX = Regex("""\d{4}-\d{2}-\d{2}""")
     }
 }

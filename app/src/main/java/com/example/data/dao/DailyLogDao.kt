@@ -21,6 +21,12 @@ interface DailyLogDao {
     @Query("SELECT * FROM daily_logs WHERE periodFlow != 'NONE' ORDER BY dateStr DESC")
     fun getPeriodDays(): Flow<List<DailyLog>>
 
+    @Query("SELECT * FROM daily_logs WHERE periodFlow != 'NONE' ORDER BY dateStr DESC")
+    suspend fun getPeriodDaysList(): List<DailyLog>
+
+    @Query("SELECT * FROM daily_logs")
+    suspend fun getAllLogsList(): List<DailyLog>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLog(log: DailyLog)
 

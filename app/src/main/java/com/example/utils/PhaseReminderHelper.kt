@@ -18,7 +18,9 @@ object PhaseReminderHelper {
         phaseName: String,
         message: String,
         phaseIndex: Int,
-        cycleLength: Int
+        cycleLength: Int,
+        hour: Int = 9,
+        minute: Int = 0
     ) {
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
@@ -26,8 +28,9 @@ object PhaseReminderHelper {
             // Check if targetDate is in the future, if not, project to the next cycle
             val today = LocalDate.now()
             var finalTargetDate = targetDate
-            while (finalTargetDate.isBefore(today) || finalTargetDate.isEqual(today)) {
-                finalTargetDate = finalTargetDate.plusDays(cycleLength.toLong())
+            val step = com.example.domain.CyclePredictor.clampCycleLength(cycleLength).toLong()
+            while (!finalTargetDate.isAfter(today)) {
+                finalTargetDate = finalTargetDate.plusDays(step)
             }
 
             val intent = Intent(context, PhaseReminderReceiver::class.java).apply {
@@ -43,8 +46,7 @@ object PhaseReminderHelper {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            // Calculate alarm time in millis (e.g. at 9:00 AM on the target date)
-            val localDateTime = finalTargetDate.atTime(9, 0)
+            val localDateTime = finalTargetDate.atTime(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
             val zoneId = ZoneId.systemDefault()
             val epochMillis = localDateTime.atZone(zoneId).toInstant().toEpochMilli()
 
@@ -54,7 +56,7 @@ object PhaseReminderHelper {
             } else {
                 alarmManager.set(AlarmManager.RTC_WAKEUP, epochMillis, pendingIntent)
             }
-            Log.d("PhaseReminderHelper", "Scheduled reminder for $phaseName on $finalTargetDate at 9:00 AM")
+            Log.d("PhaseReminderHelper", "Scheduled phase reminder $phaseIndex on $finalTargetDate")
         } catch (e: Exception) {
             Log.e("PhaseReminderHelper", "Failed to schedule phase alarm: ${e.message}")
         }

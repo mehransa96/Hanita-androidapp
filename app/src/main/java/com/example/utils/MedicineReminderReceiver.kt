@@ -40,7 +40,7 @@ class MedicineReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val builder = NotificationCompat.Builder(context, "medicine_channel")
+        val builder = NotificationCompat.Builder(context, "medicine_channel").privateOnLockScreen(context, "medicine_channel")
             .setSmallIcon(android.R.drawable.ic_dialog_info) // TODO: use real icon
             .setContentTitle("یادآور داروی هانیتا 💊")
             .setContentText("زمان مصرف $medName فرا رسیده است ($medDosage)")
