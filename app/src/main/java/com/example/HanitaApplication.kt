@@ -35,6 +35,7 @@ class HanitaApplication : Application() {
      * Stores the last crash locally (never uploaded) so the recovery screen can offer a reset.
      * Only the exception type and stack frames are kept: no user data is written.
      */
+    @android.annotation.SuppressLint("ApplySharedPref") // the process is about to die; write synchronously
     private fun installCrashRecorder() {
         val original = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->

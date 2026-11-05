@@ -462,7 +462,7 @@ fun MoodScreen(
                                     }
                                 } else {
                                     Text(
-                                        text = String.format("%02d:%02d", track.durationSeconds / 60, track.durationSeconds % 60),
+                                        text = String.format(java.util.Locale.US, "%02d:%02d", track.durationSeconds / 60, track.durationSeconds % 60),
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                         fontWeight = FontWeight.Medium
@@ -644,8 +644,8 @@ fun MoodScreen(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             // Playback Timeline Slider with Seeking Support
-                            val formattedCurrent = String.format("%02d:%02d", currentPositionSeconds / 60, currentPositionSeconds % 60)
-                            val formattedTotal = String.format("%02d:%02d", trackDurationSeconds / 60, trackDurationSeconds % 60)
+                            val formattedCurrent = String.format(java.util.Locale.US, "%02d:%02d", currentPositionSeconds / 60, currentPositionSeconds % 60)
+                            val formattedTotal = String.format(java.util.Locale.US, "%02d:%02d", trackDurationSeconds / 60, trackDurationSeconds % 60)
 
                             Slider(
                                 value = currentPositionSeconds.toFloat().coerceIn(0f, trackDurationSeconds.toFloat()),

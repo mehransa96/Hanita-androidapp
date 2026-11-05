@@ -142,7 +142,7 @@ class MainActivity : ComponentActivity() {
                                 
                                 OutlinedButton(
                                     onClick = {
-                                        crashPrefs.edit().remove(HanitaApplication.KEY_LAST_CRASH).commit()
+                                        crashPrefs.edit().remove(HanitaApplication.KEY_LAST_CRASH).apply()
                                         crashStackTrace = null
                                     },
                                     modifier = Modifier.fillMaxWidth()
@@ -362,6 +362,7 @@ class MainActivity : ComponentActivity() {
 }
 
     /** Deletes all local data (only after explicit confirmation on the recovery screen). */
+    @android.annotation.SuppressLint("ApplySharedPref") // must be on disk before the process restarts
     private fun resetAllLocalData() {
         getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE).edit().clear().commit()
         getSharedPreferences(HanitaApplication.CRASH_PREFS, android.content.Context.MODE_PRIVATE).edit().clear().commit()
