@@ -83,7 +83,7 @@ ksp {
 }
 
 dependencies {
-  coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+  coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
   implementation(libs.androidx.activity.compose)
