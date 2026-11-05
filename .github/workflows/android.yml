@@ -35,6 +35,19 @@ jobs:
       - name: Build release (minified, unsigned)
         run: ./gradlew --stacktrace assembleRelease
 
+      - name: Android Lint
+        run: ./gradlew --stacktrace lintDebug
+
+      - name: Upload lint report and Room schemas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-and-schemas
+          path: |
+            app/build/reports/lint-results-debug.*
+            app/schemas/
+          if-no-files-found: ignore
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4

@@ -27,3 +27,10 @@
 -dontwarn com.google.firebase.**
 -dontwarn io.ktor.**
 -dontwarn org.slf4j.**
+
+# Strip verbose/debug/info logging from release builds so no health data can reach logcat.
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
