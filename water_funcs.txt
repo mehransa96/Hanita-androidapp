@@ -1,0 +1,37 @@
+    fun incrementWater() {
+        viewModelScope.launch {
+            val todayStr = LocalDate.now().toString()
+            val existing = repository.getLogByDate(todayStr)
+            val current = existing?.waterIntake ?: 0
+            val newAmount = (current + 1).coerceAtMost(16)
+            
+            val newLog = existing?.copy(waterIntake = newAmount) ?: DailyLog(
+                dateStr = todayStr,
+                periodFlow = "NONE",
+                symptoms = "",
+                moods = "",
+                notes = "",
+                waterIntake = newAmount
+            )
+            repository.insertLog(newLog)
+        }
+    }
+
+    fun decrementWater() {
+        viewModelScope.launch {
+            val todayStr = LocalDate.now().toString()
+            val existing = repository.getLogByDate(todayStr)
+            val current = existing?.waterIntake ?: 0
+            val newAmount = (current - 1).coerceAtLeast(0)
+            
+            val newLog = existing?.copy(waterIntake = newAmount) ?: DailyLog(
+                dateStr = todayStr,
+                periodFlow = "NONE",
+                symptoms = "",
+                moods = "",
+                notes = "",
+                waterIntake = newAmount
+            )
+            repository.insertLog(newLog)
+        }
+    }

@@ -44,17 +44,40 @@ class UserPreferencesManager(context: Context) {
     private val _daysBefore = MutableStateFlow(prefs.getInt("days_before_notification", 1))
     val daysBefore: StateFlow<Int> = _daysBefore.asStateFlow()
 
+    private val _ovulationDaysBefore = MutableStateFlow(prefs.getInt("ovulation_days_before_notification", 1))
+    val ovulationDaysBefore: StateFlow<Int> = _ovulationDaysBefore.asStateFlow()
+
+    private val _notificationHour = MutableStateFlow(prefs.getInt("notification_hour", 9))
+    val notificationHour: StateFlow<Int> = _notificationHour.asStateFlow()
+
+    private val _notificationMinute = MutableStateFlow(prefs.getInt("notification_minute", 0))
+    val notificationMinute: StateFlow<Int> = _notificationMinute.asStateFlow()
+
     private val _averageCycleLength = MutableStateFlow(prefs.getInt("average_cycle_length", 28))
     val averageCycleLength: StateFlow<Int> = _averageCycleLength.asStateFlow()
 
     private val _appTheme = MutableStateFlow(prefs.getString("app_theme", "COSMIC_BLOSSOM") ?: "COSMIC_BLOSSOM")
     val appTheme: StateFlow<String> = _appTheme.asStateFlow()
 
+    private val _themeMode = MutableStateFlow(prefs.getString("theme_mode", "SYSTEM") ?: "SYSTEM")
+    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+
     private val _appFont = MutableStateFlow(prefs.getString("app_font", "CLASSIC") ?: "CLASSIC")
     val appFont: StateFlow<String> = _appFont.asStateFlow()
 
     private val _medicationReminders = MutableStateFlow(getMedicationRemindersFromPrefs())
     val medicationReminders: StateFlow<List<MedicineReminder>> = _medicationReminders.asStateFlow()
+
+    private val _customPhysicalSymptoms = MutableStateFlow(
+        prefs.getStringSet("custom_physical_symptoms", emptySet())?.toList() ?: emptyList()
+    )
+    val customPhysicalSymptoms: StateFlow<List<String>> = _customPhysicalSymptoms.asStateFlow()
+
+    private val _customMoodSymptoms = MutableStateFlow(
+        prefs.getStringSet("custom_mood_symptoms", emptySet())?.toList() ?: emptyList()
+    )
+    val customMoodSymptoms: StateFlow<List<String>> = _customMoodSymptoms.asStateFlow()
+
 
     fun login(name: String, cycleLength: Int = 28) {
         prefs.edit().apply {
@@ -98,6 +121,21 @@ class UserPreferencesManager(context: Context) {
         _daysBefore.value = days
     }
 
+    fun setOvulationDaysBefore(days: Int) {
+        prefs.edit().putInt("ovulation_days_before_notification", days).apply()
+        _ovulationDaysBefore.value = days
+    }
+
+    fun setNotificationTime(hour: Int, minute: Int) {
+        prefs.edit().apply {
+            putInt("notification_hour", hour)
+            putInt("notification_minute", minute)
+            apply()
+        }
+        _notificationHour.value = hour
+        _notificationMinute.value = minute
+    }
+
     fun setAverageCycleLength(length: Int) {
         prefs.edit().putInt("average_cycle_length", length).apply()
         _averageCycleLength.value = length
@@ -106,6 +144,11 @@ class UserPreferencesManager(context: Context) {
     fun setAppTheme(theme: String) {
         prefs.edit().putString("app_theme", theme).apply()
         _appTheme.value = theme
+    }
+
+    fun setThemeMode(mode: String) {
+        prefs.edit().putString("theme_mode", mode).apply()
+        _themeMode.value = mode
     }
 
     fun setAppFont(font: String) {
@@ -161,4 +204,34 @@ class UserPreferencesManager(context: Context) {
     fun saveCycleAnalysisReport(report: String) {
         prefs.edit().putString("cycle_analysis_report", report).apply()
     }
+
+
+    fun addCustomPhysicalSymptom(symptom: String) {
+        val currentSet = prefs.getStringSet("custom_physical_symptoms", emptySet()) ?: emptySet()
+        val newSet = currentSet.toMutableSet().apply { add(symptom) }
+        prefs.edit().putStringSet("custom_physical_symptoms", newSet).apply()
+        _customPhysicalSymptoms.value = newSet.toList()
+    }
+
+    fun removeCustomPhysicalSymptom(symptom: String) {
+        val currentSet = prefs.getStringSet("custom_physical_symptoms", emptySet()) ?: emptySet()
+        val newSet = currentSet.toMutableSet().apply { remove(symptom) }
+        prefs.edit().putStringSet("custom_physical_symptoms", newSet).apply()
+        _customPhysicalSymptoms.value = newSet.toList()
+    }
+
+    fun addCustomMoodSymptom(symptom: String) {
+        val currentSet = prefs.getStringSet("custom_mood_symptoms", emptySet()) ?: emptySet()
+        val newSet = currentSet.toMutableSet().apply { add(symptom) }
+        prefs.edit().putStringSet("custom_mood_symptoms", newSet).apply()
+        _customMoodSymptoms.value = newSet.toList()
+    }
+
+    fun removeCustomMoodSymptom(symptom: String) {
+        val currentSet = prefs.getStringSet("custom_mood_symptoms", emptySet()) ?: emptySet()
+        val newSet = currentSet.toMutableSet().apply { remove(symptom) }
+        prefs.edit().putStringSet("custom_mood_symptoms", newSet).apply()
+        _customMoodSymptoms.value = newSet.toList()
+    }
+
 }

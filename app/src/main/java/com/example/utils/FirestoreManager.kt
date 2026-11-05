@@ -192,6 +192,29 @@ class FirestoreManager(
     }
 
     /**
+     * Delete cycle record from Firestore
+     */
+    suspend fun deleteCycleRecord(userName: String, cycleId: String): Boolean {
+        if (userName.isBlank()) return false
+        val db = firestore ?: return false
+        return withContext(Dispatchers.IO) {
+            try {
+                db.collection("users")
+                    .document(userName)
+                    .collection("cycles")
+                    .document(cycleId)
+                    .delete()
+                    .await()
+                Log.d("FirestoreManager", "Successfully deleted cycle record from Firestore")
+                true
+            } catch (e: Exception) {
+                Log.e("FirestoreManager", "Failed to delete cycle record: ${e.message}")
+                false
+            }
+        }
+    }
+
+    /**
      * Upload full cycle record to Firestore
      */
     suspend fun uploadCycleRecord(userName: String, cycleRecord: CycleRecord): Boolean {

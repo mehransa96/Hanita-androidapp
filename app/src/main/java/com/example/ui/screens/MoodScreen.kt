@@ -1,12 +1,17 @@
 package com.example.ui.screens
 
+import android.content.res.AssetFileDescriptor
+import android.media.MediaPlayer
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,11 +25,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.CycleMusic
+import com.example.data.model.CyclePhaseType
+import com.example.data.repository.CycleMusicRepository
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MahitaViewModel
 import kotlinx.coroutines.delay
@@ -36,116 +46,120 @@ fun MoodScreen(
     onNavigateBack: () -> Unit
 ) {
     val cycleInfo by viewModel.cycleInfo.collectAsState()
-    
-    // Determine the phase name string for Persian displays
-    val currentPhaseText = when {
-        cycleInfo.isPeriod || cycleInfo.daysUntilNextPeriod in 24..28 -> "قاعدگی"
-        cycleInfo.isFertile -> "تخمک‌گذاری" 
-        cycleInfo.daysUntilNextPeriod in 16..23 -> "فولیکولی"
-        else -> "لوتئال"
-    }
-    
-    val currentPhaseKey = when {
-        cycleInfo.isPeriod || cycleInfo.daysUntilNextPeriod in 24..28 -> "period"
-        cycleInfo.isFertile -> "ovulation"
-        cycleInfo.daysUntilNextPeriod in 16..23 -> "follicular"
-        else -> "luteal"
+
+    // Determine current user cycle phase based on cycle tracking
+    val currentCyclePhase = when {
+        cycleInfo.isPeriod || cycleInfo.daysUntilNextPeriod in 24..28 -> CyclePhaseType.PERIOD
+        cycleInfo.isFertile -> CyclePhaseType.OVULATION
+        cycleInfo.daysUntilNextPeriod in 16..23 -> CyclePhaseType.FOLLICULAR
+        else -> CyclePhaseType.LUTEAL
     }
 
-    val recommendedMusic = getPhaseMusic(currentPhaseKey)
+    // Phase filter selection: null means "All phases", otherwise specific phase
+    var selectedPhaseFilter by remember { mutableStateOf<CyclePhaseType?>(currentCyclePhase) }
 
-    // Interactive Music Player states
-    var currentPlayingMusic by remember { mutableStateOf<MusicItem?>(null) }
+    val displayedTracks = remember(selectedPhaseFilter) {
+        if (selectedPhaseFilter == null) {
+            CycleMusicRepository.allTracks
+        } else {
+            CycleMusicRepository.getTracksForPhase(selectedPhaseFilter!!)
+        }
+    }
+
+    // Media Player and interactive playback states
+    var currentPlayingMusic by remember { mutableStateOf<CycleMusic?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
     var currentPositionSeconds by remember { mutableStateOf(0) }
-    val durationSeconds = 180 // 3 minutes track standard
+    var trackDurationSeconds by remember { mutableStateOf(24) }
+    var isLooping by remember { mutableStateOf(true) }
     var isFavorited by remember { mutableStateOf(false) }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val mediaPlayer = remember { android.media.MediaPlayer() }
+    val context = LocalContext.current
+    val mediaPlayer = remember { MediaPlayer() }
 
     DisposableEffect(Unit) {
         onDispose {
             try {
+                if (mediaPlayer.isPlaying) mediaPlayer.stop()
                 mediaPlayer.release()
-            } catch(e: Exception) {}
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
-    LaunchedEffect(currentPlayingMusic) {
+    // Playback logic with bundled offline raw audio resources
+    fun startTrackPlayback(track: CycleMusic) {
         try {
             mediaPlayer.reset()
-            if (currentPlayingMusic != null) {
-                val songIndex = when (currentPhaseKey) {
-                    "period" -> 5
-                    "ovulation" -> 6
-                    "follicular" -> 7
-                    else -> 8
-                }
-                val url = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-$songIndex.mp3"
-                mediaPlayer.setDataSource(context, android.net.Uri.parse(url))
-                mediaPlayer.prepareAsync()
-                mediaPlayer.setOnPreparedListener {
-                    if (isPlaying) it.start()
-                }
-            }
+            val afd: AssetFileDescriptor = context.resources.openRawResourceFd(track.resId)
+            mediaPlayer.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+            afd.close()
+            mediaPlayer.isLooping = isLooping
+            mediaPlayer.prepare()
+            mediaPlayer.start()
+            isPlaying = true
+            currentPositionSeconds = 0
+            trackDurationSeconds = (mediaPlayer.duration / 1000).coerceAtLeast(track.durationSeconds)
         } catch (e: Exception) {
             e.printStackTrace()
+            isPlaying = false
         }
     }
 
-    LaunchedEffect(isPlaying) {
-        try {
+    val togglePlayPause: (CycleMusic) -> Unit = { music ->
+        if (currentPlayingMusic?.id == music.id) {
             if (isPlaying) {
-                if (currentPlayingMusic != null) {
-                    mediaPlayer.start()
-                }
-            } else {
-                if (mediaPlayer.isPlaying) mediaPlayer.pause()
-            }
-        } catch (e: Exception) {}
-    }
-
-    // Sound Playback ticker simulation and real sync
-    LaunchedEffect(isPlaying, currentPlayingMusic) {
-        if (isPlaying && currentPlayingMusic != null) {
-            while (isPlaying && currentPlayingMusic != null) {
-                delay(1000)
                 try {
-                    if (mediaPlayer.isPlaying) {
-                        currentPositionSeconds = mediaPlayer.currentPosition / 1000
-                    } else {
-                        if (currentPositionSeconds < durationSeconds) {
-                            currentPositionSeconds += 1
-                        }
-                    }
+                    if (mediaPlayer.isPlaying) mediaPlayer.pause()
+                } catch (e: Exception) {}
+                isPlaying = false
+            } else {
+                try {
+                    mediaPlayer.start()
+                    isPlaying = true
                 } catch (e: Exception) {
-                    if (currentPositionSeconds < durationSeconds) {
-                        currentPositionSeconds += 1
-                    }
-                }
-                
-                if (currentPositionSeconds >= durationSeconds) {
-                    // Automove next track logic
-                    val currentIndex = recommendedMusic.indexOf(currentPlayingMusic)
-                    if (currentIndex != -1 && currentIndex < recommendedMusic.lastIndex) {
-                        currentPlayingMusic = recommendedMusic[currentIndex + 1]
-                    } else {
-                        currentPlayingMusic = recommendedMusic.firstOrNull()
-                    }
-                    currentPositionSeconds = 0
+                    startTrackPlayback(music)
                 }
             }
-        }
-    }
-
-    val togglePlayPause: (MusicItem) -> Unit = { music ->
-        if (currentPlayingMusic == music) {
-            isPlaying = !isPlaying
         } else {
             currentPlayingMusic = music
-            currentPositionSeconds = 0
-            isPlaying = true
+            startTrackPlayback(music)
+        }
+    }
+
+    // Listen to track completion if not looping
+    LaunchedEffect(isLooping, displayedTracks, currentPlayingMusic) {
+        mediaPlayer.isLooping = isLooping
+        mediaPlayer.setOnCompletionListener {
+            if (!isLooping) {
+                val currentIndex = displayedTracks.indexOfFirst { it.id == currentPlayingMusic?.id }
+                if (currentIndex != -1 && currentIndex < displayedTracks.lastIndex) {
+                    val nextTrack = displayedTracks[currentIndex + 1]
+                    currentPlayingMusic = nextTrack
+                    startTrackPlayback(nextTrack)
+                } else if (displayedTracks.isNotEmpty()) {
+                    val firstTrack = displayedTracks.first()
+                    currentPlayingMusic = firstTrack
+                    startTrackPlayback(firstTrack)
+                }
+            }
+        }
+    }
+
+    // Real-time position polling ticker
+    LaunchedEffect(isPlaying, currentPlayingMusic) {
+        while (isPlaying && currentPlayingMusic != null) {
+            delay(500)
+            try {
+                if (mediaPlayer.isPlaying) {
+                    currentPositionSeconds = mediaPlayer.currentPosition / 1000
+                    val dur = mediaPlayer.duration / 1000
+                    if (dur > 0) trackDurationSeconds = dur
+                }
+            } catch (e: Exception) {
+                currentPositionSeconds += 1
+            }
         }
     }
 
@@ -153,9 +167,18 @@ fun MoodScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("حال خوب شما 🌸", fontWeight = FontWeight.Bold) },
+                title = {
+                    Column {
+                        Text("موزیک و حال خوب چرخه 🌸", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Text(
+                            "آهنگ‌های علمی متناسب با هر دوره قاعدگی",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = onNavigateBack, modifier = Modifier.testTag("mood_back_button")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "بازگشت")
                     }
                 },
@@ -174,12 +197,12 @@ fun MoodScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
+                    Spacer(modifier = Modifier.height(4.dp))
+
                     // Welcome / Current Phase Banner
                     Card(
                         colors = CardDefaults.cardColors(
@@ -187,196 +210,311 @@ fun MoodScreen(
                         ),
                         shape = RoundedCornerShape(24.dp),
                         elevation = CardDefaults.cardElevation(0.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
-                            modifier = Modifier.padding(24.dp),
+                            modifier = Modifier.padding(20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(68.dp)
-                                    .background(
-                                        Brush.radialGradient(
-                                            colors = listOf(
-                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                                Color.Transparent
-                                            )
-                                        )
-                                    )
+                                    .size(56.dp)
                                     .background(MaterialTheme.colorScheme.surface, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Favorite,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(34.dp)
-                                )
+                                Text(currentCyclePhase.emoji, fontSize = 28.sp)
                             }
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "فاز فعلی: $currentPhaseText",
-                                style = MaterialTheme.typography.titleLarge,
+                                text = "فاز کنونی شما: ${currentCyclePhase.persianTitle}",
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = getPhaseGreeting(currentPhaseKey),
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = currentCyclePhase.description,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                 textAlign = TextAlign.Center,
-                                lineHeight = 22.sp
+                                lineHeight = 20.sp
                             )
                         }
                     }
                 }
 
+                // Phase selection filter tabs
                 item {
-                    // Inspirational Quote Section
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Filled.LibraryMusic,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "انتخاب دوره و سبک موسیقی:",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Horizontal scrollable phase chips
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Current Phase recommendation quick chip
+                            FilterChip(
+                                selected = selectedPhaseFilter == currentCyclePhase,
+                                onClick = { selectedPhaseFilter = currentCyclePhase },
+                                label = { Text("دوره من (${currentCyclePhase.emoji})", fontSize = 12.sp) },
+                                leadingIcon = {
+                                    if (selectedPhaseFilter == currentCyclePhase) {
+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    }
+                                },
+                                modifier = Modifier.testTag("filter_my_phase")
+                            )
+
+                            CyclePhaseType.values().forEach { phase ->
+                                if (phase != currentCyclePhase) {
+                                    FilterChip(
+                                        selected = selectedPhaseFilter == phase,
+                                        onClick = { selectedPhaseFilter = phase },
+                                        label = { Text("${phase.emoji} ${phase.persianTitle}", fontSize = 12.sp) },
+                                        leadingIcon = {
+                                            if (selectedPhaseFilter == phase) {
+                                                Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            }
+                                        },
+                                        modifier = Modifier.testTag("filter_phase_${phase.key}")
+                                    )
+                                }
+                            }
+
+                            FilterChip(
+                                selected = selectedPhaseFilter == null,
+                                onClick = { selectedPhaseFilter = null },
+                                label = { Text("همه ۱۶ قطعه 🎶", fontSize = 12.sp) },
+                                leadingIcon = {
+                                    if (selectedPhaseFilter == null) {
+                                        Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    }
+                                },
+                                modifier = Modifier.testTag("filter_all_tracks")
+                            )
+                        }
+                    }
+                }
+
+                // Phase guide banner if a specific phase is chosen
+                if (selectedPhaseFilter != null) {
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(selectedPhaseFilter!!.emoji, fontSize = 24.sp)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = selectedPhaseFilter!!.shortSubtitle,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                    Text(
+                                        text = "۴ قطعه اختصاصی، تست‌شده و با بالاترین کیفیت صوتی",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Track list
+                items(displayedTracks, key = { it.id }) { track ->
+                    val isThisPlaying = currentPlayingMusic?.id == track.id
                     Card(
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isThisPlaying) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
+                            width = if (isThisPlaying) 1.5.dp else 1.dp,
+                            color = if (isThisPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        elevation = CardDefaults.cardElevation(if (isThisPlaying) 4.dp else 1.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { togglePlayPause(track) }
+                            .testTag("music_track_${track.id}")
                     ) {
-                        Column(modifier = Modifier.padding(24.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Play / Pause circular button
                                 Box(
                                     modifier = Modifier
-                                        .size(36.dp)
-                                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f), CircleShape),
+                                        .size(48.dp)
+                                        .background(
+                                            color = if (isThisPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                            shape = CircleShape
+                                        ),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Filled.FormatQuote,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.secondary,
-                                        modifier = Modifier.size(20.dp)
+                                        imageVector = if (isThisPlaying && isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                        contentDescription = "پخش ${track.title}",
+                                        tint = if (isThisPlaying) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = "جمله امروز برای شما",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(14.dp))
-                            Text(
-                                text = getPhaseQuote(currentPhaseKey),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                lineHeight = 26.sp,
-                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-                            )
-                        }
-                    }
-                }
 
-                item {
-                    Text(
-                        text = "موزیک‌های پیشنهادی این دوره",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                    )
-                    
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        recommendedMusic.forEach { music ->
-                            val isThisPlaying = currentPlayingMusic == music
-                            Card(
-                                shape = RoundedCornerShape(20.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isThisPlaying) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f) else MaterialTheme.colorScheme.surface
-                                ),
-                                border = BorderStroke(
-                                    width = if (isThisPlaying) 1.5.dp else 1.dp,
-                                    color = if (isThisPlaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { togglePlayPause(music) }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .background(
-                                                color = if (isThisPlaying) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
-                                                shape = CircleShape
-                                            ),
-                                        contentAlignment = Alignment.Center
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = if (isThisPlaying && isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = music.title,
+                                            text = track.title,
                                             fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
                                             color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = music.artist,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            track.phase.emoji,
+                                            fontSize = 12.sp
                                         )
                                     }
-                                    
-                                    if (isThisPlaying) {
-                                        // Animated pulsing block inside selected row
-                                        Box(
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .background(MaterialTheme.colorScheme.primary.copy(alpha=0.1f), CircleShape),
-                                            contentAlignment = Alignment.Center
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Text(
+                                        text = track.subtitle,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                // Dynamic soundwave animation when playing
+                                if (isThisPlaying && isPlaying) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-                                                val pulseHeight1 by infiniteTransition.animateFloat(
-                                                    initialValue = 4f, targetValue = 12f,
-                                                    animationSpec = infiniteRepeatable(tween(400, easing = LinearEasing), RepeatMode.Reverse),
-                                                    label = ""
-                                                )
-                                                val pulseHeight2 by infiniteTransition.animateFloat(
-                                                    initialValue = 12f, targetValue = 4f,
-                                                    animationSpec = infiniteRepeatable(tween(500, easing = LinearEasing), RepeatMode.Reverse),
-                                                    label = ""
-                                                )
-                                                Box(modifier = Modifier.size(3.dp, pulseHeight1.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
-                                                Box(modifier = Modifier.size(3.dp, pulseHeight2.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
-                                            }
+                                            val infiniteTransition = rememberInfiniteTransition(label = "audio_bars")
+                                            val h1 by infiniteTransition.animateFloat(
+                                                initialValue = 4f, targetValue = 14f,
+                                                animationSpec = infiniteRepeatable(tween(350, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                                                label = "h1"
+                                            )
+                                            val h2 by infiniteTransition.animateFloat(
+                                                initialValue = 14f, targetValue = 5f,
+                                                animationSpec = infiniteRepeatable(tween(480, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                                                label = "h2"
+                                            )
+                                            val h3 by infiniteTransition.animateFloat(
+                                                initialValue = 6f, targetValue = 16f,
+                                                animationSpec = infiniteRepeatable(tween(420, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                                                label = "h3"
+                                            )
+                                            Box(modifier = Modifier.size(3.dp, h1.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                                            Box(modifier = Modifier.size(3.dp, h2.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                                            Box(modifier = Modifier.size(3.dp, h3.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
                                         }
                                     }
+                                } else {
+                                    Text(
+                                        text = String.format("%02d:%02d", track.durationSeconds / 60, track.durationSeconds % 60),
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        fontWeight = FontWeight.Medium
+                                    )
                                 }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Benefit description and tags
+                            Text(
+                                text = track.benefitDescription,
+                                fontSize = 11.sp,
+                                lineHeight = 17.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                SuggestionChip(
+                                    onClick = {},
+                                    label = { Text(track.categoryBadge, fontSize = 10.sp) },
+                                    colors = SuggestionChipDefaults.suggestionChipColors(
+                                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                                        labelColor = MaterialTheme.colorScheme.primary
+                                    ),
+                                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                                )
+                                SuggestionChip(
+                                    onClick = {},
+                                    label = { Text(track.frequencyLabel, fontSize = 10.sp) },
+                                    colors = SuggestionChipDefaults.suggestionChipColors(
+                                        containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f),
+                                        labelColor = MaterialTheme.colorScheme.secondary
+                                    ),
+                                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f))
+                                )
                             }
                         }
                     }
                 }
 
                 item {
-                    Spacer(modifier = Modifier.height(130.dp)) // Extra cushion space for bottom player card
+                    Spacer(modifier = Modifier.height(150.dp)) // Cushion for bottom player
                 }
             }
 
-            // Beautiful Media Player Slide-up Card
+            // Interactive Bottom Music Player
             AnimatedVisibility(
                 visible = currentPlayingMusic != null,
                 enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
@@ -386,29 +524,30 @@ fun MoodScreen(
                     .fillMaxWidth()
             ) {
                 currentPlayingMusic?.let { music ->
-                    // Rotate vinyl animation
-                    val infiniteTransition = rememberInfiniteTransition(label = "vinyl")
+                    // Rotating vinyl animation
+                    val infiniteTransition = rememberInfiniteTransition(label = "vinyl_rot")
                     val rotationAngle by infiniteTransition.animateFloat(
                         initialValue = 0f,
                         targetValue = 360f,
                         animationSpec = infiniteRepeatable(
-                            animation = tween(12000, easing = LinearEasing),
+                            animation = tween(10000, easing = LinearEasing),
                             repeatMode = RepeatMode.Restart
                         ),
-                        label = "disk_rotation"
+                        label = "disk"
                     )
                     val currentRotation = if (isPlaying) rotationAngle else 0f
 
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
+                            .padding(14.dp)
+                            .testTag("mood_bottom_player"),
                         shape = RoundedCornerShape(24.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.98f)
                         ),
                         elevation = CardDefaults.cardElevation(12.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
                     ) {
                         Column(
                             modifier = Modifier
@@ -416,12 +555,12 @@ fun MoodScreen(
                                 .padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // Top minimal handle
+                            // Minimal Drag Handle
                             Box(
                                 modifier = Modifier
                                     .size(36.dp, 4.dp)
                                     .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f))
                             )
                             Spacer(modifier = Modifier.height(12.dp))
 
@@ -429,7 +568,7 @@ fun MoodScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Rotating CD Disk Album Graphic
+                                // Rotating Vinyl Graphic
                                 Box(
                                     modifier = Modifier
                                         .size(54.dp)
@@ -439,6 +578,7 @@ fun MoodScreen(
                                                 colors = listOf(
                                                     MaterialTheme.colorScheme.primary,
                                                     MaterialTheme.colorScheme.secondary,
+                                                    MaterialTheme.colorScheme.tertiary,
                                                     MaterialTheme.colorScheme.primary
                                                 )
                                             ),
@@ -446,7 +586,6 @@ fun MoodScreen(
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    // Innermost hole
                                     Box(
                                         modifier = Modifier
                                             .size(16.dp)
@@ -461,31 +600,39 @@ fun MoodScreen(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.width(16.dp))
+                                Spacer(modifier = Modifier.width(14.dp))
 
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = music.title,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = music.title,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(music.phase.emoji, fontSize = 12.sp)
+                                    }
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = music.artist,
+                                        text = "${music.subtitle} • ${music.categoryBadge}",
                                         fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
 
-                                // Heart Button
-                                IconButton(onClick = { isFavorited = !isFavorited }) {
+                                // Favorite Toggle
+                                IconButton(
+                                    onClick = { isFavorited = !isFavorited },
+                                    modifier = Modifier.testTag("player_favorite_button")
+                                ) {
                                     Icon(
                                         imageVector = if (isFavorited) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                         tint = if (isFavorited) Color(0xFFFF4C4C) else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -494,16 +641,23 @@ fun MoodScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
-                            // Playback Timeline Slider
+                            // Playback Timeline Slider with Seeking Support
                             val formattedCurrent = String.format("%02d:%02d", currentPositionSeconds / 60, currentPositionSeconds % 60)
-                            val formattedTotal = String.format("%02d:%02d", durationSeconds / 60, durationSeconds % 60)
+                            val formattedTotal = String.format("%02d:%02d", trackDurationSeconds / 60, trackDurationSeconds % 60)
 
                             Slider(
-                                value = currentPositionSeconds.toFloat(),
-                                onValueChange = { currentPositionSeconds = it.toInt() },
-                                valueRange = 0f..durationSeconds.toFloat(),
+                                value = currentPositionSeconds.toFloat().coerceIn(0f, trackDurationSeconds.toFloat()),
+                                onValueChange = { newValue ->
+                                    currentPositionSeconds = newValue.toInt()
+                                },
+                                onValueChangeFinished = {
+                                    try {
+                                        mediaPlayer.seekTo(currentPositionSeconds * 1000)
+                                    } catch (e: Exception) {}
+                                },
+                                valueRange = 0f..trackDurationSeconds.toFloat(),
                                 colors = SliderDefaults.colors(
                                     thumbColor = MaterialTheme.colorScheme.primary,
                                     activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -511,7 +665,8 @@ fun MoodScreen(
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(20.dp)
+                                    .height(22.dp)
+                                    .testTag("player_timeline_slider")
                             )
 
                             Row(
@@ -521,41 +676,56 @@ fun MoodScreen(
                                 Text(
                                     text = formattedCurrent,
                                     fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                                 Text(
                                     text = formattedTotal,
                                     fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
-                            // Controller row
+                            // Playback Control Buttons
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Close button
-                                IconButton(onClick = {
-                                    isPlaying = false
-                                    currentPlayingMusic = null
-                                }) {
-                                    Icon(Icons.Filled.Close, contentDescription = "بستن پلیر", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.6f))
+                                // Repeat / Loop Toggle
+                                IconButton(
+                                    onClick = {
+                                        isLooping = !isLooping
+                                        try {
+                                            mediaPlayer.isLooping = isLooping
+                                        } catch (e: Exception) {}
+                                    },
+                                    modifier = Modifier.testTag("player_loop_toggle")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Repeat,
+                                        contentDescription = if (isLooping) "تکرار فعال" else "پخش پیوسته",
+                                        tint = if (isLooping) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    )
                                 }
 
                                 // Skip Previous
-                                IconButton(onClick = {
-                                    val currentIndex = recommendedMusic.indexOf(music)
-                                    if (currentIndex != -1 && currentIndex > 0) {
-                                        currentPlayingMusic = recommendedMusic[currentIndex - 1]
-                                    } else {
-                                        currentPlayingMusic = recommendedMusic.lastOrNull()
-                                    }
-                                    currentPositionSeconds = 0
-                                }) {
+                                IconButton(
+                                    onClick = {
+                                        val currentIndex = displayedTracks.indexOfFirst { it.id == music.id }
+                                        if (currentIndex > 0) {
+                                            val prev = displayedTracks[currentIndex - 1]
+                                            currentPlayingMusic = prev
+                                            startTrackPlayback(prev)
+                                        } else if (displayedTracks.isNotEmpty()) {
+                                            val last = displayedTracks.last()
+                                            currentPlayingMusic = last
+                                            startTrackPlayback(last)
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("player_skip_prev")
+                                ) {
                                     Icon(
                                         imageVector = Icons.Filled.SkipPrevious,
                                         contentDescription = "قبلی",
@@ -563,33 +733,54 @@ fun MoodScreen(
                                     )
                                 }
 
-                                // Main Play/Pause circular button
+                                // Primary Play / Pause Button
                                 Box(
                                     modifier = Modifier
-                                        .size(48.dp)
+                                        .size(52.dp)
                                         .clip(CircleShape)
                                         .background(MaterialTheme.colorScheme.primary)
-                                        .clickable { isPlaying = !isPlaying },
+                                        .clickable {
+                                            if (isPlaying) {
+                                                try {
+                                                    if (mediaPlayer.isPlaying) mediaPlayer.pause()
+                                                } catch (e: Exception) {}
+                                                isPlaying = false
+                                            } else {
+                                                try {
+                                                    mediaPlayer.start()
+                                                    isPlaying = true
+                                                } catch (e: Exception) {
+                                                    startTrackPlayback(music)
+                                                }
+                                            }
+                                        }
+                                        .testTag("player_play_pause"),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                        contentDescription = "پخش/توقف",
+                                        contentDescription = if (isPlaying) "توقف" else "پخش",
                                         tint = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(28.dp)
                                     )
                                 }
 
                                 // Skip Next
-                                IconButton(onClick = {
-                                    val currentIndex = recommendedMusic.indexOf(music)
-                                    if (currentIndex != -1 && currentIndex < recommendedMusic.lastIndex) {
-                                        currentPlayingMusic = recommendedMusic[currentIndex + 1]
-                                    } else {
-                                        currentPlayingMusic = recommendedMusic.firstOrNull()
-                                    }
-                                    currentPositionSeconds = 0
-                                }) {
+                                IconButton(
+                                    onClick = {
+                                        val currentIndex = displayedTracks.indexOfFirst { it.id == music.id }
+                                        if (currentIndex != -1 && currentIndex < displayedTracks.lastIndex) {
+                                            val next = displayedTracks[currentIndex + 1]
+                                            currentPlayingMusic = next
+                                            startTrackPlayback(next)
+                                        } else if (displayedTracks.isNotEmpty()) {
+                                            val first = displayedTracks.first()
+                                            currentPlayingMusic = first
+                                            startTrackPlayback(first)
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("player_skip_next")
+                                ) {
                                     Icon(
                                         imageVector = Icons.Filled.SkipNext,
                                         contentDescription = "بعدی",
@@ -597,9 +788,22 @@ fun MoodScreen(
                                     )
                                 }
 
-                                // Repeat simulated block
-                                IconButton(onClick = { currentPositionSeconds = 0 }) {
-                                    Icon(Icons.Filled.Replay, contentDescription = "تکرار", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.6f))
+                                // Close Player
+                                IconButton(
+                                    onClick = {
+                                        isPlaying = false
+                                        try {
+                                            if (mediaPlayer.isPlaying) mediaPlayer.stop()
+                                        } catch (e: Exception) {}
+                                        currentPlayingMusic = null
+                                    },
+                                    modifier = Modifier.testTag("player_close")
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = "بستن پلیر",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
                                 }
                             }
                         }
@@ -607,50 +811,5 @@ fun MoodScreen(
                 }
             }
         }
-    }
-}
-
-data class MusicItem(val title: String, val artist: String)
-
-fun getPhaseGreeting(phase: String): String {
-    return when (phase) {
-        "period" -> "بدن تو در حال استراحت و بازسازی است. با خودت مهربان باش و به صدای درونت گوش بده. یک نوشیدنی گرم و استراحت عمیق برای تو معجزه می‌کند."
-        "follicular" -> "انرژی در حال بازگشت است! زمان مناسبی برای برنامه‌ریزی، شروع پروژه‌های جدید و دیدار با دوستان است. از این شادابی لذت ببر."
-        "ovulation" -> "تو در اوج انرژی و درخشش هستی! قدرت ارتباطی و خلاقیت تو اکنون در بالاترین سطح است. بهترین زمان برای کارهای جسورانه."
-        else -> "بدن تو به آرامی در حال آماده شدن برای استراحت است. کاهش سرعت و انجام کارهای آرام‌بخش مانند مدیتیشن یا یک حمام گرم بسیار مفید است."
-    }
-}
-
-fun getPhaseQuote(phase: String): String {
-    return when (phase) {
-        "period" -> "«استراحت کردن اتلاف وقت نیست، بلکه شارژ کردن دوباره روحت است برای پروازهای بلندتر.»"
-        "follicular" -> "«هر طلوع، دعوتی است برای شروعی دوباره و خلق زیبایی‌های تازه.»"
-        "ovulation" -> "«تو قدرتمندتر از آن چیزی هستی که در آینه می‌بینی؛ جهان منتظر تابش نور توست!»"
-        else -> "«آرامش پاداش پذیرش است. به جریان زندگی اعتماد کن و اجازه بده همه چیز در زمان خودش رخ دهد.»"
-    }
-}
-
-fun getPhaseMusic(phase: String): List<MusicItem> {
-    return when (phase) {
-        "period" -> listOf(
-            MusicItem("پیانو آرام‌بخش (Relaxing Piano)", "موسیقی بی‌کلام آرام"),
-            MusicItem("صدای باران و جنگل (Rain & Nature)", "صداهای طبیعت"),
-            MusicItem("امواج دلنشین (Ambient Waves)", "تراپی صوتی")
-        )
-        "follicular" -> listOf(
-            MusicItem("آهنگ‌های شاداب صبحگاهی (Morning Joy)", "پاپ ملایم و انرژی‌بخش"),
-            MusicItem("شروع تازه (Fresh Start)", "آکوستیک گیتار و آواز روشن"),
-            MusicItem("گام‌های مثبت (Positive Vibes)", "الکترونیک ملایم شاد")
-        )
-        "ovulation" -> listOf(
-            MusicItem("انرژی بی‌نهایت (High Energy)", "پاپ، دنس و شاد"),
-            MusicItem("قدرت درون (Empowered)", "ریمیکس‌های پرانرژی و بیت‌دار"),
-            MusicItem("شادی محض (Pure Joy)", "موسیقی ریتمیک شاد و پرشور")
-        )
-        else -> listOf(
-            MusicItem("رهاسازی تنش‌ها (Lo-Fi Chill)", "بیت‌های لوفای و آرام"),
-            MusicItem("مدیتیشن عصرگاهی (Evening Meditate)", "موسیقی فرکانس‌های درمانی"),
-            MusicItem("آوای آرامش (Calm Acoustics)", "نواختن ملایم سازهای زهی")
-        )
     }
 }

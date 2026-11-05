@@ -1,0 +1,22 @@
+    fun saveLog(dateStr: String, flow: String, symptoms: List<String>, moods: List<String>, notes: String, emoji: String = "", takenMeds: String = "") {
+        viewModelScope.launch {
+            val existing = repository.getLogByDate(dateStr)
+            val log = DailyLog(
+                dateStr = dateStr,
+                periodFlow = flow,
+                symptoms = symptoms.joinToString(","),
+                moods = moods.joinToString(","),
+                notes = notes,
+                emoji = emoji,
+                takenMeds = takenMeds,
+                waterIntake = existing?.waterIntake ?: 0
+            )
+            repository.insertLog(log)
+            
+            // Sync this single log immediately to Firestore
+            val name = userName.value
+            if (name.isNotBlank()) {
+                firestoreManager.uploadLog(name, log)
+            }
+        }
+    }

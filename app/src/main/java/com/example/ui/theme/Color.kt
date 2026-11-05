@@ -3,6 +3,7 @@ package com.example.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 // Light Theme Colors
 val LightBackground = Color(0xFFFCF8F8)
@@ -87,8 +88,8 @@ val Indigo500: Color
     @Composable get() = MaterialTheme.colorScheme.tertiary
 
 val Amber50: Color
-    @Composable get() = if (MaterialTheme.colorScheme.background == NightBackground) NightAmber50 else LightAmber50
+    @Composable get() = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) NightAmber50 else LightAmber50
 
 val Amber500: Color
-    @Composable get() = if (MaterialTheme.colorScheme.background == NightBackground) NightAmber500 else LightAmber500
+    @Composable get() = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) NightAmber500 else LightAmber500
 

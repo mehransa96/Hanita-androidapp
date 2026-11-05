@@ -1,0 +1,1 @@
+sed -i 's/import androidx.compose.material.icons.Icons/import androidx.compose.material.icons.Icons\nimport androidx.compose.material.icons.filled.*/' app/src/main/java/com/example/ui/screens/CalendarScreen.kt

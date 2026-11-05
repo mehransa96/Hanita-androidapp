@@ -1,5 +1,5 @@
 {
-  "name": "هانیتا",
+  "name": "Hanita",
   "description": "اپلیکیشن هوشمند ردیابی چرخه قاعدگی، تخمک‌گذاری و سلامت زنان پیشرفته هانیتا",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

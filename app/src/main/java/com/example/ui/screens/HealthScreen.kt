@@ -12,7 +12,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Remove
@@ -34,7 +35,7 @@ fun HealthScreen(
     onNavigateBack: () -> Unit
 ) {
     val initialWeight by viewModel.userWeight.collectAsState()
-    var waterIntake by remember { mutableIntStateOf(3) }
+    val waterIntake by viewModel.waterGlasses.collectAsState()
     var sleepHours by remember { mutableFloatStateOf(7.5f) }
     var weight by remember { mutableStateOf(initialWeight) }
     var steps by remember { mutableStateOf("4500") }
@@ -113,7 +114,7 @@ fun HealthScreen(
             }
             
             WaterTrackerCard(waterIntake) { newWater ->
-                if (newWater in 0..12) waterIntake = newWater
+                viewModel.setWaterGlasses(newWater)
             }
             
             SleepTrackerCard(sleepHours) { sleepHours = it }
@@ -144,12 +145,11 @@ fun HealthScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
-                    .bounceClick { },
+                    .height(56.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(Icons.Filled.Add, contentDescription = null) // We can use something like Check
+                Icon(Icons.Filled.Done, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("ذخیره تغییرات سلامتی", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
@@ -371,7 +371,7 @@ fun StepsCard(steps: String, onStepsChange: (String) -> Unit, modifier: Modifier
                     .background(Color(0xFFDCFCE7), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.DirectionsRun, contentDescription = "قدم‌ها", tint = Color(0xFF16A34A))
+                Icon(Icons.AutoMirrored.Filled.DirectionsRun, contentDescription = "قدم‌ها", tint = Color(0xFF16A34A))
             }
             Spacer(modifier = Modifier.height(12.dp))
             Text("قدم‌ها", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

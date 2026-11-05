@@ -13,7 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -66,7 +66,7 @@ fun EducationScreen(onNavigateBack: () -> Unit) {
                             modifier = Modifier.size(48.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Filled.MenuBook, contentDescription = "آموزش", tint = Color.White)
+                            Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = "آموزش", tint = Color.White)
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {

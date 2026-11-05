@@ -1,0 +1,1 @@
+sed -i 's/var todayJalali = JalaliCalendar.gregorianToJalali(LocalDate.now())/val context = androidx.compose.ui.platform.LocalContext.current\n    var todayJalali = JalaliCalendar.gregorianToJalali(LocalDate.now())/' app/src/main/java/com/example/ui/screens/CalendarScreen.kt

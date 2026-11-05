@@ -34,7 +34,17 @@ import com.example.ui.viewmodel.MahitaViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-data class MeditationTrack(val id: String, val title: String, val artist: String, val categoryId: String, val durationSec: Int)
+import androidx.annotation.RawRes
+import com.example.R
+
+data class MeditationTrack(
+    val id: String,
+    val title: String,
+    val artist: String,
+    val categoryId: String,
+    val durationSec: Int,
+    @RawRes val rawResId: Int
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,21 +64,21 @@ fun MeditationMusicScreen(
     val tracks = remember {
         listOf(
             // Meditation
-            MeditationTrack("m1", "مدیتیشن ذهن‌آگاهی و تنفس", "کلینیک آرامش", "meditation", 300),
-            MeditationTrack("m2", "رهاسازی اضطراب و افکار منفی", "استودیو هانیتا", "meditation", 240),
-            MeditationTrack("m3", "خواب عمیق و آرامش شبانه", "نوای مهر", "meditation", 360),
+            MeditationTrack("m1", "مدیتیشن ذهن‌آگاهی برای تسکین PMS", "دکتر آریان‌مهر", "meditation", 24, R.raw.luteal_pink_noise_zen),
+            MeditationTrack("m2", "رهاسازی گرفتگی‌های عضلانی (دردهای شکمی)", "کلینیک یوگای آرامش", "meditation", 24, R.raw.period_piano_calm),
+            MeditationTrack("m3", "تجسم خلاق برای تعادل هورمونی", "تراپیست هانیتا", "meditation", 24, R.raw.follicular_positive_vibes),
             // Nature
-            MeditationTrack("n1", "جنگل بارانی و رودخانه جاری", "آواهای طبیعت", "nature", 180),
-            MeditationTrack("n2", "امواج ساحلی در غروب آفتاب", "آواهای طبیعت", "nature", 200),
-            MeditationTrack("n3", "آواز پرندگان در سپیده‌دم کوهستان", "طبیعت آرام", "nature", 150),
+            MeditationTrack("n1", "آوای جنگل و نسیم ملایم بهاری", "مسترینگ طبیعت", "nature", 24, R.raw.follicular_gentle_breeze),
+            MeditationTrack("n2", "طنین باران شبانه و امواج آرامش", "طبیعت آرام", "nature", 24, R.raw.period_rain_nature),
+            MeditationTrack("n3", "درخشش آفتاب و سرزندگی تابستان", "آواهای کیهانی", "nature", 24, R.raw.ovulation_sunshine_groove),
             // Healing
-            MeditationTrack("h1", "فرکانس ۵۲۸ هرتز (ترمیم و عشق)", "تراپی صوتی هانیتا", "healing", 420),
-            MeditationTrack("h2", "فرکانس ۴۳۲ هرتز (کاهش تنش و ضربان قلب)", "نوای کیهان", "healing", 480),
-            MeditationTrack("h3", "فرکانس نویز صورتی برای تمدد اعصاب", "آکوستیک درمانی", "healing", 310),
+            MeditationTrack("h1", "فرکانس ۵۲۸ هرتز (ترمیم بافت‌ها)", "آکوستیک هانیتا", "healing", 24, R.raw.period_frequency_528),
+            MeditationTrack("h2", "فرکانس ۴۳۲ هرتز (آرامش ذهن و ضد اضطراب)", "نوای کیهان", "healing", 24, R.raw.luteal_frequency_432),
+            MeditationTrack("h3", "پد امبینت خواب عمیق و استراحت", "آکوستیک درمانی", "healing", 24, R.raw.period_ambient_rest),
             // Lo-Fi
-            MeditationTrack("l1", "چای گرم و باران پشت پنجره", "کافه لوفای", "lofi", 140),
-            MeditationTrack("l2", "کتاب‌خوانی در نیمه‌شب", "لوفای ملایم", "lofi", 160),
-            MeditationTrack("l3", "گذر آرام زمان در باغ بهاری", "ریلکس بیتس", "lofi", 175)
+            MeditationTrack("l1", "بیت‌های لوفای تسکین PMS", "کافه لوفای", "lofi", 24, R.raw.luteal_lofi_chill),
+            MeditationTrack("l2", "آوای گرم سازهای زهی عصرگاهی", "لوفای ملایم", "lofi", 24, R.raw.luteal_warm_acoustic),
+            MeditationTrack("l3", "شروع دوباره و پویایی ذهن", "ریلکس بیتس", "lofi", 24, R.raw.follicular_acoustic_start)
         )
     }
 
@@ -94,41 +104,50 @@ fun MeditationMusicScreen(
     DisposableEffect(Unit) {
         onDispose {
             try {
+                if (mediaPlayer.isPlaying) mediaPlayer.stop()
                 mediaPlayer.release()
             } catch(e: Exception) {}
         }
     }
 
-    LaunchedEffect(currentTrack) {
+    fun playTrack(track: MeditationTrack) {
         try {
             mediaPlayer.reset()
-            if (currentTrack != null) {
-                val songIndex = when (currentTrack?.categoryId) {
-                    "meditation" -> 1
-                    "nature" -> 2
-                    "healing" -> 3
-                    "lofi" -> 4
-                    else -> 1
-                }
-                val url = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-$songIndex.mp3"
-                mediaPlayer.setDataSource(context, android.net.Uri.parse(url))
-                mediaPlayer.prepareAsync()
-                mediaPlayer.setOnPreparedListener {
-                    if (isPlaying) it.start()
-                }
-            }
+            val afd = context.resources.openRawResourceFd(track.rawResId)
+            mediaPlayer.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+            afd.close()
+            mediaPlayer.isLooping = isLooping
+            mediaPlayer.prepare()
+            mediaPlayer.start()
+            isPlaying = true
+            currentProgressSec = 0
         } catch (e: Exception) {
             e.printStackTrace()
+            isPlaying = false
+        }
+    }
+
+    LaunchedEffect(currentTrack) {
+        currentTrack?.let { track ->
+            playTrack(track)
         }
     }
 
     LaunchedEffect(isPlaying) {
         try {
             if (isPlaying) {
-                mediaPlayer.start()
+                if (!mediaPlayer.isPlaying && currentTrack != null) {
+                    mediaPlayer.start()
+                }
             } else {
                 if (mediaPlayer.isPlaying) mediaPlayer.pause()
             }
+        } catch (e: Exception) {}
+    }
+
+    LaunchedEffect(isLooping) {
+        try {
+            mediaPlayer.isLooping = isLooping
         } catch (e: Exception) {}
     }
 
@@ -159,29 +178,32 @@ fun MeditationMusicScreen(
         }
     }
 
-    // Playback simulator
-    LaunchedEffect(isPlaying, currentTrack) {
-        if (isPlaying && currentTrack != null) {
-            while (isPlaying && currentTrack != null) {
-                delay(1000)
-                val active = currentTrack ?: break
-                if (currentProgressSec < active.durationSec) {
-                    currentProgressSec++
-                } else {
-                    if (isLooping) {
-                        currentProgressSec = 0
-                    } else {
-                        // Go to next track
-                        val currentIndex = filteredTracks.indexOf(active)
-                        if (currentIndex != -1 && currentIndex < filteredTracks.lastIndex) {
-                            currentTrack = filteredTracks[currentIndex + 1]
-                        } else {
-                            currentTrack = filteredTracks.firstOrNull()
-                        }
-                        currentProgressSec = 0
-                    }
+    // Listen to track completion if not looping
+    LaunchedEffect(isLooping, filteredTracks, currentTrack) {
+        mediaPlayer.isLooping = isLooping
+        mediaPlayer.setOnCompletionListener {
+            if (!isLooping) {
+                val active = currentTrack ?: return@setOnCompletionListener
+                val currentIndex = filteredTracks.indexOfFirst { it.id == active.id }
+                if (currentIndex != -1 && currentIndex < filteredTracks.lastIndex) {
+                    val next = filteredTracks[currentIndex + 1]
+                    currentTrack = next
+                } else if (filteredTracks.isNotEmpty()) {
+                    currentTrack = filteredTracks.first()
                 }
             }
+        }
+    }
+
+    // Playback real-time position sync
+    LaunchedEffect(isPlaying, currentTrack) {
+        while (isPlaying && currentTrack != null) {
+            delay(500)
+            try {
+                if (mediaPlayer.isPlaying) {
+                    currentProgressSec = mediaPlayer.currentPosition / 1000
+                }
+            } catch (e: Exception) {}
         }
     }
 
@@ -547,8 +569,13 @@ fun MeditationMusicScreen(
 
                             // ProgressBar Selector
                             Slider(
-                                value = currentProgressSec.toFloat(),
+                                value = currentProgressSec.toFloat().coerceIn(0f, track.durationSec.toFloat()),
                                 onValueChange = { currentProgressSec = it.toInt() },
+                                onValueChangeFinished = {
+                                    try {
+                                        mediaPlayer.seekTo(currentProgressSec * 1000)
+                                    } catch (e: Exception) {}
+                                },
                                 valueRange = 0f..track.durationSec.toFloat(),
                                 colors = SliderDefaults.colors(
                                     thumbColor = MaterialTheme.colorScheme.primary,

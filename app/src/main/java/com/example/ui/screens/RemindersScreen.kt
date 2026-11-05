@@ -1,11 +1,15 @@
 package com.example.ui.screens
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -40,11 +44,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.example.MainActivity
 import com.example.data.model.MedicineReminder
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MahitaViewModel
+import com.example.utils.JalaliCalendar
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,11 +69,72 @@ fun RemindersScreen(
     val isAiRemindersEnabled by viewModel.isAiRemindersEnabled.collectAsState()
     val isOvulationRemindersEnabled by viewModel.isOvulationRemindersEnabled.collectAsState()
     val daysBefore by viewModel.daysBefore.collectAsState()
+    val ovulationDaysBefore by viewModel.ovulationDaysBefore.collectAsState()
+    val notificationHour by viewModel.notificationHour.collectAsState()
+    val notificationMinute by viewModel.notificationMinute.collectAsState()
+    val averageCycleLength by viewModel.averageCycleLength.collectAsState()
     val cycleInfo by viewModel.cycleInfo.collectAsState()
     val medicationReminders by viewModel.medicationReminders.collectAsState()
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    var hasNotificationPermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasNotificationPermission = isGranted
+        if (isGranted) {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("مجوز اعلان‌های سیستم با موفقیت فعال شد ✅")
+            }
+        } else {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("دسترسی اعلان‌ها داده نشد؛ لطفاً از تنظیمات برنامه آن را تایید کنید ⚠️")
+            }
+        }
+    }
+
+    val today: LocalDate = remember { LocalDate.now() }
+    val nextPeriodDate: LocalDate = remember(cycleInfo.predictedPeriodStart, averageCycleLength) {
+        cycleInfo.predictedPeriodStart ?: today.plusDays(averageCycleLength.toLong())
+    }
+    val nextPeriodJalali: String = remember(nextPeriodDate) {
+        JalaliCalendar.gregorianToJalali(nextPeriodDate).formatShort()
+    }
+    val daysUntilPeriod: Int = remember(nextPeriodDate, today) {
+        ChronoUnit.DAYS.between(today, nextPeriodDate).toInt().coerceAtLeast(0)
+    }
+
+    val ovulationDate: LocalDate = remember(nextPeriodDate) {
+        nextPeriodDate.minusDays(14)
+    }
+    val ovulationJalali: String = remember(ovulationDate) {
+        JalaliCalendar.gregorianToJalali(ovulationDate).formatShort()
+    }
+    val fertileStartJalali: String = remember(ovulationDate) {
+        JalaliCalendar.gregorianToJalali(ovulationDate.minusDays(4)).formatShort()
+    }
+    val fertileEndJalali: String = remember(ovulationDate) {
+        JalaliCalendar.gregorianToJalali(ovulationDate.plusDays(1)).formatShort()
+    }
+    val daysUntilOvulation: Int = remember(ovulationDate, today) {
+        ChronoUnit.DAYS.between(today, ovulationDate).toInt().coerceAtLeast(0)
+    }
+
     var showAddDialog by remember { mutableStateOf(false) }
-    var snackbarHostState = remember { SnackbarHostState() }
+    var medicationToEdit by remember { mutableStateOf<MedicineReminder?>(null) }
 
     // Form states for adding medication
     var medName by remember { mutableStateOf("") }
@@ -161,7 +230,57 @@ fun RemindersScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
             ) {
-                // Section 1: Cycle Reminder Details
+                // Permission Status / Request Banner
+                if (!hasNotificationPermission) {
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)),
+                            shape = RoundedCornerShape(18.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f))
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.NotificationsNone,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "فعال‌سازی مجوز اعلان‌های سیستم",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                        Text(
+                                            text = "برای ارسال به موقع یادآورهای شروع پریود و تخمک‌گذاری بر روی صفحه، دسترسی اعلان‌ها ضروری است.",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Button(
+                                    onClick = {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Text("درخواست مجوز اعلان 🔔", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Card 1: Period Reminder
                 item {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -176,27 +295,23 @@ fun RemindersScreen(
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.weight(1f)
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(36.dp)
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
+                                            .size(40.dp)
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.DateRange,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                        Text("🌸", fontSize = 20.sp)
                                     }
                                     Column {
-                                        Text("شدت یا زمان اعلام دوره بعدی", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("یادآور هوشمند شروع قاعدگی", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                         Text(
-                                            text = "پیش‌بینی آغاز دوره بعدی: ${cycleInfo.predictedPeriodStart}",
+                                            text = "محاسبه خودکار تاریخ و هشدار قبل از شروع دوره",
                                             fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f)
                                         )
                                     }
                                 }
@@ -212,11 +327,43 @@ fun RemindersScreen(
 
                             if (isNotificationEnabled) {
                                 Spacer(modifier = Modifier.height(14.dp))
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Forecast Info Box
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.06f))
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text("پیش‌بینی آغاز دوره بعدی:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                        Text(nextPeriodJalali, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                    }
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text(
+                                            text = "$daysUntilPeriod روز مانده",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
                                 Text(
-                                    text = "چه زمانی مایلید اعلان هشدار برای شما ارسال شود؟",
-                                    fontSize = 11.sp,
+                                    text = "ارسال اعلان چند روز قبل از شروع باشد؟",
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                                    color = MaterialTheme.colorScheme.onBackground
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Row(
@@ -230,7 +377,7 @@ fun RemindersScreen(
                                             1 -> "۱ روز قبل"
                                             2 -> "۲ روز قبل"
                                             3 -> "۳ روز قبل"
-                                            else -> "$day روز پیش"
+                                            else -> "$day روز قبل"
                                         }
                                         Box(
                                             modifier = Modifier
@@ -243,7 +390,7 @@ fun RemindersScreen(
                                         ) {
                                             Text(
                                                 text = label,
-                                                fontSize = 10.sp,
+                                                fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (selected) Color.White else MaterialTheme.colorScheme.onBackground
                                             )
@@ -252,19 +399,297 @@ fun RemindersScreen(
                                 }
 
                                 Spacer(modifier = Modifier.height(14.dp))
+                                // Live Preview
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                        .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                                        .padding(12.dp)
+                                ) {
+                                    Column {
+                                        Text("💬 پیش‌نمایش اعلان دریافتی در گوشی:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "🌸 یادآور هوشمند شروع قاعدگی\nدوره قاعدگی بعدی شما برای تاریخ $nextPeriodJalali پیش‌بینی شده است. ملزومات بهداشتی را همراه داشته باشید و به استراحت و مصرف مایعات گرم توجه فرمایید.",
+                                            fontSize = 10.5.sp,
+                                            lineHeight = 16.sp,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
                                 Button(
                                     onClick = {
-                                        triggerTestNotification(
-                                            "یادآور چرخه قاعدگی هانیتا 🌸",
-                                            "بر اساس تنظیمات زنگ هوشمند، دوره شما حدود $daysBefore روز آینده آغاز خواهد شد. مراقبت‌های لازم را در نظر بگیرید."
-                                        )
+                                        viewModel.sendTestPeriodNotification()
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("🔔 اعلان تست شروع قاعدگی به سیستم ارسال شد!")
+                                        }
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), contentColor = MaterialTheme.colorScheme.primary)
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    )
                                 ) {
                                     Icon(imageVector = Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("ارسال تست هشدار چرخه 🔔", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("ارسال تست زنده اعلان قاعدگی 🌸", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Card 2: Ovulation & Fertility Reminder
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("🥚", fontSize = 20.sp)
+                                    }
+                                    Column {
+                                        Text("یادآور هوشمند زمان تخمک‌گذاری و باروری", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text(
+                                            text = "تشخیص پنجره باروری و روزهای اوج انرژی هورمونی",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f)
+                                        )
+                                    }
+                                }
+                                Switch(
+                                    checked = isOvulationRemindersEnabled,
+                                    onCheckedChange = { viewModel.setOvulationRemindersEnabled(it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = MaterialTheme.colorScheme.secondary
+                                    )
+                                )
+                            }
+
+                            if (isOvulationRemindersEnabled) {
+                                Spacer(modifier = Modifier.height(14.dp))
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Ovulation Info Box
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.06f))
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text("تاریخ تقریبی تخمک‌گذاری:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                                            Text(ovulationJalali, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                                        }
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Text(
+                                                text = "$daysUntilOvulation روز مانده",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.secondary,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "پنجره باروری: از $fertileStartJalali تا $fertileEndJalali",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text(
+                                    text = "ارسال اعلان چه زمانی باشد؟",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    listOf(0, 1, 2).forEach { day ->
+                                        val selected = ovulationDaysBefore == day
+                                        val label = when (day) {
+                                            0 -> "روز تخمک‌گذاری"
+                                            1 -> "۱ روز قبل"
+                                            2 -> "۲ روز قبل (شروع پنجره)"
+                                            else -> "$day روز قبل"
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f))
+                                                .clickable { viewModel.setOvulationDaysBefore(day) }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (selected) Color.White else MaterialTheme.colorScheme.onBackground
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+                                // Live Preview
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                        .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                                        .padding(12.dp)
+                                ) {
+                                    Column {
+                                        Text("💬 پیش‌نمایش اعلان دریافتی در گوشی:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "🥚✨ یادآور تخمک‌گذاری و پنجره باروری\nامروز وارد پنجره طلایی تخمک‌گذاری و بالاترین احتمال باروری شدید (تاریخ تخمینی: $ovulationJalali). سطح انرژی، شادابی و انگیزه بدن در اوج است!",
+                                            fontSize = 10.5.sp,
+                                            lineHeight = 16.sp,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Button(
+                                    onClick = {
+                                        viewModel.sendTestOvulationNotification()
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("✨ اعلان تست زمان تخمک‌گذاری به سیستم ارسال شد!")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
+                                        contentColor = MaterialTheme.colorScheme.secondary
+                                    )
+                                ) {
+                                    Icon(imageVector = Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("ارسال تست زنده اعلان تخمک‌گذاری 🥚", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Card 3: Notification Delivery Time
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Schedule,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.tertiary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("ساعت تحویل اعلان‌های هوشمند چرخه", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(
+                                        text = "ساعت تحویل فعلی: %02d:%02d".format(notificationHour, notificationMinute),
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "انتخاب ساعت ترجیحی برای دریافت یادآورها:",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf(
+                                    Triple(8, 0, "۰۸:۰۰\nصبح 🌅"),
+                                    Triple(10, 0, "۱۰:۰۰\nصبح ☕"),
+                                    Triple(14, 0, "۱۴:۰۰\nظهر ☀️"),
+                                    Triple(20, 0, "۲۰:۰۰\nشب 🌙")
+                                ).forEach { (h, m, label) ->
+                                    val isSelected = notificationHour == h && notificationMinute == m
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(
+                                                if (isSelected) MaterialTheme.colorScheme.tertiary
+                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                            )
+                                            .clickable { viewModel.setNotificationTime(h, m) }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.Center,
+                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -329,31 +754,7 @@ fun RemindersScreen(
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Switch 2: AI ovulation reminder
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("اعلان هوشمند پنجره تخمک‌گذاری و باروری", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                                    Text("اطلاع‌رسانی دوران طلایی انرژی بدن همراه با معرفی بهترین تمرینات ورزشی و پویا", fontSize = 10.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.6f))
-                                }
-                                Switch(
-                                    checked = isOvulationRemindersEnabled,
-                                    onCheckedChange = { viewModel.setOvulationRemindersEnabled(it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = MaterialTheme.colorScheme.secondary
-                                    )
-                                )
-                            }
-
-                            if (isAiRemindersEnabled || isOvulationRemindersEnabled) {
+                            if (isAiRemindersEnabled) {
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Box(
                                     modifier = Modifier
@@ -365,79 +766,37 @@ fun RemindersScreen(
                                 ) {
                                     Column {
                                         Text(
-                                            text = "📥 پیش‌نمایش پیام سفارشی‌شده هوش مصنوعی شما:",
+                                            text = "📥 پیش‌نمایش پیام سفارشی‌شده هوش مصنوعی هانیتا:",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.secondary
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
-                                        
-                                        if (isAiRemindersEnabled) {
-                                            val aiMsg = viewModel.getPersonalizedAiReminderMessage()
-                                            Text(
-                                                text = "📌 ${aiMsg.first}:\n${aiMsg.second}",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                                                lineHeight = 15.sp
-                                            )
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                        }
-                                        
-                                        if (isOvulationRemindersEnabled) {
-                                            val ovMsg = viewModel.getOvulationReminderMessage()
-                                            Text(
-                                                text = "📌 ${ovMsg.first}:\n${ovMsg.second}",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                                                lineHeight = 15.sp
-                                            )
-                                        }
+                                        val aiMsg = viewModel.getPersonalizedAiReminderMessage()
+                                        Text(
+                                            text = "📌 ${aiMsg.first}:\n${aiMsg.second}",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                            lineHeight = 15.sp
+                                        )
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.height(14.dp))
-
-                                Row(
+                                Button(
+                                    onClick = {
+                                        val aiMsg = viewModel.getPersonalizedAiReminderMessage()
+                                        triggerTestNotification(aiMsg.first, aiMsg.second)
+                                    },
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
+                                        contentColor = MaterialTheme.colorScheme.secondary
+                                    )
                                 ) {
-                                    if (isAiRemindersEnabled) {
-                                        Button(
-                                            onClick = {
-                                                val aiMsg = viewModel.getPersonalizedAiReminderMessage()
-                                                triggerTestNotification(aiMsg.first, aiMsg.second)
-                                            },
-                                            modifier = Modifier.weight(1f),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
-                                                contentColor = MaterialTheme.colorScheme.secondary
-                                            ),
-                                            contentPadding = PaddingValues(horizontal = 8.dp)
-                                        ) {
-                                            Icon(imageVector = Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(14.dp))
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("تست یادآور دوره 🧠", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-
-                                    if (isOvulationRemindersEnabled) {
-                                        Button(
-                                            onClick = {
-                                                val ovMsg = viewModel.getOvulationReminderMessage()
-                                                triggerTestNotification(ovMsg.first, ovMsg.second)
-                                            },
-                                            modifier = Modifier.weight(1f),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
-                                                contentColor = MaterialTheme.colorScheme.secondary
-                                            ),
-                                            contentPadding = PaddingValues(horizontal = 8.dp)
-                                        ) {
-                                            Icon(imageVector = Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(14.dp))
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("تست یادآور باروری 🌸", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
+                                    Icon(imageVector = Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("تست یادآور هوشمند تحلیلی 🧠", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -620,6 +979,18 @@ fun RemindersScreen(
                                         modifier = Modifier.scale(0.85f)
                                     )
 
+                                    // Edit pill/medicine reminder
+                                    IconButton(
+                                        onClick = { medicationToEdit = item }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Edit,
+                                            contentDescription = "ویرایش دارو",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
                                     // Delete pill/medicine reminder
                                     IconButton(
                                         onClick = {
@@ -767,6 +1138,118 @@ fun RemindersScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showAddDialog = false }) {
+                    Text("انصراف", color = MaterialTheme.colorScheme.outline)
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(24.dp)
+        )
+    }
+
+    // Modal dialog to edit existing medicine reminder
+    val medItem = medicationToEdit
+    if (medItem != null) {
+        var editMedName by remember(medItem.id) { mutableStateOf(medItem.name) }
+        var editMedTime by remember(medItem.id) { mutableStateOf(medItem.time) }
+        var editMedDosage by remember(medItem.id) { mutableStateOf(medItem.dosage) }
+        var editMedType by remember(medItem.id) { mutableStateOf(medItem.type) }
+
+        AlertDialog(
+            onDismissRequest = { medicationToEdit = null },
+            title = {
+                Text(
+                    "ویرایش یادآور دارو 💊✏️",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("اطلاعات یادآور را با فرمت استاندارد ویرایش فرمایید:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.6f))
+                    
+                    OutlinedTextField(
+                        value = editMedName,
+                        onValueChange = { editMedName = it },
+                        label = { Text("نام دارو/مکمل", fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = editMedTime,
+                            onValueChange = { editMedTime = it },
+                            label = { Text("ساعت مصرف", fontSize = 12.sp) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = editMedDosage,
+                            onValueChange = { editMedDosage = it },
+                            label = { Text("دوز / پیمانه", fontSize = 12.sp) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+
+                    Text("نوع بسته‌بندی دارو:", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        typeOptions.forEach { (typeKey, label) ->
+                            val selected = editMedType == typeKey
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable { editMedType = typeKey }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label.split(" ").last(),
+                                    fontSize = 11.sp,
+                                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (editMedName.isNotBlank()) {
+                            val updatedItem = medItem.copy(
+                                name = editMedName.trim(),
+                                time = editMedTime.trim(),
+                                dosage = editMedDosage.trim(),
+                                type = editMedType
+                            )
+                            viewModel.updateMedicationReminder(updatedItem)
+                            medicationToEdit = null
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("یادآور ${updatedItem.name} با موفقیت ویرایش گردید ✨")
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("ذخیره تغییرات")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { medicationToEdit = null }) {
                     Text("انصراف", color = MaterialTheme.colorScheme.outline)
                 }
             },

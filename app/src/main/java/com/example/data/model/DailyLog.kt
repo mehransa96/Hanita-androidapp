@@ -9,5 +9,10 @@ data class DailyLog(
     val periodFlow: String, // "NONE", "LIGHT", "MEDIUM", "HEAVY"
     val symptoms: String, // comma separated symptoms e.g., "Cramps,Headache"
     val moods: String, // comma separated
-    val notes: String
+    val notes: String,
+    val emoji: String = "",
+    val takenMeds: String = "",
+    val waterIntake: Int = 0,
+    val bbt: Float? = null,
+    val weight: Float? = null
 )

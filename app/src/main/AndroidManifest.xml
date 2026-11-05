@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="true"
@@ -17,10 +20,33 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication">
         
+
         <receiver
             android:name="com.example.utils.PeriodReminderReceiver"
             android:enabled="true"
             android:exported="false" />
+
+        <receiver
+            android:name="com.example.utils.CycleNotificationReceiver"
+            android:enabled="true"
+            android:exported="false" />
+            
+        <receiver android:name="com.example.utils.MedicineReminderReceiver" android:enabled="true" android:exported="false" />
+
+        <receiver
+            android:name="com.example.utils.PhaseReminderReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
+            android:name="com.example.utils.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name=".MainActivity"

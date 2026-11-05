@@ -145,6 +145,10 @@ data class JalaliDate(val year: Int, val month: Int, val day: Int) : Comparable<
     fun format(): String {
         return "$year/$month/$day"
     }
+
+    fun formatShort(): String {
+        return "$day $monthName"
+    }
     
     fun formatLong(): String {
         return "$day $monthName $year"

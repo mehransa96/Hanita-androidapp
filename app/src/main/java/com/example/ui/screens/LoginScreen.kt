@@ -20,6 +20,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -77,32 +79,57 @@ fun LoginScreen(
         label = "alpha"
     )
 
-    // Cosmic Blossom dark gradient background
+    val isDark = ThemeProvider.isDark
+    val themeController = ThemeProvider.controller
+
+    val bgGradientColors = if (isDark) {
+        listOf(
+            MaterialTheme.colorScheme.background,
+            MaterialTheme.colorScheme.surface,
+            Color(0xFF2C2554)
+        )
+    } else {
+        listOf(
+            MaterialTheme.colorScheme.background,
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+            MaterialTheme.colorScheme.background
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF0F0C20), // Lunar obsidian deep purple
-                        Color(0xFF1E193C),
-                        Color(0xFF2C2554)
-                    )
-                )
-            ),
+            .background(brush = Brush.verticalGradient(colors = bgGradientColors)),
         contentAlignment = Alignment.Center
     ) {
         // Ambient background glow
+        val primaryGlow = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.15f else 0.08f)
+        val secondaryGlow = MaterialTheme.colorScheme.secondary.copy(alpha = if (isDark) 0.12f else 0.06f)
         Canvas(modifier = Modifier.fillMaxSize()) {
             drawCircle(
-                color = Color(0xFFE879A0).copy(alpha = 0.15f),
+                color = primaryGlow,
                 radius = size.width * 0.5f,
                 center = Offset(size.width * 0.1f, size.height * 0.2f)
             )
             drawCircle(
-                color = Color(0xFF6366F1).copy(alpha = 0.12f),
+                color = secondaryGlow,
                 radius = size.width * 0.6f,
                 center = Offset(size.width * 0.9f, size.height * 0.8f)
+            )
+        }
+
+        // Quick theme toggle button in top corner
+        IconButton(
+            onClick = { themeController.toggleMode() },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(16.dp)
+        ) {
+            Icon(
+                imageVector = if (isDark) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+                contentDescription = if (isDark) "تغییر به حالت روشن" else "تغییر به حالت تاریک",
+                tint = MaterialTheme.colorScheme.primary
             )
         }
 
@@ -112,12 +139,22 @@ fun LoginScreen(
                 .padding(24.dp)
                 .alpha(alphaAnimation)
                 .border(
-                    BorderStroke(1.dp, Brush.linearGradient(listOf(Color(0xFFE879A0).copy(alpha = 0.3f), Color(0xFF6366F1).copy(alpha = 0.3f)))),
+                    BorderStroke(
+                        1.dp,
+                        Brush.linearGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
+                            )
+                        )
+                    ),
                     shape = RoundedCornerShape(32.dp)
                 ),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1834).copy(alpha = 0.95f)),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isDark) MaterialTheme.colorScheme.surface.copy(alpha = 0.95f) else MaterialTheme.colorScheme.surface
+            ),
             shape = RoundedCornerShape(32.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 16.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 16.dp else 6.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -129,7 +166,7 @@ fun LoginScreen(
                 Text(
                     text = "هانیتا",
                     style = MaterialTheme.typography.headlineLarge,
-                    color = Color(0xFFE879A0),
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 2.sp,
                     modifier = Modifier.padding(bottom = 4.dp)
@@ -137,7 +174,7 @@ fun LoginScreen(
                 Text(
                     text = "همراه سلامتی و تندرستی تو",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.5f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -154,7 +191,10 @@ fun LoginScreen(
                                 .height(6.dp)
                                 .width(if (active) 24.dp else 8.dp)
                                 .clip(CircleShape)
-                                .background(if (active) Color(0xFFE879A0) else Color.White.copy(alpha = 0.2f))
+                                .background(
+                                    if (active) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+                                )
                         )
                     }
                 }
@@ -267,7 +307,7 @@ fun StepWelcome(
         Text(
             text = "خوش آمدی!",
             style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Bold
         )
         
@@ -276,7 +316,7 @@ fun StepWelcome(
         Text(
             text = "برای شخصی‌سازی پیش‌بینی‌ها، لطفاً با حساب کاربری خود وارد شوید یا نام خود را بنویسید:",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 12.dp)
         )
@@ -297,8 +337,8 @@ fun StepWelcome(
                 .height(54.dp),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color.White,
-                contentColor = Color(0xFF1C1834)
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
         ) {
             Text("ورود با حساب گوگل", fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -308,25 +348,25 @@ fun StepWelcome(
         Text(
             text = "یا",
             style = MaterialTheme.typography.bodySmall,
-            color = Color.White.copy(alpha = 0.5f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
         )
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
             value = name,
             onValueChange = onNameChange,
-            label = { Text("ورود مهمان (نام شما)", color = Color.White.copy(alpha = 0.6f)) },
+            label = { Text("ورود مهمان (نام شما)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("username_input"),
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                focusedBorderColor = Color(0xFFE879A0),
-                unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                focusedContainerColor = Color(0xFF252140),
-                unfocusedContainerColor = Color(0xFF252140)
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
             ),
             singleLine = true
         )
@@ -341,12 +381,12 @@ fun StepWelcome(
                 .testTag("next_step_button"),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFE879A0),
-                disabledContainerColor = Color(0xFFE879A0).copy(alpha = 0.3f)
+                containerColor = MaterialTheme.colorScheme.primary,
+                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
             ),
             enabled = name.isNotBlank()
         ) {
-            Text("مرحله بعدی", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("مرحله بعدی", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
         }
     }
 }
@@ -434,7 +474,7 @@ fun StepPeriodDate(
         Text(
             text = "آخرین شروع قاعدگی",
             style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Bold
         )
 
@@ -443,7 +483,7 @@ fun StepPeriodDate(
         Text(
             text = "اولین روز آخرین پریود خودت رو ثبت کن:",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
 
@@ -456,7 +496,7 @@ fun StepPeriodDate(
         ) {
             // Day selector Column
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("روز", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.5f))
+                Text("روز", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(6.dp))
                 RollerControls(
                     value = selectedDay,
@@ -467,7 +507,7 @@ fun StepPeriodDate(
 
             // Month selector Column
             Column(modifier = Modifier.weight(1.8f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("ماه", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.5f))
+                Text("ماه", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(6.dp))
                 RollerTextControls(
                     valueText = months[selectedMonth - 1],
@@ -478,7 +518,7 @@ fun StepPeriodDate(
 
             // Year selector Column
             Column(modifier = Modifier.weight(1.2f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("سال", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.5f))
+                Text("سال", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(6.dp))
                 RollerControls(
                     value = selectedYear,
@@ -491,14 +531,14 @@ fun StepPeriodDate(
         Spacer(modifier = Modifier.height(20.dp))
 
         Surface(
-            color = Color(0xFF6366F1).copy(alpha = 0.15f),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
                 text = "تاریخ انتخابی شما: $selectedDay ${months[selectedMonth - 1]} $selectedYear",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFFE879A0),
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(12.dp)
@@ -516,9 +556,9 @@ fun StepPeriodDate(
                 modifier = Modifier
                     .weight(1f)
                     .height(54.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
             ) {
                 Text("بازگشت", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
@@ -529,9 +569,9 @@ fun StepPeriodDate(
                     .weight(1.5f)
                     .height(54.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE879A0))
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("مرحله بعدی", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("مرحله بعدی", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     }
@@ -546,11 +586,14 @@ fun StepCycleLength(
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         // Step 3 Slider Arc Speedometer illustration using elegant Canvas drawings
+        val trackBgColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        val trackActiveColor = MaterialTheme.colorScheme.primary
+        val trackCenterColor = MaterialTheme.colorScheme.secondary
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(110.dp)) {
             Canvas(modifier = Modifier.size(100.dp)) {
                 val center = Offset(size.width / 2, size.height / 2)
                 drawArc(
-                    color = Color.White.copy(alpha = 0.1f),
+                    color = trackBgColor,
                     startAngle = 180f,
                     sweepAngle = 180f,
                     useCenter = false,
@@ -559,7 +602,7 @@ fun StepCycleLength(
                 )
                 val fraction = (averageCycleLength - 21f) / (45f - 21f)
                 drawArc(
-                    color = Color(0xFFE879A0),
+                    color = trackActiveColor,
                     startAngle = 180f,
                     sweepAngle = 180f * fraction,
                     useCenter = false,
@@ -567,11 +610,11 @@ fun StepCycleLength(
                     size = size
                 )
                 // Center node
-                drawCircle(color = Color(0xFF6366F1), radius = size.width * 0.15f, center = center)
+                drawCircle(color = trackCenterColor, radius = size.width * 0.15f, center = center)
             }
             Text(
                 averageCycleLength.toInt().toString(),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -582,7 +625,7 @@ fun StepCycleLength(
         Text(
             text = "طول چرخه قاعدگی",
             style = MaterialTheme.typography.titleLarge,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Bold
         )
 
@@ -591,7 +634,7 @@ fun StepCycleLength(
         Text(
             text = "فاصله متوسط اول هر پریود تا پریود بعدی شما چند روز است؟ (فاصله طبیعی بین ۲۱ تا ۴۵ روز است)",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.7f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 8.dp)
         )
@@ -601,7 +644,7 @@ fun StepCycleLength(
         Text(
             text = "${averageCycleLength.toInt()} روز",
             style = MaterialTheme.typography.headlineMedium,
-            color = Color(0xFFE879A0),
+            color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Black
         )
 
@@ -611,9 +654,9 @@ fun StepCycleLength(
             valueRange = 21f..45f,
             steps = 23,
             colors = SliderDefaults.colors(
-                thumbColor = Color(0xFFE879A0),
-                activeTrackColor = Color(0xFFE879A0),
-                inactiveTrackColor = Color.White.copy(alpha = 0.15f)
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
             ),
             modifier = Modifier.padding(horizontal = 16.dp).testTag("cycle_length_slider")
         )
@@ -629,9 +672,9 @@ fun StepCycleLength(
                 modifier = Modifier
                     .weight(1f)
                     .height(54.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
             ) {
                 Text("بازگشت", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
@@ -643,9 +686,9 @@ fun StepCycleLength(
                     .height(54.dp)
                     .testTag("onboarding_finish_button"),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE879A0))
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("شروع برنامه", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("شروع برنامه", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     }
@@ -658,27 +701,27 @@ fun RollerControls(
     onDecrement: () -> Unit
 ) {
     Surface(
-        color = Color(0xFF252140),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
         ) {
             IconButton(onClick = onDecrement, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Filled.ChevronRight, contentDescription = "کاهش", tint = Color.White)
+                Icon(Icons.Filled.ChevronRight, contentDescription = "کاهش", tint = MaterialTheme.colorScheme.onSurface)
             }
             Text(
                 text = value.toString(),
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.width(36.dp)
             )
             IconButton(onClick = onIncrement, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Filled.ChevronLeft, contentDescription = "افزایش", tint = Color.White)
+                Icon(Icons.Filled.ChevronLeft, contentDescription = "افزایش", tint = MaterialTheme.colorScheme.onSurface)
             }
         }
     }
@@ -691,27 +734,27 @@ fun RollerTextControls(
     onDecrement: () -> Unit
 ) {
     Surface(
-        color = Color(0xFF252140),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
         ) {
             IconButton(onClick = onDecrement, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Filled.ChevronRight, contentDescription = "کاهش", tint = Color.White)
+                Icon(Icons.Filled.ChevronRight, contentDescription = "کاهش", tint = MaterialTheme.colorScheme.onSurface)
             }
             Text(
                 text = valueText,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 15.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = onIncrement, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Filled.ChevronLeft, contentDescription = "افزایش", tint = Color.White)
+                Icon(Icons.Filled.ChevronLeft, contentDescription = "افزایش", tint = MaterialTheme.colorScheme.onSurface)
             }
         }
     }

@@ -15,6 +15,9 @@ interface CycleRecordDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCycleRecord(cycleRecord: CycleRecord)
 
+    @Query("SELECT * FROM cycle_records WHERE id = :id LIMIT 1")
+    suspend fun getCycleRecordById(id: String): CycleRecord?
+
     @Query("DELETE FROM cycle_records WHERE id = :id")
     suspend fun deleteCycleRecord(id: String)
 }

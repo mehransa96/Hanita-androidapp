@@ -121,7 +121,7 @@ fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigat
                     "سابقه ثبت روزانه علائم فعال: ندارد. تاریخ شروع آخرین پریود: $startPeriod و فواصل فرضی معمول چرخه: $cycleL روز است."
                 } else {
                     allLogs.take(25).joinToString("\n") { log ->
-                        "تاریخ: ${log.dateStr} | سطح خونریزی: ${log.periodFlow} | علائم بدنی: ${log.symptoms} | نوسانات روحی: ${log.moods} | یادداشت کاربر: ${log.notes}"
+                        "تاریخ: ${log.dateStr} | سطح خونریزی: ${log.periodFlow} | علائم بدنی: ${log.symptoms} | نوسانات روحی: ${log.moods} | یادداشت کاربر: ${log.notes} | ایموجی روز: ${log.emoji}"
                     }
                 }
                 internalSystemPromptContext = "\nلطفا سوابق زیر مربوط به چرخه من را بررسی کن و یک تحلیل سلامت روان و توصیه‌های شخصی با لحن خواهرانه و گرم ارائه بده:\n$logsSummaryText"

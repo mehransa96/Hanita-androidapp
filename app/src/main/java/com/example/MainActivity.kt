@@ -16,9 +16,13 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -70,7 +74,7 @@ class MainActivity : ComponentActivity() {
 
             if (crashStackTrace != null) {
                 // Beautiful Recovery and Crash Diagnosis Screen in Farsi
-                MyApplicationTheme(themeCode = "COSMIC_BLOSSOM", fontCode = "CLASSIC") {
+                MyApplicationTheme(themeCode = "COSMIC_BLOSSOM", themeMode = "DARK", fontCode = "CLASSIC") {
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                         Surface(
                             modifier = Modifier.fillMaxSize(),
@@ -173,9 +177,16 @@ class MainActivity : ComponentActivity() {
             } else {
                 val viewModel: MahitaViewModel = viewModel()
             val appTheme by viewModel.appTheme.collectAsState()
+            val themeMode by viewModel.themeMode.collectAsState()
             val appFont by viewModel.appFont.collectAsState()
 
-            MyApplicationTheme(themeCode = appTheme, fontCode = appFont) {
+            MyApplicationTheme(
+                themeCode = appTheme,
+                themeMode = themeMode,
+                fontCode = appFont,
+                onThemeChanged = { viewModel.setAppTheme(it) },
+                onThemeModeChanged = { viewModel.setThemeMode(it) }
+            ) {
                 // Ensure layout is Right-to-Left for Persian language
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     Surface(
@@ -235,6 +246,8 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToMeditation = { navController.navigate("meditation") },
                                     onNavigateToReminders = { navController.navigate("reminders") },
                                     onNavigateToAvatarGenerator = { navController.navigate("avatargenerator") },
+                                    onNavigateToHistory = { navController.navigate("history") },
+                                    onNavigateToCharts = { navController.navigate("charts") },
                                     onLogout = {
                                         viewModel.logout()
                                         navController.navigate("login") {
@@ -288,6 +301,70 @@ class MainActivity : ComponentActivity() {
                                 LogScreen(
                                     viewModel = viewModel,
                                     onBack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(
+                                route = "history",
+                                enterTransition = {
+                                    slideIntoContainer(
+                                        AnimatedContentTransitionScope.SlideDirection.Up,
+                                        animationSpec = tween(500, easing = LinearOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(500))
+                                },
+                                exitTransition = {
+                                    slideOutOfContainer(
+                                        AnimatedContentTransitionScope.SlideDirection.Down,
+                                        animationSpec = tween(500, easing = FastOutLinearInEasing)
+                                    ) + fadeOut(animationSpec = tween(500))
+                                },
+                                popEnterTransition = {
+                                    slideIntoContainer(
+                                        AnimatedContentTransitionScope.SlideDirection.Up,
+                                        animationSpec = tween(500, easing = LinearOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(500))
+                                },
+                                popExitTransition = {
+                                    slideOutOfContainer(
+                                        AnimatedContentTransitionScope.SlideDirection.Down,
+                                        animationSpec = tween(500, easing = FastOutLinearInEasing)
+                                    ) + fadeOut(animationSpec = tween(500))
+                                }
+                            ) {
+                                com.example.ui.screens.CycleHistoryScreen(
+                                    viewModel = viewModel,
+                                    onNavigateBack = { navController.popBackStack() }
+                                )
+                            }
+                            composable(
+                                route = "charts",
+                                enterTransition = {
+                                    scaleIn(
+                                        initialScale = 0.9f,
+                                        animationSpec = tween(400, easing = LinearOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(400))
+                                },
+                                exitTransition = {
+                                    scaleOut(
+                                        targetScale = 0.9f,
+                                        animationSpec = tween(400, easing = FastOutLinearInEasing)
+                                    ) + fadeOut(animationSpec = tween(400))
+                                },
+                                popEnterTransition = {
+                                    scaleIn(
+                                        initialScale = 0.9f,
+                                        animationSpec = tween(400, easing = LinearOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(400))
+                                },
+                                popExitTransition = {
+                                    scaleOut(
+                                        targetScale = 0.9f,
+                                        animationSpec = tween(400, easing = FastOutLinearInEasing)
+                                    ) + fadeOut(animationSpec = tween(400))
+                                }
+                            ) {
+                                com.example.ui.screens.SymptomChartsScreen(
+                                    viewModel = viewModel,
+                                    onNavigateBack = { navController.popBackStack() }
                                 )
                             }
                             composable("calendar") {
