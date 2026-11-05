@@ -237,6 +237,9 @@ private fun DailyHealthTab(viewModel: HealthToolsViewModel) {
             }
             ToolCard(Icons.Filled.Favorite, "احتمال بارداری امروز: ${level.label}", tint = color) {
                 Text("روز ${c.today.cycleDay} چرخه · میانگین چرخه ${c.prediction.averageCycleLength} روز", fontSize = 13.sp)
+                if (c.today.isLate) {
+                    NoteText("پریود شما ${c.today.daysLate} روز تأخیر دارد؛ در این حالت تقویم قابل اتکا نیست. اگر احتمال بارداری هست، تست بارداری بدهید.")
+                }
                 NoteText(
                     "این تخمین فقط بر اساس تقویم است و روش پیشگیری از بارداری نیست. در چرخه‌های نامنظم دقت آن کم است؛ " +
                         "ثبت ترشحات و تست تخمک‌گذاری دقت را بیشتر می‌کند."

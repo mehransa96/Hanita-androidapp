@@ -73,11 +73,21 @@ object BackupManager {
         val db = AppDatabase.getDatabase(context)
         db.dailyLogDao().insertLogs(logs)
         db.cycleRecordDao().insertCycleRecords(cycles)
-        db.physicalSymptomDao().insertSymptoms(symptoms)
-        db.healthEntryDao().insertAll(entries)
+        // Auto-generated ids of another install would overwrite unrelated rows here, so these
+        // records get fresh ids and exact duplicates (same backup restored twice) are skipped.
+        val symptomKeys = db.physicalSymptomDao().getAllSymptomsList()
+            .map { listOf(it.dateStr, it.symptomName, it.severity, it.timestamp) }.toHashSet()
+        val newSymptoms = symptoms.filter { symptomKeys.add(listOf(it.dateStr, it.symptomName, it.severity, it.timestamp)) }
+            .map { it.copy(id = 0) }
+        db.physicalSymptomDao().insertSymptoms(newSymptoms)
+        val entryKeys = db.healthEntryDao().getAllList()
+            .map { listOf(it.dateStr, it.type, it.value, it.num1, it.num2, it.timestamp) }.toHashSet()
+        val newEntries = entries.filter { entryKeys.add(listOf(it.dateStr, it.type, it.value, it.num1, it.num2, it.timestamp)) }
+            .map { it.copy(id = 0) }
+        db.healthEntryDao().insertAll(newEntries)
         root.optJSONObject("userPrefs")?.let { jsonToPrefs(context, USER_PREFS, it) }
         root.optJSONObject("wellnessPrefs")?.let { jsonToPrefs(context, WellnessPrefs.NAME, it) }
-        Summary(logs.size, cycles.size, symptoms.size, entries.size)
+        Summary(logs.size, cycles.size, newSymptoms.size, newEntries.size)
     }
 
     /** Deletes every local record, setting and the app lock. Cloud data is handled separately. */

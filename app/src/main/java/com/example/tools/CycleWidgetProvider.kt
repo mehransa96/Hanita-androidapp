@@ -82,6 +82,11 @@ class CycleWidgetProvider : AppWidgetProvider() {
             val bleeding = AppDatabase.getDatabase(context).dailyLogDao().getPeriodDaysList()
                 .mapNotNull { runCatching { LocalDate.parse(it.dateStr) }.getOrNull() }
             val prediction = CyclePredictor.predict(bleeding, prefs.averageCycleLength.value, today)
+            if (prediction.lastPeriodStart == null) {
+                views.setTextViewText(R.id.widget_main, "ثبت پریود")
+                views.setTextViewText(R.id.widget_sub, "برای پیش‌بینی، شروع پریود را ثبت کنید")
+                return views
+            }
             val loggedToday = bleeding.contains(today)
             val status = CyclePredictor.dayStatus(today, prediction, loggedToday, today)
             val (main, sub) = widgetText(status, loggedToday)

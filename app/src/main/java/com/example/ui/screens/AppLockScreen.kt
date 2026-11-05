@@ -3,7 +3,6 @@ package com.example.ui.screens
 import android.content.Context
 import android.os.Build
 import android.os.CancellationSignal
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -47,12 +46,15 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.security.AppLockManager
 import kotlinx.coroutines.delay
 
 /**
- * Full-screen lock shown above the whole app. Back sends the app to the background instead of
- * revealing the screen below.
+ * Full-screen lock shown above the whole app. It is a dialog window so that it also covers any
+ * dialog that was open when the app went to the background. Back sends the app to the
+ * background instead of revealing the screen below.
  */
 @Composable
 fun AppLockScreen(
@@ -66,7 +68,6 @@ fun AppLockScreen(
     var blockedSeconds by remember { mutableIntStateOf((lock.remainingBlockMillis() / 1000).toInt()) }
     val biometric = remember { lock.biometricEnabled && lock.isBiometricAvailable() }
 
-    BackHandler(enabled = true) { onExit() }
 
     LaunchedEffect(blockedSeconds) {
         if (blockedSeconds > 0) {
@@ -99,6 +100,15 @@ fun AppLockScreen(
         }
     }
 
+    Dialog(
+        onDismissRequest = onExit,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
     // The keypad keeps the familiar phone order (1 2 3 from left to right) even in RTL.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Surface(
@@ -167,6 +177,7 @@ fun AppLockScreen(
                 }
             }
         }
+    }
     }
 }
 

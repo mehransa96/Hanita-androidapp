@@ -16,7 +16,7 @@ object CycleMusicRepository {
             durationSeconds = 24,
             resId = R.raw.period_piano_calm,
             categoryBadge = "تسکین درد لگن",
-            benefitDescription = "نوای پیانو با هارمونی‌های عمیق F-maj7 فعالیت سمپاتیک را مهار کرده و انقباضات رحمی را تسکین می‌دهد.",
+            benefitDescription = "نوای پیانو با هارمونی‌های عمیق F-maj7 حس آرامش ایجاد می‌کند و می‌تواند تحمل گرفتگی‌ها را آسان‌تر کند.",
             frequencyLabel = "پیانو F-maj7"
         ),
         CycleMusic(
@@ -38,7 +38,7 @@ object CycleMusicRepository {
             durationSeconds = 24,
             resId = R.raw.period_frequency_528,
             categoryBadge = "فرکانس ۵۲۸Hz سلفژ",
-            benefitDescription = "فرکانس کهن ۵۲۸ هرتز همراه با ضربان تتای ۴ هرتز برای تن‌آرامی عمیق عضلات و کاهش التهاب بدن.",
+            benefitDescription = "فرکانس کهن ۵۲۸ هرتز همراه با ضربان تتای ۴ هرتز برای تن‌آرامی و استراحت عمیق.",
             frequencyLabel = "۵۲۸ Hz + ۴ Hz Theta"
         ),
         CycleMusic(
@@ -130,7 +130,7 @@ object CycleMusicRepository {
             durationSeconds = 24,
             resId = R.raw.ovulation_pure_joy,
             categoryBadge = "ترشح اندورفین شادی",
-            benefitDescription = "تحریک ترشح هورمون‌های شادی و احساس شعف درونی برای لذت بردن از لحظات روزمره.",
+            benefitDescription = "حس شادی و سرزندگی برای لذت بردن از لحظات روزمره.",
             frequencyLabel = "آرپژ سرزنده E-Major"
         ),
         CycleMusic(
@@ -154,7 +154,7 @@ object CycleMusicRepository {
             durationSeconds = 24,
             resId = R.raw.luteal_lofi_chill,
             categoryBadge = "ضد اضطراب PMS",
-            benefitDescription = "آکوردهای جاز لوفای به همراه صدای نوستالژیک گرامافون، تحریک‌پذیری و نوسان خلق‌وخوی قبل از پریود را مهار می‌کنند.",
+            benefitDescription = "آکوردهای جاز لوفای به همراه صدای نوستالژیک گرامافون، به آرام‌تر شدن حال‌وهوای روزهای قبل از پریود کمک می‌کنند.",
             frequencyLabel = "Lo-Fi ۷۰ BPM"
         ),
         CycleMusic(
@@ -165,7 +165,7 @@ object CycleMusicRepository {
             durationSeconds = 24,
             resId = R.raw.luteal_frequency_432,
             categoryBadge = "فرکانس آرامش ۴۳۲Hz",
-            benefitDescription = "فرکانس ورردی ۴۳۲ هرتز به همراه ضربان آلفای ۶ هرتز برای کاهش استرس، کنترل اضطراب و آرامش اعصاب.",
+            benefitDescription = "موسیقی آرام با کوک ۴۳۲ هرتز برای کم کردن تنش و آرامش ذهن.",
             frequencyLabel = "۴۳۲ Hz + ۶ Hz Alpha"
         ),
         CycleMusic(
@@ -176,7 +176,7 @@ object CycleMusicRepository {
             durationSeconds = 24,
             resId = R.raw.luteal_warm_acoustic,
             categoryBadge = "تسکین تنش و استرس",
-            benefitDescription = "مانند یک پتوی نرم و نوشیدنی گرم گیاهی، حس تنهایی و خستگی اواخر چرخه را از بین می‌برد.",
+            benefitDescription = "مانند یک پتوی نرم و نوشیدنی گرم گیاهی، حس گرما و آرامش در روزهای خسته اواخر چرخه می‌دهد.",
             frequencyLabel = "هارمونی زهی لگاتو"
         ),
         CycleMusic(
@@ -187,7 +187,7 @@ object CycleMusicRepository {
             durationSeconds = 24,
             resId = R.raw.luteal_pink_noise_zen,
             categoryBadge = "تنفس ضد اضطراب",
-            benefitDescription = "الگوی تنفس هدایت‌شده همراه با نویز صورتی برای تسکین سردردهای هورمونی، تنش و بهبود خواب.",
+            benefitDescription = "الگوی تنفس هدایت‌شده همراه با نویز صورتی برای کاهش تنش و کمک به خواب راحت‌تر.",
             frequencyLabel = "نویز صورتی + تنفس ۴-۷-۸"
         )
     )
