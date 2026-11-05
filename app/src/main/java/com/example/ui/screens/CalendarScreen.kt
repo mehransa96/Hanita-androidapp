@@ -85,117 +85,44 @@ fun CalendarScreen(
         }.toSet()
     }
     
-    // Predict next period, fertile window, and PMS based on the latest period date
-    val predictedPeriodDates by remember(periodDates, lastPeriodDateStr, averageCycleLength) {
-        derivedStateOf {
-            val calculated = mutableSetOf<JalaliDate>()
-            val latestPeriod = periodDates.maxOrNull() ?: if (lastPeriodDateStr.isNotBlank()) {
-                try {
-                    JalaliCalendar.gregorianToJalali(LocalDate.parse(lastPeriodDateStr))
-                } catch (e: Exception) {
-                    null
+    // Forecast for the period, fertile, PMS and follicular days. It comes from the same
+    // CyclePredictor result as the dashboard, so both screens always agree (real average cycle
+    // and period length, anchored on the first day of the last period, late periods handled).
+    val cyclePrediction by viewModel.cyclePrediction.collectAsState()
+    val forecast = remember(cyclePrediction, todayLocalDate) {
+        val period = mutableSetOf<JalaliDate>()
+        val fertile = mutableSetOf<JalaliDate>()
+        val pms = mutableSetOf<JalaliDate>()
+        val follicular = mutableSetOf<JalaliDate>()
+        val lastStart = cyclePrediction.lastPeriodStart
+        if (lastStart != null) {
+            val horizon = todayLocalDate.plusDays(6L * cyclePrediction.averageCycleLength)
+            var date: LocalDate = lastStart
+            while (!date.isAfter(horizon)) {
+                val status = com.example.domain.CyclePredictor.dayStatus(
+                    date = date,
+                    prediction = cyclePrediction,
+                    loggedBleedingToday = false,
+                    today = todayLocalDate
+                )
+                // Past days only show what was really logged; the forecast starts today.
+                val jalali = JalaliCalendar.gregorianToJalali(date)
+                val isForecastDay = !date.isBefore(todayLocalDate)
+                when {
+                    status.isPeriod -> if (isForecastDay) period.add(jalali)
+                    status.isFertile -> fertile.add(jalali)
+                    status.isPms -> pms.add(jalali)
+                    status.phase == com.example.domain.CyclePredictor.Phase.FOLLICULAR -> follicular.add(jalali)
                 }
-            } else {
-                null
+                date = date.plusDays(1)
             }
-
-            if (latestPeriod != null) {
-                val latestLocalDate = latestPeriod.toLocalDate()
-                val cycleL = averageCycleLength.coerceIn(21, 45)
-                for (i in 0..5) {
-                    val cycleStart = latestLocalDate.plusDays((i * cycleL).toLong())
-                    for (day in 0..4) {
-                        calculated.add(JalaliCalendar.gregorianToJalali(cycleStart.plusDays(day.toLong())))
-                    }
-                }
-            }
-            calculated
         }
+        listOf(period, fertile, pms, follicular)
     }
-
-    val fertileDates by remember(periodDates, lastPeriodDateStr, averageCycleLength) {
-        derivedStateOf {
-            val calculated = mutableSetOf<JalaliDate>()
-            val latestPeriod = periodDates.maxOrNull() ?: if (lastPeriodDateStr.isNotBlank()) {
-                try {
-                    JalaliCalendar.gregorianToJalali(LocalDate.parse(lastPeriodDateStr))
-                } catch (e: Exception) {
-                    null
-                }
-            } else {
-                null
-            }
-
-            if (latestPeriod != null) {
-                val latestLocalDate = latestPeriod.toLocalDate()
-                val cycleL = averageCycleLength.coerceIn(21, 45)
-                val ovulationDay = cycleL - 14
-                for (i in 0..5) {
-                    val cycleStart = latestLocalDate.plusDays((i * cycleL).toLong())
-                    for (day in (ovulationDay - 3)..(ovulationDay + 1)) {
-                        calculated.add(JalaliCalendar.gregorianToJalali(cycleStart.plusDays(day.toLong())))
-                    }
-                }
-            }
-            calculated
-        }
-    }
-
-    val pmsDates by remember(periodDates, lastPeriodDateStr, averageCycleLength) {
-        derivedStateOf {
-            val calculated = mutableSetOf<JalaliDate>()
-            val latestPeriod = periodDates.maxOrNull() ?: if (lastPeriodDateStr.isNotBlank()) {
-                try {
-                    JalaliCalendar.gregorianToJalali(LocalDate.parse(lastPeriodDateStr))
-                } catch (e: Exception) {
-                    null
-                }
-            } else {
-                null
-            }
-
-            if (latestPeriod != null) {
-                val latestLocalDate = latestPeriod.toLocalDate()
-                val cycleL = averageCycleLength.coerceIn(21, 45)
-                for (i in 0..5) {
-                    val cycleStart = latestLocalDate.plusDays((i * cycleL).toLong())
-                    for (day in (cycleL - 6)..(cycleL - 1)) {
-                        calculated.add(JalaliCalendar.gregorianToJalali(cycleStart.plusDays(day.toLong())))
-                    }
-                }
-            }
-            calculated
-        }
-    }
-
-    // Follicular dates: between period and fertile window
-    val follicularDates by remember(periodDates, lastPeriodDateStr, averageCycleLength, predictedPeriodDates, fertileDates) {
-        derivedStateOf {
-            val calculated = mutableSetOf<JalaliDate>()
-            val latestPeriod = periodDates.maxOrNull() ?: if (lastPeriodDateStr.isNotBlank()) {
-                try {
-                    JalaliCalendar.gregorianToJalali(LocalDate.parse(lastPeriodDateStr))
-                } catch (e: Exception) {
-                    null
-                }
-            } else {
-                null
-            }
-
-            if (latestPeriod != null) {
-                val latestLocalDate = latestPeriod.toLocalDate()
-                val cycleL = averageCycleLength.coerceIn(21, 45)
-                val ovulationDay = cycleL - 14
-                for (i in 0..5) {
-                    val cycleStart = latestLocalDate.plusDays((i * cycleL).toLong())
-                    for (day in 5 until (ovulationDay - 3).coerceAtLeast(5)) {
-                        calculated.add(JalaliCalendar.gregorianToJalali(cycleStart.plusDays(day.toLong())))
-                    }
-                }
-            }
-            calculated
-        }
-    }
+    val predictedPeriodDates: Set<JalaliDate> = forecast[0]
+    val fertileDates: Set<JalaliDate> = forecast[1]
+    val pmsDates: Set<JalaliDate> = forecast[2]
+    val follicularDates: Set<JalaliDate> = forecast[3]
 
     var selectedDate by remember { mutableStateOf<JalaliDate?>(todayJalali) }
 

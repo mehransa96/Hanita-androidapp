@@ -175,6 +175,7 @@ class MainActivity : ComponentActivity() {
                         val navController = rememberNavController()
                         val isLoggedIn by viewModel.isLoggedIn.collectAsState()
                         com.example.ui.components.AiConsentDialog(viewModel)
+                        NotificationPermissionRequest(isLoggedIn)
 
                         NavHost(
                             navController = navController, 
@@ -376,5 +377,29 @@ class MainActivity : ComponentActivity() {
             startActivity(intent)
         }
         finish()
+    }
+}
+
+/**
+ * Period and phase reminders are the core of the app, but on Android 13+ they are silently
+ * dropped until the user grants POST_NOTIFICATIONS. Ask once, right after onboarding, instead of
+ * only when the user happens to open the reminders screen.
+ */
+@Composable
+private fun NotificationPermissionRequest(isLoggedIn: Boolean) {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("hanita_permissions", android.content.Context.MODE_PRIVATE) }
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { /* Reminders are rescheduled anyway; the user can change this later in settings. */ }
+    LaunchedEffect(isLoggedIn) {
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.POST_NOTIFICATIONS
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (isLoggedIn && !granted && !prefs.getBoolean("notifications_asked", false)) {
+            prefs.edit().putBoolean("notifications_asked", true).apply()
+            launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 }

@@ -284,8 +284,12 @@ fun MedicalReportDialog(
                         )
                         ClinicalMetricCard(
                             title = "چرخه بعدی",
-                            value = "${cycleInfo.daysUntilNextPeriod} روز دیگر",
-                            subtitle = cycleInfo.predictedPeriodStart.toString(),
+                            value = when {
+                                cycleInfo.isLate -> "${cycleInfo.daysLate} روز تأخیر"
+                                cycleInfo.daysUntilNextPeriod == 0 -> "امروز"
+                                else -> "${cycleInfo.daysUntilNextPeriod} روز دیگر"
+                            },
+                            subtitle = JalaliCalendar.gregorianToJalali(cycleInfo.predictedPeriodStart).formatLong(),
                             modifier = Modifier.weight(1f),
                             accentColor = Color(0xFFA855F7)
                         )

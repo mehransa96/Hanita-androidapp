@@ -25,6 +25,8 @@ object CyclePredictor {
     const val LUTEAL_PHASE_DAYS = 14
     const val NEW_PERIOD_GAP_DAYS = 8
     const val MAX_CYCLES_FOR_AVERAGE = 6
+    /** How long a missing period is reported as "late" before the projection takes over again. */
+    const val MAX_LATE_DAYS = 45
     private const val MIN_PLAUSIBLE_INTERVAL = 15
     private const val MAX_PLAUSIBLE_INTERVAL = 60
 
@@ -53,7 +55,10 @@ object CyclePredictor {
         val isPeriod: Boolean,
         val isFertile: Boolean,
         val isPms: Boolean,
-        val phase: Phase
+        val phase: Phase,
+        /** The expected period has not been logged yet; [daysLate] counts the days since it was due. */
+        val isLate: Boolean = false,
+        val daysLate: Int = 0
     )
 
     fun clampCycleLength(length: Int): Int =
@@ -164,10 +169,16 @@ object CyclePredictor {
         }
     }
 
+    /**
+     * Status of [date] relative to the prediction. [today] decides what is history and what is
+     * forecast: an expected period that was not logged by [today] is reported as late, and the
+     * forecast after a late [today] assumes the period can start from tomorrow.
+     */
     fun dayStatus(
         date: LocalDate,
         prediction: Prediction,
-        loggedBleedingToday: Boolean
+        loggedBleedingToday: Boolean,
+        today: LocalDate = date
     ): DayStatus {
         val length = prediction.averageCycleLength
         val lastStart = prediction.lastPeriodStart
@@ -182,7 +193,33 @@ object CyclePredictor {
                 phase = if (loggedBleedingToday) Phase.MENSTRUAL else Phase.FOLLICULAR
             )
         }
-        val cycleDay = cycleDayFor(date, lastStart, length)
+        val expectedStart = lastStart.plusDays(length.toLong())
+        var anchor = lastStart
+        // A due period that was not logged is shown as late instead of silently starting a new
+        // projected cycle. After a very long gap the data is probably just missing, so fall back
+        // to the plain projection.
+        if (ChronoUnit.DAYS.between(expectedStart, today) in 0..MAX_LATE_DAYS.toLong()) {
+            if (!date.isAfter(today) && !date.isBefore(expectedStart)) {
+                if (!loggedBleedingToday) {
+                    val overdue = ChronoUnit.DAYS.between(expectedStart, date).toInt()
+                    return DayStatus(
+                        cycleDay = length + overdue + 1,
+                        daysUntilNextPeriod = 0,
+                        predictedPeriodStart = date,
+                        isPeriod = false,
+                        isFertile = false,
+                        isPms = false,
+                        phase = Phase.LUTEAL,
+                        isLate = overdue > 0,
+                        daysLate = overdue
+                    )
+                }
+            } else if (date.isAfter(today)) {
+                // Forecast: the late period may start tomorrow, later cycles follow from there.
+                anchor = today.plusDays(1).minusDays(length.toLong())
+            }
+        }
+        val cycleDay = cycleDayFor(date, anchor, length)
         val daysUntil = length - cycleDay + 1
         val ovulation = ovulationDay(length)
         val predictedBleeding = cycleDay <= prediction.averagePeriodLength

@@ -48,11 +48,16 @@ fun MoodScreen(
     val cycleInfo by viewModel.cycleInfo.collectAsState()
 
     // Determine current user cycle phase based on cycle tracking
+    // Works for any cycle length (the old fixed day ranges assumed a 28-day cycle).
     val currentCyclePhase = when {
-        cycleInfo.isPeriod || cycleInfo.daysUntilNextPeriod in 24..28 -> CyclePhaseType.PERIOD
+        cycleInfo.isPeriod -> CyclePhaseType.PERIOD
         cycleInfo.isFertile -> CyclePhaseType.OVULATION
-        cycleInfo.daysUntilNextPeriod in 16..23 -> CyclePhaseType.FOLLICULAR
-        else -> CyclePhaseType.LUTEAL
+        else -> when (cycleInfo.phase) {
+            com.example.domain.CyclePredictor.Phase.MENSTRUAL -> CyclePhaseType.PERIOD
+            com.example.domain.CyclePredictor.Phase.FOLLICULAR -> CyclePhaseType.FOLLICULAR
+            com.example.domain.CyclePredictor.Phase.OVULATION -> CyclePhaseType.OVULATION
+            com.example.domain.CyclePredictor.Phase.LUTEAL -> CyclePhaseType.LUTEAL
+        }
     }
 
     // Phase filter selection: null means "All phases", otherwise specific phase
