@@ -69,6 +69,12 @@ android {
     buildConfig = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
+  lint {
+    // Print findings in the CI log; real errors still fail the build.
+    textReport = true
+    textOutput = file("stdout")
+    checkDependencies = false
+  }
 }
 
 ksp {
