@@ -302,6 +302,9 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
                 .distinctUntilChanged()
                 .collect { (p, settings) ->
                     ReminderScheduler.schedule(getApplication(), p, settings)
+                    // Breast-exam reminder follows the cycle; the home-screen widget shows it too.
+                    com.example.tools.WellnessReminders.scheduleAll(getApplication(), p.lastPeriodStart, p.averageCycleLength)
+                    com.example.tools.CycleWidgetProvider.requestUpdate(getApplication())
                 }
         }
 

@@ -51,11 +51,18 @@ import androidx.compose.ui.unit.sp
 class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_NAVIGATE_TO = "navigate_to"
-        private val DEEP_LINK_ROUTES = setOf("log", "calendar", "reminders")
+        private val DEEP_LINK_ROUTES = setOf("log", "calendar", "reminders", "tools")
     }
+
+    private lateinit var lockManager: com.example.security.AppLockManager
+    /** True while the app-lock screen covers the app (set again every time the app goes to background). */
+    private var isLocked by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lockManager = com.example.security.AppLockManager(this)
+        isLocked = lockManager.isEnabled
+        applySecureFlag()
         
         enableEdgeToEdge()
         setContent {
@@ -173,6 +180,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 // Ensure layout is Right-to-Left for Persian language
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                  Box(modifier = Modifier.fillMaxSize()) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
@@ -244,6 +252,8 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToAvatarGenerator = { navController.navigate("avatargenerator") },
                                     onNavigateToHistory = { navController.navigate("history") },
                                     onNavigateToCharts = { navController.navigate("charts") },
+                                    onNavigateToTools = { navController.navigate("tools") },
+                                    onNavigateToPrivacy = { navController.navigate("privacy") },
                                     onLogout = {
                                         viewModel.logout()
                                         navController.navigate("login") {
@@ -369,19 +379,76 @@ class MainActivity : ComponentActivity() {
                                     onBack = { navController.popBackStack() }
                                 )
                             }
+                            composable("tools") {
+                                val healthVm: com.example.ui.viewmodel.HealthToolsViewModel = viewModel()
+                                com.example.ui.screens.HealthToolsScreen(
+                                    viewModel = healthVm,
+                                    onNavigateBack = { navController.popBackStack() }
+                                )
+                            }
+                            composable("privacy") {
+                                val healthVm: com.example.ui.viewmodel.HealthToolsViewModel = viewModel()
+                                com.example.ui.screens.PrivacySecurityScreen(
+                                    viewModel = healthVm,
+                                    onNavigateBack = { navController.popBackStack() },
+                                    onSecureScreenChanged = { applySecureFlag() },
+                                    onRestartApp = { restartApp() }
+                                )
+                            }
                         }
                     }
+                    if (isLocked) {
+                        com.example.ui.screens.AppLockScreen(
+                            lock = lockManager,
+                            onUnlocked = { isLocked = false },
+                            onExit = { moveTaskToBack(true) }
+                        )
+                    }
+                  }
                 }
             }
         }
     }
 }
 
+    override fun onStop() {
+        super.onStop()
+        if (com.example.security.AppLockSession.skipNextLock) {
+            // A file picker opened by the app itself; do not lock behind the user's back.
+            com.example.security.AppLockSession.skipNextLock = false
+        } else if (!isChangingConfigurations && lockManager.isEnabled) {
+            isLocked = true
+        }
+        // Keep the home-screen widget in step with what was just logged.
+        com.example.tools.CycleWidgetProvider.requestUpdate(this)
+    }
+
+    /** FLAG_SECURE hides the app preview in "recent apps" and blocks screenshots. */
+    fun applySecureFlag() {
+        if (lockManager.secureScreen) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
+
+    /** Starts the app again from scratch (after restoring a backup or deleting all data). */
+    private fun restartApp() {
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
+        if (intent != null) {
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        }
+        finish()
+    }
+
     /** Deletes all local data (only after explicit confirmation on the recovery screen). */
     @android.annotation.SuppressLint("ApplySharedPref") // must be on disk before the process restarts
     private fun resetAllLocalData() {
         getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE).edit().clear().commit()
         getSharedPreferences(HanitaApplication.CRASH_PREFS, android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        getSharedPreferences(com.example.data.preferences.WellnessPrefs.NAME, android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        getSharedPreferences(com.example.security.AppLockManager.NAME, android.content.Context.MODE_PRIVATE).edit().clear().commit()
         try {
             deleteDatabase("hanita_database")
         } catch (_: Exception) {

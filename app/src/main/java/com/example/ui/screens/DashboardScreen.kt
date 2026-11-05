@@ -106,6 +106,8 @@ fun DashboardScreen(
     onNavigateToAvatarGenerator: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToCharts: () -> Unit,
+    onNavigateToTools: () -> Unit,
+    onNavigateToPrivacy: () -> Unit,
     onLogout: () -> Unit
 ) {
     val cycleInfo by viewModel.cycleInfo.collectAsState()
@@ -387,6 +389,9 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(16.dp))
             
             FeaturesGrid(onNavigateToLog, onNavigateToCalendar, onNavigateToHealth, onNavigateToEducation, onNavigateToMood, onNavigateToChat, onNavigateToMeditation, onNavigateToReminders, onNavigateToCharts)
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HealthToolsEntryCard(onOpenTools = onNavigateToTools, onOpenPrivacy = onNavigateToPrivacy)
             
             Spacer(modifier = Modifier.height(16.dp))
 
