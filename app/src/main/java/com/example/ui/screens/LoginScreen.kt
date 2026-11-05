@@ -45,7 +45,6 @@ import java.time.LocalDate
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
-import com.example.R
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -247,7 +246,7 @@ fun StepWelcome(
     onNext: () -> Unit
 ) {
     val context = LocalContext.current
-    val auth = remember { FirebaseAuth.getInstance() }
+    val auth = remember { runCatching { FirebaseAuth.getInstance() }.getOrNull() }
     
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -256,14 +255,17 @@ fun StepWelcome(
         try {
             val account = task.getResult(ApiException::class.java)!!
             val credential = GoogleAuthProvider.getCredential(account.idToken, null)
-            auth.signInWithCredential(credential).addOnCompleteListener {
+            auth?.signInWithCredential(credential)?.addOnCompleteListener {
                 if (it.isSuccessful) {
-                    onNameChange(account.displayName ?: "کاربر عزیز")
+                    // Only the first name is kept locally; the account is identified by its Firebase uid.
+                    onNameChange(account.givenName ?: account.displayName ?: "کاربر عزیز")
                     onNext()
+                } else {
+                    android.widget.Toast.makeText(context, "ورود با گوگل انجام نشد. دوباره تلاش کنید.", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            // Cancelled by the user or Play services unavailable: stay on this step.
         }
     }
 
@@ -325,12 +327,23 @@ fun StepWelcome(
 
         Button(
             onClick = {
-                val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                    .requestIdToken(context.getString(R.string.default_web_client_id))
-                    .requestEmail()
-                    .build()
-                val googleSignInClient = GoogleSignIn.getClient(context, gso)
-                launcher.launch(googleSignInClient.signInIntent)
+                // default_web_client_id is generated from google-services.json; absent in offline builds.
+                val clientIdRes = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+                val auth = runCatching { FirebaseAuth.getInstance() }.getOrNull()
+                if (clientIdRes == 0 || auth == null) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "ورود با گوگل در این نسخه فعال نیست. با وارد کردن نام ادامه دهید؛ اطلاعات فقط روی گوشی شما می‌ماند.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                        .requestIdToken(context.getString(clientIdRes))
+                        .requestEmail()
+                        .build()
+                    val googleSignInClient = GoogleSignIn.getClient(context, gso)
+                    launcher.launch(googleSignInClient.signInIntent)
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()

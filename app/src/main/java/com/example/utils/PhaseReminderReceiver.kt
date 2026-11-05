@@ -47,7 +47,7 @@ class PhaseReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID).privateOnLockScreen(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentTitle("ورود به $phaseName 🌸")
             .setContentText(phaseMessage)
@@ -58,5 +58,7 @@ class PhaseReminderReceiver : BroadcastReceiver() {
             .build()
 
         notificationManager.notify(NOTIFICATION_ID + phaseName.hashCode(), notification)
+        // Schedule the same phase for the next cycle.
+        RescheduleWorker.runNow(context)
     }
 }

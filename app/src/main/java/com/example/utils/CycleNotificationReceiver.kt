@@ -57,8 +57,7 @@ class CycleNotificationReceiver : BroadcastReceiver() {
         }
         
         // After sending the notification, enqueue a WorkManager job to recalculate and schedule the next alarm
-        val request = OneTimeWorkRequestBuilder<RescheduleWorker>().build()
-        WorkManager.getInstance(context).enqueue(request)
+        RescheduleWorker.runNow(context)
     }
 
     private fun createNotificationChannels(context: Context, notificationManager: NotificationManager) {
@@ -141,7 +140,7 @@ class CycleNotificationReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_PERIOD_ID)
+        val notification = NotificationCompat.Builder(context, CHANNEL_PERIOD_ID).privateOnLockScreen(context, CHANNEL_PERIOD_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(title)
             .setContentText(body)
@@ -198,7 +197,7 @@ class CycleNotificationReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_OVULATION_ID)
+        val notification = NotificationCompat.Builder(context, CHANNEL_OVULATION_ID).privateOnLockScreen(context, CHANNEL_OVULATION_ID)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentTitle(title)
             .setContentText(body)

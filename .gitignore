@@ -16,3 +16,9 @@
 local.properties
 .env
 debug.keystore
+
+# Secrets / environment-specific config (never commit)
+app/google-services.json
+*.jks
+*.keystore
+keystore.properties

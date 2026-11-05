@@ -52,25 +52,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Setup Uncaught Exception Logger to diagnose and gracefully recover from crashes
-        val originalHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            try {
-                val prefs = getSharedPreferences("crash_reports", android.content.Context.MODE_PRIVATE)
-                val writer = java.io.StringWriter()
-                throwable.printStackTrace(java.io.PrintWriter(writer))
-                val stackTrace = writer.toString()
-                prefs.edit().putString("last_crash", stackTrace).commit()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-            originalHandler?.uncaughtException(thread, throwable)
-        }
-
         enableEdgeToEdge()
         setContent {
-            val crashPrefs = remember { getSharedPreferences("crash_reports", android.content.Context.MODE_PRIVATE) }
-            var crashStackTrace by remember { mutableStateOf(crashPrefs.getString("last_crash", null)) }
+            val crashPrefs = remember { getSharedPreferences(HanitaApplication.CRASH_PREFS, android.content.Context.MODE_PRIVATE) }
+            var crashStackTrace by remember { mutableStateOf(crashPrefs.getString(HanitaApplication.KEY_LAST_CRASH, null)) }
+            var confirmReset by remember { mutableStateOf(false) }
 
             if (crashStackTrace != null) {
                 // Beautiful Recovery and Crash Diagnosis Screen in Farsi
@@ -129,41 +115,34 @@ class MainActivity : ComponentActivity() {
                                 
                                 Spacer(modifier = Modifier.height(24.dp))
                                 
-                                Button(
-                                    onClick = {
-                                        // 1. Clear Preferences
-                                        val prefs = getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE)
-                                        prefs.edit().clear().commit()
-                                        crashPrefs.edit().clear().commit()
-                                        
-                                        // 2. Clear / Delete Room Database
-                                        try {
-                                            deleteDatabase("hanita_database")
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
+                                if (confirmReset) {
+                                    AlertDialog(
+                                        onDismissRequest = { confirmReset = false },
+                                        title = { Text("حذف همه اطلاعات؟") },
+                                        text = { Text("با این کار همه سوابق چرخه، علائم و تنظیمات روی این گوشی برای همیشه پاک می‌شود. پیشنهاد می‌کنیم ابتدا «تلاش مجدد» را امتحان کنید.") },
+                                        confirmButton = {
+                                            TextButton(onClick = {
+                                                confirmReset = false
+                                                resetAllLocalData()
+                                            }) { Text("بله، پاک شود", color = MaterialTheme.colorScheme.error) }
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = { confirmReset = false }) { Text("انصراف") }
                                         }
-                                        
-                                        // 3. Restart Application
-                                        val intent = packageManager.getLaunchIntentForPackage(packageName)
-                                        if (intent != null) {
-                                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                            startActivity(intent)
-                                            finish()
-                                        } else {
-                                            crashStackTrace = null
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                                ) {
-                                    Text("بازنشانی پایگاه‌داده و راه‌اندازی تازه 🔄", fontWeight = FontWeight.Bold)
+                                    )
                                 }
-                                
+                                Button(
+                                    onClick = { confirmReset = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Text("بازنشانی کامل و حذف اطلاعات 🔄", fontWeight = FontWeight.Bold)
+                                }
                                 Spacer(modifier = Modifier.height(12.dp))
                                 
                                 OutlinedButton(
                                     onClick = {
-                                        crashPrefs.edit().remove("last_crash").commit()
+                                        crashPrefs.edit().remove(HanitaApplication.KEY_LAST_CRASH).commit()
                                         crashStackTrace = null
                                     },
                                     modifier = Modifier.fillMaxWidth()
@@ -195,6 +174,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         val navController = rememberNavController()
                         val isLoggedIn by viewModel.isLoggedIn.collectAsState()
+                        com.example.ui.components.AiConsentDialog(viewModel)
 
                         NavHost(
                             navController = navController, 
@@ -380,4 +360,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+    /** Deletes all local data (only after explicit confirmation on the recovery screen). */
+    private fun resetAllLocalData() {
+        getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        getSharedPreferences(HanitaApplication.CRASH_PREFS, android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        try {
+            deleteDatabase("hanita_database")
+        } catch (_: Exception) {
+        }
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
+        if (intent != null) {
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        }
+        finish()
+    }
 }

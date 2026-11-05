@@ -22,8 +22,9 @@ class LogRepository(
         return dailyLogDao.getLogByDate(dateStr)
     }
 
+    /** Every local write is stamped so the newest version wins during cloud sync. */
     suspend fun insertLog(log: DailyLog) {
-        dailyLogDao.insertLog(log)
+        dailyLogDao.insertLog(log.copy(updatedAt = System.currentTimeMillis()))
     }
 
     suspend fun deleteLog(dateStr: String) {

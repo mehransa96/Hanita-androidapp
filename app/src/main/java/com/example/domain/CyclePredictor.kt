@@ -1,0 +1,213 @@
+package com.example.domain
+
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+
+/**
+ * Pure, Android-free menstrual cycle prediction logic.
+ *
+ * All the cycle maths of the app lives here so it can be unit-tested and shared by the
+ * ViewModel, the background reschedule worker and the notification helpers.
+ *
+ * Medical model (standard calendar method, for information only, not contraception):
+ *  - A new period starts when a bleeding day follows a gap of more than [NEW_PERIOD_GAP_DAYS] days.
+ *  - Cycle length = average of the last [MAX_CYCLES_FOR_AVERAGE] plausible cycles (21..45 days).
+ *  - The luteal phase is ~14 days, so ovulation ≈ cycleLength - 14 (never before day 10).
+ *  - Fertile window = 5 days before ovulation up to 1 day after it.
+ *  - PMS window = the last 5 days before the next expected period.
+ */
+object CyclePredictor {
+
+    const val DEFAULT_CYCLE_LENGTH = 28
+    const val DEFAULT_PERIOD_LENGTH = 5
+    const val MIN_CYCLE_LENGTH = 21
+    const val MAX_CYCLE_LENGTH = 45
+    const val LUTEAL_PHASE_DAYS = 14
+    const val NEW_PERIOD_GAP_DAYS = 8
+    const val MAX_CYCLES_FOR_AVERAGE = 6
+    private const val MIN_PLAUSIBLE_INTERVAL = 15
+    private const val MAX_PLAUSIBLE_INTERVAL = 60
+
+    enum class Phase { MENSTRUAL, FOLLICULAR, OVULATION, LUTEAL }
+
+    data class Prediction(
+        val hasEnoughData: Boolean,
+        val averageCycleLength: Int,
+        val averagePeriodLength: Int,
+        val lastPeriodStart: LocalDate?,
+        val predictedNextStart: LocalDate,
+        /** Negative when the period is late. */
+        val daysRemaining: Int,
+        val cyclesUsed: Int,
+        /** Max - min of the cycles used; > 7 days usually means an irregular cycle. */
+        val cycleVariationDays: Int,
+        val isLate: Boolean
+    ) {
+        val isIrregular: Boolean get() = cyclesUsed >= 3 && cycleVariationDays > 7
+    }
+
+    data class DayStatus(
+        val cycleDay: Int,
+        val daysUntilNextPeriod: Int,
+        val predictedPeriodStart: LocalDate,
+        val isPeriod: Boolean,
+        val isFertile: Boolean,
+        val isPms: Boolean,
+        val phase: Phase
+    )
+
+    fun clampCycleLength(length: Int): Int =
+        if (length in MIN_CYCLE_LENGTH..MAX_CYCLE_LENGTH) length else DEFAULT_CYCLE_LENGTH
+
+    fun ovulationDay(cycleLength: Int): Int =
+        (clampCycleLength(cycleLength) - LUTEAL_PHASE_DAYS).coerceAtLeast(10)
+
+    /** Groups individual bleeding days into the first day of each period. */
+    fun periodStarts(bleedingDays: Collection<LocalDate>): List<LocalDate> {
+        val sorted = bleedingDays.distinct().sorted()
+        if (sorted.isEmpty()) return emptyList()
+        val starts = mutableListOf(sorted.first())
+        for (i in 1 until sorted.size) {
+            if (ChronoUnit.DAYS.between(sorted[i - 1], sorted[i]) > NEW_PERIOD_GAP_DAYS) {
+                starts.add(sorted[i])
+            }
+        }
+        return starts
+    }
+
+    /** Average number of bleeding days per period, from real data (fallback 5). */
+    fun averagePeriodLength(bleedingDays: Collection<LocalDate>): Int {
+        val sorted = bleedingDays.distinct().sorted()
+        if (sorted.isEmpty()) return DEFAULT_PERIOD_LENGTH
+        val lengths = mutableListOf<Int>()
+        var runStart = sorted.first()
+        var prev = sorted.first()
+        for (i in 1 until sorted.size) {
+            val day = sorted[i]
+            if (ChronoUnit.DAYS.between(prev, day) > NEW_PERIOD_GAP_DAYS) {
+                lengths.add(ChronoUnit.DAYS.between(runStart, prev).toInt() + 1)
+                runStart = day
+            }
+            prev = day
+        }
+        lengths.add(ChronoUnit.DAYS.between(runStart, prev).toInt() + 1)
+        // Single logged days (only the start was entered) carry no length information.
+        val informative = lengths.filter { it > 1 }
+        if (informative.isEmpty()) return DEFAULT_PERIOD_LENGTH
+        return informative.takeLast(MAX_CYCLES_FOR_AVERAGE).average().toInt().coerceIn(2, 10)
+    }
+
+    fun predict(
+        bleedingDays: Collection<LocalDate>,
+        defaultCycleLength: Int,
+        today: LocalDate = LocalDate.now()
+    ): Prediction {
+        val fallbackLength = clampCycleLength(defaultCycleLength)
+        // Future-dated entries are ignored: they cannot be real bleeding days.
+        val pastDays = bleedingDays.filter { !it.isAfter(today) }
+        val starts = periodStarts(pastDays)
+        if (starts.isEmpty()) {
+            return Prediction(
+                hasEnoughData = false,
+                averageCycleLength = fallbackLength,
+                averagePeriodLength = DEFAULT_PERIOD_LENGTH,
+                lastPeriodStart = null,
+                predictedNextStart = today.plusDays(fallbackLength.toLong()),
+                daysRemaining = fallbackLength,
+                cyclesUsed = 0,
+                cycleVariationDays = 0,
+                isLate = false
+            )
+        }
+
+        val intervals = starts.zipWithNext { a, b -> ChronoUnit.DAYS.between(a, b).toInt() }
+            .filter { it in MIN_PLAUSIBLE_INTERVAL..MAX_PLAUSIBLE_INTERVAL }
+            .takeLast(MAX_CYCLES_FOR_AVERAGE)
+
+        val hasEnoughData = intervals.isNotEmpty()
+        val average = if (hasEnoughData) {
+            Math.round(intervals.average()).toInt().coerceIn(MIN_CYCLE_LENGTH, MAX_CYCLE_LENGTH)
+        } else {
+            fallbackLength
+        }
+        val lastStart = starts.last()
+        val next = lastStart.plusDays(average.toLong())
+        val remaining = ChronoUnit.DAYS.between(today, next).toInt()
+
+        return Prediction(
+            hasEnoughData = hasEnoughData,
+            averageCycleLength = average,
+            averagePeriodLength = averagePeriodLength(pastDays),
+            lastPeriodStart = lastStart,
+            predictedNextStart = next,
+            daysRemaining = remaining,
+            cyclesUsed = intervals.size,
+            cycleVariationDays = if (intervals.size >= 2) intervals.max() - intervals.min() else 0,
+            isLate = remaining < 0
+        )
+    }
+
+    /** 1-based day of the (projected) cycle a date falls on. */
+    fun cycleDayFor(date: LocalDate, lastPeriodStart: LocalDate, cycleLength: Int): Int {
+        val length = clampCycleLength(cycleLength)
+        val diff = ChronoUnit.DAYS.between(lastPeriodStart, date).toInt()
+        return Math.floorMod(diff, length) + 1
+    }
+
+    fun phaseForCycleDay(cycleDay: Int, cycleLength: Int, periodLength: Int = DEFAULT_PERIOD_LENGTH): Phase {
+        val ovulation = ovulationDay(cycleLength)
+        return when {
+            cycleDay <= periodLength -> Phase.MENSTRUAL
+            cycleDay < ovulation - 1 -> Phase.FOLLICULAR
+            cycleDay <= ovulation + 1 -> Phase.OVULATION
+            else -> Phase.LUTEAL
+        }
+    }
+
+    fun dayStatus(
+        date: LocalDate,
+        prediction: Prediction,
+        loggedBleedingToday: Boolean
+    ): DayStatus {
+        val length = prediction.averageCycleLength
+        val lastStart = prediction.lastPeriodStart
+        if (lastStart == null) {
+            return DayStatus(
+                cycleDay = 1,
+                daysUntilNextPeriod = length,
+                predictedPeriodStart = date.plusDays(length.toLong()),
+                isPeriod = loggedBleedingToday,
+                isFertile = false,
+                isPms = false,
+                phase = if (loggedBleedingToday) Phase.MENSTRUAL else Phase.FOLLICULAR
+            )
+        }
+        val cycleDay = cycleDayFor(date, lastStart, length)
+        val daysUntil = length - cycleDay + 1
+        val ovulation = ovulationDay(length)
+        val predictedBleeding = cycleDay <= prediction.averagePeriodLength
+        val isPeriod = loggedBleedingToday || predictedBleeding
+        val isFertile = !isPeriod && cycleDay in (ovulation - 5)..(ovulation + 1)
+        val isPms = !isPeriod && !isFertile && daysUntil in 1..5
+        val phase = if (loggedBleedingToday) Phase.MENSTRUAL
+        else phaseForCycleDay(cycleDay, length, prediction.averagePeriodLength)
+        return DayStatus(
+            cycleDay = cycleDay,
+            daysUntilNextPeriod = daysUntil,
+            predictedPeriodStart = date.plusDays(daysUntil.toLong()),
+            isPeriod = isPeriod,
+            isFertile = isFertile,
+            isPms = isPms,
+            phase = phase
+        )
+    }
+
+    /** First occurrence of [cycleDay] (1-based) that is strictly after [today]. */
+    fun nextOccurrenceOfCycleDay(lastPeriodStart: LocalDate, cycleLength: Int, cycleDay: Int, today: LocalDate): LocalDate {
+        val length = clampCycleLength(cycleLength).toLong()
+        val base = lastPeriodStart.plusDays((cycleDay - 1).toLong())
+        if (base.isAfter(today)) return base
+        val cyclesAhead = (ChronoUnit.DAYS.between(base, today) / length) + 1
+        return base.plusDays(cyclesAhead * length)
+    }
+}

@@ -1,2 +1,0 @@
-sed -i '/private val _waterGlasses = MutableStateFlow(5)/d' app/src/main/java/com/example/ui/viewmodel/MahitaViewModel.kt
-sed -i 's/val waterGlasses: StateFlow<Int> = _waterGlasses.asStateFlow()/val waterGlasses: StateFlow<Int> = allLogs.map { logs -> logs.find { it.dateStr == LocalDate.now().toString() }?.waterIntake ?: 0 }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)/' app/src/main/java/com/example/ui/viewmodel/MahitaViewModel.kt

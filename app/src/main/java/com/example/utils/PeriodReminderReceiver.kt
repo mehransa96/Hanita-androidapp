@@ -72,7 +72,7 @@ class PeriodReminderReceiver : BroadcastReceiver() {
             Log.e("PeriodReminderReceiver", "Error parsing cached AI report: ${e.message}")
         }
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID).privateOnLockScreen(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm) // Using standard system icon
             .setContentTitle(title)
             .setContentText(body)

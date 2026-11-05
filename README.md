@@ -1,21 +1,41 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# هانیتا (Hanita)
 
-# Run and deploy your AI Studio app
+اپلیکیشن اندروید برای پیش‌بینی قاعدگی، یادآوری زمان آن و ارائه راهنمایی‌های مناسب هر فاز چرخه (قبل، حین و بعد از قاعدگی).
 
-This contains everything you need to run your app locally.
+## قابلیت‌ها
+- ثبت روزهای خونریزی، علائم، حال، آب، وزن و دمای پایه بدن
+- پیش‌بینی قاعدگی بعدی بر اساس میانگین ۶ چرخه آخر، تشخیص تأخیر و نامنظمی چرخه
+- تخمین پنجره باروری، تخمک‌گذاری و PMS متناسب با طول واقعی چرخه هر کاربر
+- یادآور قبل از قاعدگی، تخمک‌گذاری، شروع هر فاز و داروها (بعد از ریستارت گوشی و تغییر ساعت هم دوباره تنظیم می‌شوند)
+- دستیار هوشمند و نکات روزانه هر فاز با Gemini (فقط با رضایت صریح کاربر)
+- پشتیبان ابری اختیاری، فقط برای حساب گوگل خود کاربر
 
-View your app in AI Studio: https://ai.studio/apps/7ffda240-1e51-4ab4-ac40-e66fdb4200fa
+## امنیت و حریم خصوصی
+- **هیچ کلید API داخل اپ نیست.** هوش مصنوعی از طریق Firebase AI Logic صدا زده می‌شود و Firebase App Check از آن محافظت می‌کند.
+- داده‌های ابری زیر `users/{uid}` ذخیره می‌شوند و `firestore.rules` اجازه دسترسی هر کاربر را فقط به داده خودش می‌دهد.
+- بکاپ خودکار اندروید برای داده‌های سلامت غیرفعال است. اعلان‌ها روی صفحه قفل محتوای حساس را نشان نمی‌دهند.
+- فقط اتصال HTTPS مجاز است. نسخه release با R8 کوچک و مبهم‌سازی می‌شود.
+- امضای release فقط از متغیرهای محیطی خوانده می‌شود و هیچ keystore یا رمزی در ریپو نیست.
 
-## Run Locally
+## راه‌اندازی
+1. پروژه را در Android Studio باز کنید (JDK 21).
+2. **بدون Firebase:** اپ همین حالا بیلد و اجرا می‌شود. ثبت و پیش‌بینی و یادآورها آفلاین کار می‌کنند؛ ورود با گوگل، پشتیبان ابری و هوش مصنوعی غیرفعال می‌مانند.
+3. **با Firebase:**
+   1. در کنسول Firebase یک اپ اندروید با شناسه `com.aistudio.hanita.zxwpm` بسازید و `google-services.json` را در پوشه `app/` بگذارید (این فایل در git ثبت نمی‌شود).
+   2. Authentication → Google را فعال کنید و SHA-1 کلید امضا را اضافه کنید.
+   3. Firestore را بسازید و قوانین را منتشر کنید: `firebase deploy --only firestore:rules`
+   4. Firebase AI Logic را با Gemini Developer API فعال کنید.
+   5. App Check را با Play Integrity فعال کنید. برای بیلد debug توکن دیباگی را که در Logcat چاپ می‌شود در کنسول ثبت کنید. بعد از آزمایش، اجبار (Enforce) را برای AI Logic و Firestore روشن کنید.
+4. بیلد release امضاشده:
+   ```bash
+   export KEYSTORE_PATH=/path/upload.jks STORE_PASSWORD=... KEY_ALIAS=upload KEY_PASSWORD=...
+   ./gradlew assembleRelease
+   ```
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+## تست
+```bash
+./gradlew testDebugUnitTest
+```
+منطق پیش‌بینی در `domain/CyclePredictor.kt` است و تست‌های آن در `app/src/test/java/com/example/CyclePredictorTest.kt` قرار دارند.
 
-
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+> هانیتا ابزار آگاهی از سلامت است و جایگزین نظر پزشک یا روش پیشگیری از بارداری نیست.
