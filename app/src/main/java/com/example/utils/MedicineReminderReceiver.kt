@@ -41,7 +41,7 @@ class MedicineReminderReceiver : BroadcastReceiver() {
         )
 
         val builder = NotificationCompat.Builder(context, "medicine_channel").privateOnLockScreen(context, "medicine_channel")
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // TODO: use real icon
+            .setSmallIcon(com.example.R.drawable.ic_stat_hanita)
             .setContentTitle("یادآور داروی هانیتا 💊")
             .setContentText("زمان مصرف $medName فرا رسیده است ($medDosage)")
             .setPriority(NotificationCompat.PRIORITY_HIGH)

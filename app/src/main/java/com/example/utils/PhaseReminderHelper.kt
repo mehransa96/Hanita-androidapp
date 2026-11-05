@@ -4,7 +4,6 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.Log
 import java.time.LocalDate
 import java.time.ZoneId
@@ -51,11 +50,7 @@ object PhaseReminderHelper {
             val epochMillis = localDateTime.atZone(zoneId).toInstant().toEpochMilli()
 
             // Set the alarm
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, epochMillis, pendingIntent)
-            } else {
-                alarmManager.set(AlarmManager.RTC_WAKEUP, epochMillis, pendingIntent)
-            }
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, epochMillis, pendingIntent)
             Log.d("PhaseReminderHelper", "Scheduled phase reminder $phaseIndex on $finalTargetDate")
         } catch (e: Exception) {
             Log.e("PhaseReminderHelper", "Failed to schedule phase alarm: ${e.message}")

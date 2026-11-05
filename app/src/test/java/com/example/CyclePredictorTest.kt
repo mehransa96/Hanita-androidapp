@@ -103,6 +103,31 @@ class CyclePredictorTest {
     }
 
     @Test
+    fun `a missed period is reported as late instead of a new cycle`() {
+        val start = LocalDate.of(2026, 3, 1)
+        val p = CyclePredictor.predict(period(start, 5), 28, start.plusDays(1))
+        val dueDay = CyclePredictor.dayStatus(start.plusDays(28), p, loggedBleedingToday = false)
+        assertEquals(0, dueDay.daysUntilNextPeriod)
+        assertFalse(dueDay.isPeriod)
+        assertFalse(dueDay.isLate)
+        val late = CyclePredictor.dayStatus(start.plusDays(31), p, loggedBleedingToday = false)
+        assertTrue(late.isLate)
+        assertEquals(3, late.daysLate)
+        assertEquals(32, late.cycleDay)
+        assertFalse(late.isPeriod)
+        assertFalse(late.isFertile)
+    }
+
+    @Test
+    fun `logging bleeding on a late day ends the late state`() {
+        val start = LocalDate.of(2026, 3, 1)
+        val p = CyclePredictor.predict(period(start, 5), 28, start.plusDays(1))
+        val status = CyclePredictor.dayStatus(start.plusDays(31), p, loggedBleedingToday = true)
+        assertFalse(status.isLate)
+        assertTrue(status.isPeriod)
+    }
+
+    @Test
     fun `next occurrence is always after today`() {
         val start = LocalDate.of(2026, 1, 1)
         val next = CyclePredictor.nextOccurrenceOfCycleDay(start, 28, 14, today)

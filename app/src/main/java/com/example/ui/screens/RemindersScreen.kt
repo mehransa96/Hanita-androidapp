@@ -179,7 +179,7 @@ fun RemindersScreen(
             )
 
             val notification = NotificationCompat.Builder(context, channelId).privateOnLockScreen(context, channelId)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setSmallIcon(com.example.R.drawable.ic_stat_hanita)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)

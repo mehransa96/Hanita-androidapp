@@ -59,6 +59,24 @@ fun SmartInsightsCard(
                 Color(0xFF9333EA)  // Purple 600
             )
         }
+        cycleInfo.isLate -> {
+            arrayOf(
+                "تأخیر در قاعدگی",
+                Icons.Default.Lightbulb,
+                "تأخیر چندروزه معمولاً به استرس، کم‌خوابی، تغییر وزن یا بیماری برمی‌گردد. اگر احتمال بارداری وجود دارد تست بدهید و اگر تأخیر بیش از دو هفته شد یا درد شدید دارید، با پزشک مشورت کنید.",
+                Color(0xFFFEE2E2), // Red 100
+                Color(0xFFDC2626)  // Red 600
+            )
+        }
+        cycleInfo.phase == com.example.domain.CyclePredictor.Phase.LUTEAL -> {
+            arrayOf(
+                "فاز لوتئال",
+                Icons.Default.Spa,
+                "پروژسترون در حال افزایش است و ممکن است اشتهای شما بیشتر شود. خواب منظم، ورزش ملایم مثل پیاده‌روی و یوگا، و غذاهای سرشار از فیبر و منیزیم به حفظ تعادل کمک می‌کند.",
+                Color(0xFFEDE9FE), // Violet 100
+                Color(0xFF7C3AED)  // Violet 600
+            )
+        }
         else -> {
             arrayOf(
                 "فاز فولیکولی",

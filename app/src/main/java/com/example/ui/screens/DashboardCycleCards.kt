@@ -187,7 +187,7 @@ fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modi
     val localSleekBorder = SleekBorder
     
     val animatedSweepAngle by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = (info.currentDay / cycleLength.toFloat()) * 360f,
+        targetValue = (info.currentDay / cycleLength.toFloat()).coerceAtMost(1f) * 360f,
         animationSpec = androidx.compose.animation.core.tween(
             durationMillis = 1800, 
             easing = androidx.compose.animation.core.FastOutSlowInEasing
@@ -291,7 +291,9 @@ fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modi
             val strokeWidth = 18.dp.toPx()
             val radius = (size.minDimension - strokeWidth * 2) / 2
             
-            val gradientColors = if (info.isPms) {
+            val gradientColors = if (info.isLate || info.daysUntilNextPeriod == 0) {
+                listOf(Color(0xFFEF4444), Color(0xFFB91C1C))
+            } else if (info.isPms) {
                 listOf(Color(0xFFFFB300), Color(0xFFFF8F00))
             } else if (info.isPeriod) {
                 listOf(Color(0xFFFF5252), Color(0xFFD32F2F))
@@ -344,7 +346,7 @@ fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modi
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = if (info.isPeriod) "پریود" else if (info.isFertile) "پنجره باروری" else if (info.isPms) "پیش‌قاعدگی (PMS)" else "روز معمولی",
+                text = if (info.isLate) "${info.daysLate} روز تأخیر" else if (!info.isPeriod && info.daysUntilNextPeriod == 0) "شروع پریود از امروز" else if (info.isPeriod) "پریود" else if (info.isFertile) "پنجره باروری" else if (info.isPms) "پیش‌قاعدگی (PMS)" else "روز معمولی",
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
                 color = SleekTextMedium
             )
@@ -358,7 +360,7 @@ fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modi
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = if (info.isFertile) "بارداری: زیاد" else if (info.isPms) "بارداری: کم" else "بارداری: کم / متوسط",
+                    text = if (info.isLate) "در صورت ادامه، تست بارداری" else if (info.isFertile) "بارداری: زیاد" else if (info.isPms) "بارداری: کم" else "بارداری: کم / متوسط",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                     color = if (info.isFertile || info.isPms) Color.White else SleekTextMedium,
                     fontWeight = FontWeight.Bold
@@ -370,8 +372,9 @@ fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modi
 
 @Composable
 fun DailyInsightCard(info: CycleInfo) {
-    val insightData = remember(info.currentDay) {
+    val insightData = remember(info) {
         when {
+            info.isLate -> "پریود شما ${info.daysLate} روز تأخیر دارد. استرس، تغییر وزن، بیماری یا سفر می‌توانند باعث تأخیر شوند. اگر احتمال بارداری وجود دارد تست بدهید و اگر تأخیر بیش از ۲ هفته شد با پزشک مشورت کنید." to Icons.Filled.Favorite
             info.isPeriod -> "زمان استراحت و بازتوانی است. سعی کنید مایعات گرم بنوشید و از فعالیت‌های سنگین پرهیز کنید." to Icons.Filled.SelfImprovement
             info.isFertile -> "انرژی و تمرکز در اوج است! بهترین زمان برای شروع پروژه‌های جدید و فعالیت‌های اجتماعی است." to Icons.Filled.AutoAwesome
             info.isPms -> "ممکن است کمی خسته یا حساس باشید. به خودتان سخت نگیرید و روی آرامش ذهنی تمرکز کنید." to Icons.Filled.Spa
@@ -524,7 +527,16 @@ fun PredictionsCard(info: CycleInfo) {
             Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("پریود بعدی", style = MaterialTheme.typography.labelSmall, color = SleekTextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("${info.daysUntilNextPeriod} روز", fontSize = 13.sp, color = SleekPrimaryDark, fontWeight = FontWeight.Black)
+                Text(
+                    when {
+                        info.isLate -> "${info.daysLate} روز تأخیر"
+                        info.daysUntilNextPeriod == 0 -> "امروز"
+                        else -> "${info.daysUntilNextPeriod} روز"
+                    },
+                    fontSize = 13.sp,
+                    color = if (info.isLate) Color(0xFFEF4444) else SleekPrimaryDark,
+                    fontWeight = FontWeight.Black
+                )
             }
         }
         
@@ -543,7 +555,11 @@ fun PredictionsCard(info: CycleInfo) {
                 val daysToOvulation = if (info.currentDay <= ovulationDay) ovulationDay - info.currentDay
                 else (cycleLength - info.currentDay) + ovulationDay
                 Text(
-                    if (daysToOvulation == 0) "امروز (تخمینی)" else "حدود $daysToOvulation روز",
+                    when {
+                        info.isLate || info.daysUntilNextPeriod == 0 -> "پس از پریود"
+                        daysToOvulation == 0 -> "امروز (تخمینی)"
+                        else -> "حدود $daysToOvulation روز"
+                    },
                     fontSize = 13.sp, color = Indigo500, fontWeight = FontWeight.Black
                 )
             }
@@ -559,12 +575,12 @@ fun PredictionsCard(info: CycleInfo) {
             Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("دوره PMS", style = MaterialTheme.typography.labelSmall, color = SleekTextLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
-                val pmsText = if (info.isPms) {
-                    "فعال 🌪️"
-                } else if (info.daysUntilNextPeriod > 6) {
-                    "${info.daysUntilNextPeriod - 6} روز دیگر"
-                } else {
-                    "پایان یافته"
+                // PMS covers the last 5 days before the expected period (see CyclePredictor).
+                val pmsText = when {
+                    info.isPms -> "فعال 🌪️"
+                    info.isPeriod || info.isLate || info.daysUntilNextPeriod == 0 -> "پایان یافته"
+                    info.daysUntilNextPeriod > 5 -> "${info.daysUntilNextPeriod - 5} روز دیگر"
+                    else -> "پایان یافته"
                 }
                 Text(pmsText, fontSize = 13.sp, color = Amber500, fontWeight = FontWeight.Black)
             }
@@ -839,13 +855,21 @@ fun AlertBanner(info: CycleInfo) {
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "نزدیک شدن قاعدگی",
+                    text = when {
+                        info.isLate -> "تأخیر در قاعدگی"
+                        info.daysUntilNextPeriod == 0 -> "قاعدگی از امروز انتظار می‌رود"
+                        else -> "نزدیک شدن قاعدگی"
+                    },
                     color = SleekPrimaryDark,
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp
                 )
                 Text(
-                    text = "${info.daysUntilNextPeriod} روز زمان باقیست.",
+                    text = when {
+                        info.isLate -> "${info.daysLate} روز از زمان پیش‌بینی‌شده گذشته است. با شروع پریود آن را ثبت کنید."
+                        info.daysUntilNextPeriod == 0 -> "با شروع خونریزی آن را ثبت کنید تا پیش‌بینی‌ها دقیق‌تر شوند."
+                        else -> "${info.daysUntilNextPeriod} روز زمان باقیست."
+                    },
                     color = SleekPrimaryDark.copy(alpha = 0.8f),
                     fontSize = 12.sp
                 )

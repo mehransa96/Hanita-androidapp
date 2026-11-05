@@ -9,7 +9,7 @@ import androidx.core.app.NotificationCompat
  */
 fun NotificationCompat.Builder.privateOnLockScreen(context: Context, channelId: String): NotificationCompat.Builder {
     val publicVersion = NotificationCompat.Builder(context, channelId)
-        .setSmallIcon(android.R.drawable.ic_popup_reminder)
+        .setSmallIcon(com.example.R.drawable.ic_stat_hanita)
         .setContentTitle("هانیتا")
         .setContentText("یک یادآوری جدید دارید")
         .build()

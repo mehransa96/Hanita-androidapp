@@ -238,6 +238,9 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
         CyclePredictor.predict(emptyList(), prefsManager.averageCycleLength.value)
     )
 
+    /** The single source of truth for every cycle forecast shown in the app (dashboard, calendar...). */
+    val cyclePrediction: StateFlow<CyclePredictor.Prediction> get() = prediction
+
     val predictionInfo: StateFlow<PredictionInfo> = prediction.map { p ->
         PredictionInfo(
             hasEnoughData = p.hasEnoughData,
@@ -264,7 +267,10 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
             predictedPeriodStart = status.predictedPeriodStart,
             isPeriod = status.isPeriod,
             isFertile = status.isFertile,
-            isPms = status.isPms
+            isPms = status.isPms,
+            isLate = status.isLate,
+            daysLate = status.daysLate,
+            phase = status.phase
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CycleInfo())
 
@@ -789,9 +795,9 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
      */
     fun predictCyclePhase(targetDate: LocalDate = LocalDate.now()): CyclePhase {
         val p = prediction.value
-        val lastStart = p.lastPeriodStart ?: return CyclePhase.FOLLICULAR
-        val day = CyclePredictor.cycleDayFor(targetDate, lastStart, p.averageCycleLength)
-        return when (CyclePredictor.phaseForCycleDay(day, p.averageCycleLength, p.averagePeriodLength)) {
+        if (p.lastPeriodStart == null) return CyclePhase.FOLLICULAR
+        val status = CyclePredictor.dayStatus(targetDate, p, loggedBleedingToday = false, today = LocalDate.now())
+        return when (status.phase) {
             CyclePredictor.Phase.MENSTRUAL -> CyclePhase.MENSTRUAL
             CyclePredictor.Phase.FOLLICULAR -> CyclePhase.FOLLICULAR
             CyclePredictor.Phase.OVULATION -> CyclePhase.OVULATION
@@ -1029,7 +1035,11 @@ data class CycleInfo(
     val predictedPeriodStart: LocalDate = LocalDate.now().plusDays(28),
     val isPeriod: Boolean = false,
     val isFertile: Boolean = false,
-    val isPms: Boolean = false
+    val isPms: Boolean = false,
+    /** The expected period has not been logged yet. */
+    val isLate: Boolean = false,
+    val daysLate: Int = 0,
+    val phase: CyclePredictor.Phase = CyclePredictor.Phase.FOLLICULAR
 )
 
 data class PredictionInfo(

@@ -4,7 +4,6 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.Log
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -17,6 +16,10 @@ object CycleNotificationHelper {
 
     private const val REQUEST_CODE_PERIOD = 7001
     private const val REQUEST_CODE_OVULATION = 7002
+    private const val REQUEST_CODE_LATE = 7003
+
+    /** A gentle check-in is sent when the period is this many days late and still not logged. */
+    const val LATE_CHECK_DAYS = 3
 
     fun scheduleAllReminders(
         context: Context,
@@ -68,6 +71,27 @@ object CycleNotificationHelper {
             Log.d(TAG, "Scheduled Period Reminder on $targetPeriodDate at $hour:$minute for period starting $targetPeriodStart")
         } else {
             cancelReminder(context, CycleNotificationReceiver.ACTION_PERIOD_REMINDER, REQUEST_CODE_PERIOD)
+        }
+
+        // 1b. Late-period check-in. It is anchored on the last logged period, so logging the new
+        // period moves it to the next cycle automatically (the scheduler runs on every change).
+        val lateCheckDate = lastPeriodStart.plusDays((safeCycleLength + LATE_CHECK_DAYS).toLong())
+        val lateCheckTime = LocalDateTime.of(lateCheckDate, LocalTime.of(hour, minute))
+        if (isPeriodEnabled && lateCheckTime.isAfter(LocalDateTime.now())) {
+            scheduleAlarm(
+                context = context,
+                action = CycleNotificationReceiver.ACTION_PERIOD_REMINDER,
+                requestCode = REQUEST_CODE_LATE,
+                targetDate = lateCheckDate,
+                hour = hour,
+                minute = minute,
+                title = "پریود شما کمی دیر کرده است 🌷",
+                body = "$LATE_CHECK_DAYS روز از زمان پیش‌بینی‌شده گذشته است. اگر پریود شروع شده آن را در هانیتا ثبت کنید. تأخیر گاهی به استرس، خواب یا تغییر وزن برمی‌گردد؛ اگر احتمال بارداری هست تست بدهید.",
+                jalaliDate = JalaliCalendar.gregorianToJalali(lateCheckDate).formatShort(),
+                daysLeft = -LATE_CHECK_DAYS
+            )
+        } else {
+            cancelReminder(context, CycleNotificationReceiver.ACTION_PERIOD_REMINDER, REQUEST_CODE_LATE)
         }
 
         // 2. Schedule or cancel Ovulation Reminder
@@ -145,11 +169,7 @@ object CycleNotificationHelper {
 
             alarmManager.cancel(pendingIntent)
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, epochMillis, pendingIntent)
-            } else {
-                alarmManager.set(AlarmManager.RTC_WAKEUP, epochMillis, pendingIntent)
-            }
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, epochMillis, pendingIntent)
         } catch (e: Exception) {
             Log.e(TAG, "Error scheduling alarm for action $action: ${e.message}")
         }
@@ -176,6 +196,7 @@ object CycleNotificationHelper {
 
     fun cancelAll(context: Context) {
         cancelReminder(context, CycleNotificationReceiver.ACTION_PERIOD_REMINDER, REQUEST_CODE_PERIOD)
+        cancelReminder(context, CycleNotificationReceiver.ACTION_PERIOD_REMINDER, REQUEST_CODE_LATE)
         cancelReminder(context, CycleNotificationReceiver.ACTION_OVULATION_REMINDER, REQUEST_CODE_OVULATION)
     }
 

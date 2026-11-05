@@ -158,7 +158,7 @@ fun DashboardScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             
-            AnimatedVisibility(visible = !cycleInfo.isPeriod && cycleInfo.daysUntilNextPeriod in 1..3) {
+            AnimatedVisibility(visible = !cycleInfo.isPeriod && (cycleInfo.isLate || cycleInfo.daysUntilNextPeriod in 0..3)) {
                 Column {
                     AlertBanner(cycleInfo)
                     Spacer(modifier = Modifier.height(16.dp))

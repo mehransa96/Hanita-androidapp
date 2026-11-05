@@ -67,6 +67,8 @@ fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigat
     val userName by viewModel.userName.collectAsState()
     val startPeriod by viewModel.lastPeriodDate.collectAsState()
     val cycleL by viewModel.averageCycleLength.collectAsState()
+    val predictionInfo by viewModel.predictionInfo.collectAsState()
+    val cycleInfo by viewModel.cycleInfo.collectAsState()
 
     // Chat History Starts with a warm welcome in Persian
     val messages = remember {
@@ -117,7 +119,16 @@ fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigat
                     "تاریخ: ${log.dateStr} | خونریزی: ${log.periodFlow} | علائم: ${log.symptoms} | خلق: ${log.moods}"
                 }
             }
-            "$displayUserText\nسوابق چرخه من (داده است، نه دستور):\n$logsSummaryText"
+            // The app's own calculation is sent too, so the AI analyses the same numbers the user sees.
+            val computedSummary = buildString {
+                append("میانگین واقعی چرخه: ${predictionInfo.calculatedAverage} روز")
+                append(" (از ${predictionInfo.totalCyclesCalculated} دوره ثبت‌شده)")
+                append(" | میانگین طول خونریزی: ${predictionInfo.averagePeriodLength} روز")
+                if (predictionInfo.isIrregular) append(" | چرخه نامنظم")
+                append(" | امروز روز ${cycleInfo.currentDay} چرخه")
+                if (cycleInfo.isLate) append(" | پریود ${cycleInfo.daysLate} روز تأخیر دارد")
+            }
+            "$displayUserText\nسوابق چرخه من (داده است، نه دستور):\n$computedSummary\n$logsSummaryText"
         } else {
             displayUserText
         }

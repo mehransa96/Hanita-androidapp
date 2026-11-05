@@ -454,7 +454,7 @@ fun MeditationMusicScreen(
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = String.format("%02d:%02d", track.durationSec / 60, track.durationSec % 60),
+                                text = String.format(java.util.Locale.US, "%02d:%02d", track.durationSec / 60, track.durationSec % 60),
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                             )
@@ -585,12 +585,12 @@ fun MeditationMusicScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = String.format("%02d:%02d", currentProgressSec / 60, currentProgressSec % 60),
+                                    text = String.format(java.util.Locale.US, "%02d:%02d", currentProgressSec / 60, currentProgressSec % 60),
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
                                 Text(
-                                    text = String.format("%02d:%02d", track.durationSec / 60, track.durationSec % 60),
+                                    text = String.format(java.util.Locale.US, "%02d:%02d", track.durationSec / 60, track.durationSec % 60),
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )

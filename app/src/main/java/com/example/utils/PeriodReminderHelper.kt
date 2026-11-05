@@ -4,7 +4,6 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.Log
 import java.time.LocalDate
 import java.time.ZoneId
@@ -43,11 +42,7 @@ object PeriodReminderHelper {
             alarmManager.cancel(pendingIntent)
 
             // Set the alarm (using non-exact set to be safe across modern Android permissions)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, epochMillis, pendingIntent)
-            } else {
-                alarmManager.set(AlarmManager.RTC_WAKEUP, epochMillis, pendingIntent)
-            }
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, epochMillis, pendingIntent)
             Log.d("PeriodReminderHelper", "Scheduled reminder for $reminderDate at 9:00 AM")
         } catch (e: Exception) {
             Log.e("PeriodReminderHelper", "Failed to schedule alarm: ${e.message}")

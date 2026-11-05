@@ -48,11 +48,16 @@ fun MoodScreen(
     val cycleInfo by viewModel.cycleInfo.collectAsState()
 
     // Determine current user cycle phase based on cycle tracking
+    // Works for any cycle length (the old fixed day ranges assumed a 28-day cycle).
     val currentCyclePhase = when {
-        cycleInfo.isPeriod || cycleInfo.daysUntilNextPeriod in 24..28 -> CyclePhaseType.PERIOD
+        cycleInfo.isPeriod -> CyclePhaseType.PERIOD
         cycleInfo.isFertile -> CyclePhaseType.OVULATION
-        cycleInfo.daysUntilNextPeriod in 16..23 -> CyclePhaseType.FOLLICULAR
-        else -> CyclePhaseType.LUTEAL
+        else -> when (cycleInfo.phase) {
+            com.example.domain.CyclePredictor.Phase.MENSTRUAL -> CyclePhaseType.PERIOD
+            com.example.domain.CyclePredictor.Phase.FOLLICULAR -> CyclePhaseType.FOLLICULAR
+            com.example.domain.CyclePredictor.Phase.OVULATION -> CyclePhaseType.OVULATION
+            com.example.domain.CyclePredictor.Phase.LUTEAL -> CyclePhaseType.LUTEAL
+        }
     }
 
     // Phase filter selection: null means "All phases", otherwise specific phase
@@ -462,7 +467,7 @@ fun MoodScreen(
                                     }
                                 } else {
                                     Text(
-                                        text = String.format("%02d:%02d", track.durationSeconds / 60, track.durationSeconds % 60),
+                                        text = String.format(java.util.Locale.US, "%02d:%02d", track.durationSeconds / 60, track.durationSeconds % 60),
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                         fontWeight = FontWeight.Medium
@@ -644,8 +649,8 @@ fun MoodScreen(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             // Playback Timeline Slider with Seeking Support
-                            val formattedCurrent = String.format("%02d:%02d", currentPositionSeconds / 60, currentPositionSeconds % 60)
-                            val formattedTotal = String.format("%02d:%02d", trackDurationSeconds / 60, trackDurationSeconds % 60)
+                            val formattedCurrent = String.format(java.util.Locale.US, "%02d:%02d", currentPositionSeconds / 60, currentPositionSeconds % 60)
+                            val formattedTotal = String.format(java.util.Locale.US, "%02d:%02d", trackDurationSeconds / 60, trackDurationSeconds % 60)
 
                             Slider(
                                 value = currentPositionSeconds.toFloat().coerceIn(0f, trackDurationSeconds.toFloat()),

@@ -101,8 +101,8 @@ fun MedicalReportDialog(
         appendLine("👤 نام مراجع: $userName")
         appendLine("📅 تاریخ گزارش: $todayJalaliStr")
         if (userWeight.isNotBlank()) appendLine("⚖️ وزن فعلی ثبت شده: $userWeight کیلوگرم")
-        if (avgBbt != null) appendLine("🌡 میانگین دمای پایه بدن (BBT): ${String.format("%.1f", avgBbt)} درجه")
-        if (avgWater != null) appendLine("💧 میانگین مصرف آب: ${String.format("%.1f", avgWater)} لیوان در روز")
+        if (avgBbt != null) appendLine("🌡 میانگین دمای پایه بدن (BBT): ${String.format(java.util.Locale.US, "%.1f", avgBbt)} درجه")
+        if (avgWater != null) appendLine("💧 میانگین مصرف آب: ${String.format(java.util.Locale.US, "%.1f", avgWater)} لیوان در روز")
         appendLine("⏱ میانگین طول چرخه: $averageCycleLength روز")
         appendLine("🩸 میانگین طول دوره خونریزی: $avgPeriodDuration")
         appendLine("📊 وضعیت نظم چرخه: $regularityStatus")
@@ -284,8 +284,12 @@ fun MedicalReportDialog(
                         )
                         ClinicalMetricCard(
                             title = "چرخه بعدی",
-                            value = "${cycleInfo.daysUntilNextPeriod} روز دیگر",
-                            subtitle = cycleInfo.predictedPeriodStart.toString(),
+                            value = when {
+                                cycleInfo.isLate -> "${cycleInfo.daysLate} روز تأخیر"
+                                cycleInfo.daysUntilNextPeriod == 0 -> "امروز"
+                                else -> "${cycleInfo.daysUntilNextPeriod} روز دیگر"
+                            },
+                            subtitle = JalaliCalendar.gregorianToJalali(cycleInfo.predictedPeriodStart).formatLong(),
                             modifier = Modifier.weight(1f),
                             accentColor = Color(0xFFA855F7)
                         )

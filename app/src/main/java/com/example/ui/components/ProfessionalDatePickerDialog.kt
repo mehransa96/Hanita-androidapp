@@ -51,6 +51,10 @@ fun ProfessionalDatePickerDialog(
     val today = remember { LocalDate.now() }
     val todayJalali = remember(today) { JalaliCalendar.gregorianToJalali(today) }
 
+    // minDate / maxDate bound the choice (for example no future period or symptom entries).
+    fun isAllowed(date: LocalDate): Boolean =
+        (minDate == null || !date.isBefore(minDate)) && (maxDate == null || !date.isAfter(maxDate))
+
     var selectedDate by remember { mutableStateOf(initialDate) }
     var selectedJalali by remember {
         mutableStateOf(JalaliCalendar.gregorianToJalali(initialDate))
@@ -215,7 +219,7 @@ fun ProfessionalDatePickerDialog(
                         "ماه گذشته" to today.minusMonths(1)
                     )
 
-                    items(presets) { (label, presetDate) ->
+                    items(presets.filter { isAllowed(it.second) }) { (label, presetDate) ->
                         val isSelected = selectedDate == presetDate
                         Surface(
                             shape = RoundedCornerShape(12.dp),
@@ -421,6 +425,7 @@ fun ProfessionalDatePickerDialog(
                                             todayJalali.day == dayNumber
 
                                     val isFriday = col == 6
+                                    val isEnabled = isAllowed(currentSlotLocal)
 
                                     Box(
                                         modifier = Modifier
@@ -435,7 +440,7 @@ fun ProfessionalDatePickerDialog(
                                                     else -> Color.Transparent
                                                 }
                                             )
-                                            .clickable {
+                                            .clickable(enabled = isEnabled) {
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 selectedJalali = currentSlotJalali
                                                 selectedDate = currentSlotLocal
@@ -448,6 +453,7 @@ fun ProfessionalDatePickerDialog(
                                             fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
                                             color = when {
                                                 isSelected -> Color.White
+                                                !isEnabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
                                                 isToday -> MaterialTheme.colorScheme.primary
                                                 isFriday -> MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
                                                 else -> MaterialTheme.colorScheme.onSurface
@@ -484,6 +490,7 @@ fun ProfessionalDatePickerDialog(
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onDateSelected(selectedDate)
                         },
+                        enabled = isAllowed(selectedDate),
                         modifier = Modifier
                             .weight(1.5f)
                             .height(48.dp),

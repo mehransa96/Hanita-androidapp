@@ -507,6 +507,7 @@ fun SettingsDialog(
                             ProfessionalDatePickerDialog(
                                 initialDate = initialParsed,
                                 title = "انتخاب تاریخ شروع آخرین پریود 🩸",
+                                maxDate = java.time.LocalDate.now(),
                                 onDismissRequest = { showStartDatePickerInSettings = false },
                                 onDateSelected = { pickedDate ->
                                     editStartDate = pickedDate.toString()

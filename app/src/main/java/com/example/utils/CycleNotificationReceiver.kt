@@ -141,7 +141,7 @@ class CycleNotificationReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_PERIOD_ID).privateOnLockScreen(context, CHANNEL_PERIOD_ID)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(com.example.R.drawable.ic_stat_hanita)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -198,7 +198,7 @@ class CycleNotificationReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_OVULATION_ID).privateOnLockScreen(context, CHANNEL_OVULATION_ID)
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setSmallIcon(com.example.R.drawable.ic_stat_hanita)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

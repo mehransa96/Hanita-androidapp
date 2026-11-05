@@ -49,6 +49,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        const val EXTRA_NAVIGATE_TO = "navigate_to"
+        private val DEEP_LINK_ROUTES = setOf("log", "calendar", "reminders")
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -142,7 +147,7 @@ class MainActivity : ComponentActivity() {
                                 
                                 OutlinedButton(
                                     onClick = {
-                                        crashPrefs.edit().remove(HanitaApplication.KEY_LAST_CRASH).commit()
+                                        crashPrefs.edit().remove(HanitaApplication.KEY_LAST_CRASH).apply()
                                         crashStackTrace = null
                                     },
                                     modifier = Modifier.fillMaxWidth()
@@ -175,6 +180,17 @@ class MainActivity : ComponentActivity() {
                         val navController = rememberNavController()
                         val isLoggedIn by viewModel.isLoggedIn.collectAsState()
                         com.example.ui.components.AiConsentDialog(viewModel)
+                        NotificationPermissionRequest(isLoggedIn)
+
+                        // Notification shortcuts ("record today's symptoms", "open calendar").
+                        // Only known screens are accepted, and only for an onboarded user.
+                        val deepLink = remember { intent?.getStringExtra(EXTRA_NAVIGATE_TO) }
+                        LaunchedEffect(deepLink, isLoggedIn) {
+                            if (isLoggedIn && deepLink in DEEP_LINK_ROUTES) {
+                                intent?.removeExtra(EXTRA_NAVIGATE_TO)
+                                navController.navigate(deepLink!!) { launchSingleTop = true }
+                            }
+                        }
 
                         NavHost(
                             navController = navController, 
@@ -362,6 +378,7 @@ class MainActivity : ComponentActivity() {
 }
 
     /** Deletes all local data (only after explicit confirmation on the recovery screen). */
+    @android.annotation.SuppressLint("ApplySharedPref") // must be on disk before the process restarts
     private fun resetAllLocalData() {
         getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE).edit().clear().commit()
         getSharedPreferences(HanitaApplication.CRASH_PREFS, android.content.Context.MODE_PRIVATE).edit().clear().commit()
@@ -375,5 +392,29 @@ class MainActivity : ComponentActivity() {
             startActivity(intent)
         }
         finish()
+    }
+}
+
+/**
+ * Period and phase reminders are the core of the app, but on Android 13+ they are silently
+ * dropped until the user grants POST_NOTIFICATIONS. Ask once, right after onboarding, instead of
+ * only when the user happens to open the reminders screen.
+ */
+@Composable
+private fun NotificationPermissionRequest(isLoggedIn: Boolean) {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("hanita_permissions", android.content.Context.MODE_PRIVATE) }
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { /* Reminders are rescheduled anyway; the user can change this later in settings. */ }
+    LaunchedEffect(isLoggedIn) {
+        val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.POST_NOTIFICATIONS
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (isLoggedIn && !granted && !prefs.getBoolean("notifications_asked", false)) {
+            prefs.edit().putBoolean("notifications_asked", true).apply()
+            launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 }
