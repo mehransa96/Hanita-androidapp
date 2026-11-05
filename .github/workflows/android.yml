@@ -38,6 +38,10 @@ jobs:
       - name: Android Lint
         run: ./gradlew --stacktrace lintDebug
 
+      - name: Print lint findings
+        if: always()
+        run: cat app/build/reports/lint-results.txt || true
+
       - name: Print Room schema
         if: always()
         run: find app/schemas -name '*.json' -exec sh -c 'echo "=== $1"; cat "$1"' _ {} \; || true

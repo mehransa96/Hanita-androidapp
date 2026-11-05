@@ -72,7 +72,7 @@ android {
   lint {
     // Print findings in the CI log; real errors still fail the build.
     textReport = true
-    textOutput = file("stdout")
+    textOutput = file("build/reports/lint-results.txt")
     checkDependencies = false
   }
 }
