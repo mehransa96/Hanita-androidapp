@@ -48,7 +48,7 @@ class PhaseReminderReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID).privateOnLockScreen(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setSmallIcon(com.example.R.drawable.ic_stat_hanita)
             .setContentTitle("ورود به $phaseName 🌸")
             .setContentText(phaseMessage)
             .setStyle(NotificationCompat.BigTextStyle().bigText(phaseMessage))

@@ -431,6 +431,13 @@ fun StepPeriodDate(
         else -> if (isLeap) 30 else 29
     }
 
+    // The first day of the last period cannot be in the future (it would never count as data).
+    val isFutureDate = remember(selectedYear, selectedMonth, selectedDay) {
+        runCatching {
+            JalaliCalendar.jalaliToGregorian(selectedYear, selectedMonth, selectedDay).isAfter(LocalDate.now())
+        }.getOrDefault(false)
+    }
+
     // Adjust selected day if it exceeds the max days of the new month
     LaunchedEffect(selectedMonth, selectedYear) {
         if (selectedDay > maxDays) {
@@ -549,9 +556,10 @@ fun StepPeriodDate(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = "تاریخ انتخابی شما: $selectedDay ${months[selectedMonth - 1]} $selectedYear",
+                text = if (isFutureDate) "تاریخ شروع آخرین پریود نمی‌تواند در آینده باشد."
+                else "تاریخ انتخابی شما: $selectedDay ${months[selectedMonth - 1]} $selectedYear",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = if (isFutureDate) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(12.dp)
@@ -578,6 +586,7 @@ fun StepPeriodDate(
 
             Button(
                 onClick = onNext,
+                enabled = !isFutureDate,
                 modifier = Modifier
                     .weight(1.5f)
                     .height(54.dp),

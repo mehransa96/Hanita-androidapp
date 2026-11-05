@@ -9,13 +9,31 @@ import com.example.data.model.MedicineReminder
 import java.util.Calendar
 
 object MedicineReminderHelper {
+    private const val STORE = "hanita_medicine_alarms"
+    private const val KEY_IDS = "scheduled_ids"
 
     fun scheduleReminders(context: Context, reminders: List<MedicineReminder>) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
 
-        // We should really cancel all old alarms first if we had their IDs, 
-        // but for now, we assume this sets/updates alarms based on ID hashcode.
-        
+        // Cancel alarms of reminders that were deleted since the last run, otherwise a removed
+        // medicine would keep notifying every day forever.
+        val store = context.getSharedPreferences(STORE, Context.MODE_PRIVATE)
+        val currentIds = reminders.map { it.id }.toSet()
+        val previousIds = store.getStringSet(KEY_IDS, emptySet()).orEmpty()
+        for (removedId in previousIds - currentIds) {
+            val stale = PendingIntent.getBroadcast(
+                context,
+                removedId.hashCode(),
+                Intent(context, MedicineReminderReceiver::class.java),
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            )
+            if (stale != null) {
+                alarmManager.cancel(stale)
+                stale.cancel()
+            }
+        }
+        store.edit().putStringSet(KEY_IDS, currentIds).apply()
+
         for (reminder in reminders) {
             val intent = Intent(context, MedicineReminderReceiver::class.java).apply {
                 putExtra("MED_NAME", reminder.name)

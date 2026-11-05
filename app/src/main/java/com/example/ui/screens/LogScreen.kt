@@ -839,6 +839,7 @@ fun DateSelectorRow(
         ProfessionalDatePickerDialog(
             initialDate = selectedDate,
             title = "انتخاب تاریخ ثبت علائم و پریود 🗓️",
+            maxDate = today,
             onDismissRequest = { showDatePicker = false },
             onDateSelected = { picked ->
                 onSelectDate(picked)

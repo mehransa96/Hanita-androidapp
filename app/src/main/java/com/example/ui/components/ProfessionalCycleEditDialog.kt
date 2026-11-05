@@ -603,6 +603,7 @@ fun ProfessionalCycleEditDialog(
             initialDate = startDate,
             title = "انتخاب تاریخ شروع قاعدگی 🩸",
             subtitle = "شروع پریود خود را مشخص نمایید",
+            maxDate = LocalDate.now(),
             onDismissRequest = { showStartDatePicker = false },
             onDateSelected = { picked ->
                 startDate = picked
