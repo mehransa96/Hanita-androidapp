@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -45,9 +46,10 @@ class HealthToolsViewModel(application: Application) : AndroidViewModel(applicat
         val insights: CycleInsights.Result
     )
 
-    val cycle: StateFlow<CycleState?> = bleedingDays.map { days ->
+    // Follows a changed cycle length setting too (it used to be read once).
+    val cycle: StateFlow<CycleState?> = combine(bleedingDays, userPrefs.averageCycleLength) { days, defaultLength ->
         val today = LocalDate.now()
-        val prediction = CyclePredictor.predict(days, userPrefs.averageCycleLength.value, today)
+        val prediction = CyclePredictor.predict(days, defaultLength, today)
         CycleState(
             prediction = prediction,
             today = CyclePredictor.dayStatus(today, prediction, days.contains(today), today),

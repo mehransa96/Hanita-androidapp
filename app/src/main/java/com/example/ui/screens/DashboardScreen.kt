@@ -285,7 +285,8 @@ fun DashboardScreen(
                         cycleInfo = cycleInfo,
                         predictionInfo = predictionInfo,
                         onOpenSettings = { showSettingsDialog = true },
-                        onLock = onLock
+                        onLock = onLock,
+                        today = currentDate
                     )
                 }
             }

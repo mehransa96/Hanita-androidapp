@@ -881,7 +881,12 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
         bbt: Float? = null,
         weight: Float? = null,
         /** true when the caller sends the full state of the day (form editors): empty moods/notes clear them. */
-        replaceDayState: Boolean = false
+        replaceDayState: Boolean = false,
+        /**
+         * true when the form shows water, temperature and weight: the values are saved as they are,
+         * so lowering water to 0 or clearing a temperature sticks (it used to be ignored).
+         */
+        measurementsFromForm: Boolean = false
     ) {
         launchDayEdit {
             // 1. Delete previous physical symptoms for this date in Room to replace with updated state
@@ -901,9 +906,9 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
                 notes = if (overallNotes.isNotBlank() || replaceDayState) overallNotes else (existing?.notes ?: ""),
                 emoji = if (emoji.isNotBlank() || replaceDayState) emoji else (existing?.emoji ?: ""),
                 takenMeds = existing?.takenMeds ?: "",
-                waterIntake = if (waterIntake != 0) waterIntake else (existing?.waterIntake ?: 0),
-                bbt = bbt ?: existing?.bbt,
-                weight = weight ?: existing?.weight
+                waterIntake = if (measurementsFromForm || waterIntake != 0) waterIntake else (existing?.waterIntake ?: 0),
+                bbt = if (measurementsFromForm) bbt else bbt ?: existing?.bbt,
+                weight = if (measurementsFromForm) weight else weight ?: existing?.weight
             )
             repository.insertLog(log)
         }
