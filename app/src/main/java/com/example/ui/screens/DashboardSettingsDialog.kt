@@ -560,7 +560,10 @@ fun SettingsDialog(
                                     }
                                     viewModel.updateCycleSettings(editStartDate, durationInt)
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    android.widget.Toast.makeText(context, "اطلاعات چرخه شما ذخیره و در فایربیس ابری همگام‌سازی شد.", android.widget.Toast.LENGTH_SHORT).show()
+                                    // Only mention the cloud when the user is really signed in to it.
+                                    val savedMsg = if (viewModel.isCloudSyncAvailable()) "اطلاعات چرخه ذخیره و در فضای ابری همگام شد ✨"
+                                    else "اطلاعات چرخه روی همین گوشی ذخیره شد ✨"
+                                    android.widget.Toast.makeText(context, savedMsg, android.widget.Toast.LENGTH_SHORT).show()
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA78BFA)),
                                 shape = RoundedCornerShape(12.dp),

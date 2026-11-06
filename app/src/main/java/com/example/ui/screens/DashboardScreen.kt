@@ -120,6 +120,7 @@ fun DashboardScreen(
     val waterGlasses by viewModel.waterGlasses.collectAsState()
     val lastPeriodDate by viewModel.lastPeriodDate.collectAsState()
     val allPhysicalSymptoms by viewModel.allPhysicalSymptoms.collectAsState()
+    val cycleRecords by viewModel.allCycleRecords.collectAsState()
     val todayDateStr = remember { java.time.LocalDate.now().toString() }
     val todayPhysicalSymptoms = remember(allPhysicalSymptoms, todayDateStr) {
         allPhysicalSymptoms.filter { it.dateStr == todayDateStr }
@@ -488,19 +489,27 @@ fun DashboardScreen(
     }
 
     if (showQuickCycleEditDialog) {
-        val parsedLastPeriod = runCatching { java.time.LocalDate.parse(lastPeriodDate) }.getOrNull()
-            ?: java.time.LocalDate.now().minusDays(5)
+        // Edit the period the forecast is really based on (first day of the last logged bleed),
+        // with its real end date, instead of a possibly stale setting and a guessed 5-day end.
+        val parsedLastPeriod = predictionInfo.lastPeriodStart
+            ?: runCatching { java.time.LocalDate.parse(lastPeriodDate) }.getOrNull()
+            ?: java.time.LocalDate.now()
+        val lastRecord = cycleRecords.firstOrNull { it.startDate == parsedLastPeriod.toString() }
+        val lastRecordEnd = lastRecord?.endDate?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+        val lastFlow = logs.firstOrNull { it.dateStr == parsedLastPeriod.toString() }
+            ?.periodFlow?.takeIf { it != "NONE" } ?: "MEDIUM"
         ProfessionalCycleEditDialog(
             initialStartDate = parsedLastPeriod,
-            initialEndDate = parsedLastPeriod.plusDays(4),
+            initialEndDate = lastRecordEnd ?: com.example.ui.components.earlierOf(parsedLastPeriod.plusDays(4), java.time.LocalDate.now()),
+            initialFlow = lastFlow,
             initialCycleLength = averageCycleLength,
             title = "ویرایش حرفه‌ای دوره قاعدگی و تنظیم چرخه 🩸",
             onDismissRequest = { showQuickCycleEditDialog = false },
             onSaveCycle = { newStart, newEnd, length, flow, notes ->
                 viewModel.updateFullCycleRecord(
-                    oldRecordId = null,
+                    oldRecordId = lastRecord?.id,
                     oldStartDate = parsedLastPeriod,
-                    oldEndDate = null,
+                    oldEndDate = lastRecordEnd,
                     newStartDate = newStart,
                     newEndDate = newEnd,
                     cycleLength = length,

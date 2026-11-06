@@ -241,19 +241,19 @@ class MainActivity : ComponentActivity() {
                             composable("dashboard") {
                                 DashboardScreen(
                                     viewModel = viewModel,
-                                    onNavigateToLog = { navController.navigate("log") },
-                                    onNavigateToCalendar = { navController.navigate("calendar") },
-                                    onNavigateToHealth = { navController.navigate("health") },
-                                    onNavigateToEducation = { navController.navigate("education") },
-                                    onNavigateToMood = { navController.navigate("mood") },
-                                    onNavigateToChat = { navController.navigate("chatbot") },
-                                    onNavigateToMeditation = { navController.navigate("meditation") },
-                                    onNavigateToReminders = { navController.navigate("reminders") },
-                                    onNavigateToAvatarGenerator = { navController.navigate("avatargenerator") },
-                                    onNavigateToHistory = { navController.navigate("history") },
-                                    onNavigateToCharts = { navController.navigate("charts") },
-                                    onNavigateToTools = { navController.navigate("tools") },
-                                    onNavigateToPrivacy = { navController.navigate("privacy") },
+                                    onNavigateToLog = { navController.navigateOnce("log") },
+                                    onNavigateToCalendar = { navController.navigateOnce("calendar") },
+                                    onNavigateToHealth = { navController.navigateOnce("health") },
+                                    onNavigateToEducation = { navController.navigateOnce("education") },
+                                    onNavigateToMood = { navController.navigateOnce("mood") },
+                                    onNavigateToChat = { navController.navigateOnce("chatbot") },
+                                    onNavigateToMeditation = { navController.navigateOnce("meditation") },
+                                    onNavigateToReminders = { navController.navigateOnce("reminders") },
+                                    onNavigateToAvatarGenerator = { navController.navigateOnce("avatargenerator") },
+                                    onNavigateToHistory = { navController.navigateOnce("history") },
+                                    onNavigateToCharts = { navController.navigateOnce("charts") },
+                                    onNavigateToTools = { navController.navigateOnce("tools") },
+                                    onNavigateToPrivacy = { navController.navigateOnce("privacy") },
                                     onLogout = {
                                         viewModel.logout()
                                         navController.navigate("login") {
@@ -265,48 +265,48 @@ class MainActivity : ComponentActivity() {
                             composable("avatargenerator") {
                                 AvatarGeneratorScreen(
                                     viewModel = viewModel,
-                                    onNavigateBack = { navController.popBackStack() }
+                                    onNavigateBack = { navController.safePopBackStack() }
                                 )
                             }
                             composable("reminders") {
                                 RemindersScreen(
                                     viewModel = viewModel,
-                                    onNavigateBack = { navController.popBackStack() }
+                                    onNavigateBack = { navController.safePopBackStack() }
                                 )
                             }
                             composable("meditation") {
                                 MeditationMusicScreen(
                                     viewModel = viewModel,
-                                    onNavigateBack = { navController.popBackStack() }
+                                    onNavigateBack = { navController.safePopBackStack() }
                                 )
                             }
                             composable("health") {
                                 com.example.ui.screens.HealthScreen(
                                     viewModel = viewModel,
-                                    onNavigateBack = { navController.popBackStack() }
+                                    onNavigateBack = { navController.safePopBackStack() }
                                 )
                             }
                             composable("education") {
                                 com.example.ui.screens.EducationScreen(
-                                    onNavigateBack = { navController.popBackStack() }
+                                    onNavigateBack = { navController.safePopBackStack() }
                                 )
                             }
                             composable("mood") {
                                 MoodScreen(
                                     viewModel = viewModel,
-                                    onNavigateBack = { navController.popBackStack() }
+                                    onNavigateBack = { navController.safePopBackStack() }
                                 )
                             }
                             composable("chatbot") {
                                 ChatBotScreen(
                                     viewModel = viewModel,
-                                    onNavigateBack = { navController.popBackStack() }
+                                    onNavigateBack = { navController.safePopBackStack() }
                                 )
                             }
                             composable("log") {
                                 LogScreen(
                                     viewModel = viewModel,
-                                    onBack = { navController.popBackStack() }
+                                    onBack = { navController.safePopBackStack() }
                                 )
                             }
                             composable(
@@ -338,7 +338,7 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 com.example.ui.screens.CycleHistoryScreen(
                                     viewModel = viewModel,
-                                    onNavigateBack = { navController.popBackStack() }
+                                    onNavigateBack = { navController.safePopBackStack() }
                                 )
                             }
                             composable(
@@ -370,27 +370,27 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 com.example.ui.screens.SymptomChartsScreen(
                                     viewModel = viewModel,
-                                    onNavigateBack = { navController.popBackStack() }
+                                    onNavigateBack = { navController.safePopBackStack() }
                                 )
                             }
                             composable("calendar") {
                                 CalendarScreen(
                                     viewModel = viewModel,
-                                    onBack = { navController.popBackStack() }
+                                    onBack = { navController.safePopBackStack() }
                                 )
                             }
                             composable("tools") {
                                 val healthVm: com.example.ui.viewmodel.HealthToolsViewModel = viewModel()
                                 com.example.ui.screens.HealthToolsScreen(
                                     viewModel = healthVm,
-                                    onNavigateBack = { navController.popBackStack() }
+                                    onNavigateBack = { navController.safePopBackStack() }
                                 )
                             }
                             composable("privacy") {
                                 val healthVm: com.example.ui.viewmodel.HealthToolsViewModel = viewModel()
                                 com.example.ui.screens.PrivacySecurityScreen(
                                     viewModel = healthVm,
-                                    onNavigateBack = { navController.popBackStack() },
+                                    onNavigateBack = { navController.safePopBackStack() },
                                     onSecureScreenChanged = { applySecureFlag() },
                                     onRestartApp = { restartApp() }
                                 )
@@ -484,4 +484,18 @@ private fun NotificationPermissionRequest(isLoggedIn: Boolean) {
             launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
     }
+}
+
+/**
+ * Pops only when there is a screen to go back to. Tapping a back arrow twice quickly used to pop
+ * the dashboard too and leave an empty white screen.
+ */
+private fun androidx.navigation.NavController.safePopBackStack() {
+    if (previousBackStackEntry != null) popBackStack()
+}
+
+/** Ignores a second tap while the same screen is already on top (no duplicate screens). */
+private fun androidx.navigation.NavController.navigateOnce(route: String) {
+    if (currentDestination?.route == route) return
+    navigate(route) { launchSingleTop = true }
 }
