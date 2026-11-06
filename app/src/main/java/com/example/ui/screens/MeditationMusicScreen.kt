@@ -99,9 +99,20 @@ fun MeditationMusicScreen(
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val mediaPlayer = remember { android.media.MediaPlayer() }
+    // Pause (and show "paused") when a call or another app takes the sound.
+    val playbackFocus = remember {
+        com.example.utils.PlaybackFocus(context) {
+            try {
+                if (mediaPlayer.isPlaying) mediaPlayer.pause()
+            } catch (_: Exception) {
+            }
+            isPlaying = false
+        }
+    }
 
     DisposableEffect(Unit) {
         onDispose {
+            playbackFocus.abandon()
             try {
                 if (mediaPlayer.isPlaying) mediaPlayer.stop()
                 mediaPlayer.release()
@@ -112,11 +123,13 @@ fun MeditationMusicScreen(
     fun playTrack(track: MeditationTrack) {
         try {
             mediaPlayer.reset()
+            mediaPlayer.setAudioAttributes(com.example.utils.PlaybackFocus.ATTRIBUTES)
             val afd = context.resources.openRawResourceFd(track.rawResId)
             mediaPlayer.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
             afd.close()
             mediaPlayer.isLooping = isLooping
             mediaPlayer.prepare()
+            playbackFocus.request()
             mediaPlayer.start()
             isPlaying = true
             currentProgressSec = 0
@@ -136,6 +149,7 @@ fun MeditationMusicScreen(
         try {
             if (isPlaying) {
                 if (!mediaPlayer.isPlaying && currentTrack != null) {
+                    playbackFocus.request()
                     mediaPlayer.start()
                 }
             } else {
@@ -184,11 +198,18 @@ fun MeditationMusicScreen(
             if (!isLooping) {
                 val active = currentTrack ?: return@setOnCompletionListener
                 val currentIndex = filteredTracks.indexOfFirst { it.id == active.id }
-                if (currentIndex != -1 && currentIndex < filteredTracks.lastIndex) {
-                    val next = filteredTracks[currentIndex + 1]
+                val next = when {
+                    currentIndex != -1 && currentIndex < filteredTracks.lastIndex -> filteredTracks[currentIndex + 1]
+                    filteredTracks.isNotEmpty() -> filteredTracks.first()
+                    else -> null
+                }
+                if (next == null) {
+                    isPlaying = false
+                } else if (next.id == active.id) {
+                    // Only one track in the list: setting the same track again does not restart it.
+                    playTrack(next)
+                } else {
                     currentTrack = next
-                } else if (filteredTracks.isNotEmpty()) {
-                    currentTrack = filteredTracks.first()
                 }
             }
         }

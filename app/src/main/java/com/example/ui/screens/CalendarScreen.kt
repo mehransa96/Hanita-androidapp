@@ -52,7 +52,8 @@ fun CalendarScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val todayLocalDate = remember { LocalDate.now() }
+    // Follows the date change at midnight while the calendar stays open.
+    val todayLocalDate by viewModel.currentDate.collectAsState()
     val todayJalali = remember(todayLocalDate) { JalaliCalendar.gregorianToJalali(todayLocalDate) }
     var currentMonth by remember { mutableStateOf(JalaliDate(todayJalali.year, todayJalali.month, 1)) }
     val medReminders by viewModel.medicationReminders.collectAsState()

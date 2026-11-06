@@ -435,7 +435,8 @@ fun AITipsCard(
     averageCycleLength: Float,
     aiDailyTip: String?,
     isFetchingAiTip: Boolean,
-    onFetchTip: (String, Int, Float) -> Unit
+    onFetchTip: (String, Int, Float) -> Unit,
+    aiTipError: String? = null
 ) {
     val phaseName = when {
         info.isPeriod -> "قاعدگی (Menstrual)"
@@ -490,6 +491,15 @@ fun AITipsCard(
                     lineHeight = 20.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (aiTipError != null && !isFetchingAiTip) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = aiTipError,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = { onFetchTip(phaseName, info.currentDay, averageCycleLength) },
