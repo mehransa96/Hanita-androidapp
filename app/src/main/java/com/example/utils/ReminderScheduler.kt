@@ -85,6 +85,7 @@ object ReminderScheduler {
             schedule(context, prediction, settingsFrom(prefs))
             MedicineReminderHelper.scheduleReminders(context, prefs.medicationReminders.value)
             com.example.tools.WellnessReminders.scheduleAll(context, prediction.lastPeriodStart, prediction.averageCycleLength)
+            com.example.tools.PartnerReminders.schedule(context, prediction.lastPeriodStart, prediction.averageCycleLength)
             com.example.tools.CycleWidgetProvider.requestUpdate(context)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to reschedule reminders", e)
