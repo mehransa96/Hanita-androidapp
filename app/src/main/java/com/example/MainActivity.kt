@@ -28,6 +28,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.screens.CalendarScreen
 import com.example.ui.screens.DashboardScreen
+import com.example.ui.screens.HomeTab
 import com.example.ui.screens.LogScreen
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.MoodScreen
@@ -245,6 +246,8 @@ class MainActivity : ComponentActivity() {
                             }
                             composable("dashboard") {
                                 DashboardScreen(
+                                    // The partner-alert notification opens the "همراه" tab directly.
+                                    startTab = if (deepLink == "partner") HomeTab.PARTNER.ordinal else 0,
                                     viewModel = viewModel,
                                     onNavigateToLog = { navController.navigateOnce("log") },
                                     onNavigateToCalendar = { navController.navigateOnce("calendar") },
@@ -469,6 +472,7 @@ class MainActivity : ComponentActivity() {
         getSharedPreferences(HanitaApplication.CRASH_PREFS, android.content.Context.MODE_PRIVATE).edit().clear().commit()
         getSharedPreferences(com.example.data.preferences.WellnessPrefs.NAME, android.content.Context.MODE_PRIVATE).edit().clear().commit()
         getSharedPreferences(com.example.security.AppLockManager.NAME, android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        getSharedPreferences(com.example.tools.PartnerPrefs.NAME, android.content.Context.MODE_PRIVATE).edit().clear().commit()
         try {
             com.example.data.AppDatabase.closeAndForget()
             deleteDatabase("hanita_database")

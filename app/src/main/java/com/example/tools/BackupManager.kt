@@ -48,6 +48,7 @@ object BackupManager {
             .put("healthEntries", JSONArray(entries.map { it.toJson() }))
             .put("userPrefs", prefsToJson(context, USER_PREFS))
             .put("wellnessPrefs", prefsToJson(context, WellnessPrefs.NAME))
+            .put("partnerPrefs", prefsToJson(context, PartnerPrefs.NAME))
         root to Summary(logs.size, cycles.size, symptoms.size, entries.size)
     }
 
@@ -113,6 +114,7 @@ object BackupManager {
         db.healthEntryDao().insertAll(newEntries)
         root.optJSONObject("userPrefs")?.let { jsonToPrefs(context, USER_PREFS, it) }
         root.optJSONObject("wellnessPrefs")?.let { jsonToPrefs(context, WellnessPrefs.NAME, it) }
+        root.optJSONObject("partnerPrefs")?.let { jsonToPrefs(context, PartnerPrefs.NAME, it) }
         // The shared settings object must see the restored values without a process restart.
         com.example.data.preferences.UserPreferencesManager(context).reload()
         Summary(logs.size, cycles.size, newSymptoms.size, newEntries.size)
@@ -123,7 +125,7 @@ object BackupManager {
     suspend fun wipeAll(context: Context) = withContext(Dispatchers.IO) {
         AppDatabase.getDatabase(context).clearAllTables()
         // The medicine-alarm store is left in place so the reschedule below can cancel old alarms.
-        listOf(USER_PREFS, WellnessPrefs.NAME, AppLockManager.NAME, "hanita_permissions")
+        listOf(USER_PREFS, WellnessPrefs.NAME, PartnerPrefs.NAME, AppLockManager.NAME, "hanita_permissions")
             .forEach { context.getSharedPreferences(it, Context.MODE_PRIVATE).edit().clear().commit() }
         LocalSnapshots.deleteAll(context)
         com.example.data.preferences.UserPreferencesManager(context).reload()

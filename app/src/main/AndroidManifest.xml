@@ -48,6 +48,11 @@
             android:enabled="true"
             android:exported="false" />
 
+        <receiver
+            android:name="com.example.tools.PartnerAlertReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
         <!-- Home-screen widget (days to next period). -->
         <receiver
             android:name="com.example.tools.CycleWidgetProvider"
