@@ -80,6 +80,16 @@ fun PrivacySecurityScreen(
 
     var showSetPin by remember { mutableStateOf(false) }
     var showDisablePin by remember { mutableStateOf(false) }
+    /** Changing the PIN or making a new recovery code needs the current PIN first. */
+    var verifyForChange by remember { mutableStateOf(false) }
+    var verifyForRecovery by remember { mutableStateOf(false) }
+    var shownRecoveryCode by remember { mutableStateOf<String?>(null) }
+    var askExportPassword by remember { mutableStateOf(false) }
+    var pendingExportPassword by remember { mutableStateOf<String?>(null) }
+    var confirmSnapshot by remember { mutableStateOf<com.example.tools.LocalSnapshots.Snapshot?>(null) }
+    val snapshots by viewModel.snapshots.collectAsState()
+    val passwordRequest by viewModel.passwordRequest.collectAsState()
+    LaunchedEffect(Unit) { viewModel.refreshSnapshots() }
     var showRestoreConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
     var showWipe by remember { mutableStateOf(false) }
 
@@ -93,8 +103,9 @@ fun PrivacySecurityScreen(
         }
     }
 
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) viewModel.exportBackup(uri)
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        if (uri != null) viewModel.exportBackup(uri, pendingExportPassword)
+        pendingExportPassword = null
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) showRestoreConfirm = uri
@@ -122,7 +133,7 @@ fun PrivacySecurityScreen(
         ) {
             if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             Text(
-                "اطلاعات سلامت شما روی همین گوشی ذخیره می‌شود. ثبت رابطه، تست‌ها و فشار خون هرگز به فضای ابری ارسال نمی‌شوند.",
+                "همه اطلاعات شما فقط روی همین گوشی و در حافظه خصوصی برنامه ذخیره می‌شود و به هیچ سروری ارسال نمی‌شود (مگر وقتی خودتان از دستیار هوشمند استفاده کنید و اجازه بدهید). با به‌روزرسانی برنامه هم چیزی پاک نمی‌شود.",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
             )
@@ -156,7 +167,19 @@ fun PrivacySecurityScreen(
                     } else {
                         Text("ورود بیومتریک روی این گوشی در دسترس نیست یا اثر انگشتی ثبت نشده است.", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
                     }
-                    TextButton(onClick = { showSetPin = true }) { Text("تغییر رمز") }
+                    Row {
+                        TextButton(onClick = { verifyForChange = true }) { Text("تغییر رمز") }
+                        TextButton(onClick = { verifyForRecovery = true }) {
+                            Text(if (lock.hasRecoveryCode) "کد بازیابی جدید" else "ساخت کد بازیابی")
+                        }
+                    }
+                    if (!lock.hasRecoveryCode) {
+                        Text(
+                            "برای این قفل کد بازیابی ندارید. اگر رمز را فراموش کنید راهی برای ورود نمی‌ماند؛ همین حالا یک کد بازیابی بسازید.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
                 HorizontalDivider()
                 SwitchRow(
@@ -173,7 +196,7 @@ fun PrivacySecurityScreen(
 
             SectionCard(Icons.Filled.Backup, "پشتیبان‌گیری و بازیابی") {
                 Text(
-                    "یک فایل پشتیبان از همه سوابق (روزها، علائم، چرخه‌ها، ابزارهای سلامت و تنظیمات) بسازید و در حافظه گوشی، فلش یا Google Drive نگه دارید. رمز قفل در فایل ذخیره نمی‌شود؛ فایل را در جای امن نگه دارید.",
+                    "یک فایل پشتیبان از همه سوابق (روزها، علائم، چرخه‌ها، ابزارهای سلامت و تنظیمات) بسازید و در حافظه گوشی، فلش یا Google Drive نگه دارید. برای رفتن به گوشی جدید هم از همین فایل استفاده کنید. می‌توانید فایل را با رمز قفل کنید.",
                     fontSize = 13.sp
                 )
                 Spacer(Modifier.height(8.dp))
@@ -181,8 +204,7 @@ fun PrivacySecurityScreen(
                     Button(
                         enabled = !busy,
                         onClick = {
-                            AppLockSession.skipNextLock = true
-                            exportLauncher.launch(BackupManager.suggestedFileName())
+                            askExportPassword = true
                         },
                         modifier = Modifier.weight(1f)
                     ) { Text("تهیه پشتیبان") }
@@ -190,7 +212,7 @@ fun PrivacySecurityScreen(
                         enabled = !busy,
                         onClick = {
                             AppLockSession.skipNextLock = true
-                            restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain"))
+                            restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain", "*/*"))
                         },
                         modifier = Modifier.weight(1f)
                     ) {
@@ -201,9 +223,29 @@ fun PrivacySecurityScreen(
                 }
             }
 
+            SectionCard(Icons.Filled.Restore, "نسخه‌های امن خودکار") {
+                Text(
+                    "هانیتا هر روز یک نسخه رمزنگاری‌شده از همه اطلاعات شما در حافظه خصوصی گوشی نگه می‌دارد (۷ روز آخر). کلید رمز در سخت‌افزار امن گوشی است و از آن خارج نمی‌شود. اگر اطلاعاتی گم شد، از اینجا برگردانید.",
+                    fontSize = 13.sp
+                )
+                if (snapshots.isEmpty()) {
+                    Text("هنوز نسخه خودکاری ساخته نشده است.", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                } else {
+                    snapshots.forEach { snap ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Text(com.example.tools.LocalSnapshots.formatDate(snap), fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            TextButton(enabled = !busy, onClick = { confirmSnapshot = snap }) { Text("بازیابی") }
+                        }
+                    }
+                }
+                OutlinedButton(enabled = !busy, onClick = { viewModel.takeSnapshotNow() }, modifier = Modifier.fillMaxWidth()) {
+                    Text("ذخیره نسخه امن همین حالا")
+                }
+            }
+
             SectionCard(Icons.Filled.DeleteForever, "حذف همه داده‌ها", danger = true) {
                 Text(
-                    "همه سوابق و تنظیمات روی این گوشی برای همیشه پاک می‌شود و برنامه از اول شروع می‌شود. برای حذف نسخه ابری، از تنظیمات داشبورد گزینه حذف داده‌های ابری را بزنید.",
+                    "همه سوابق، تنظیمات، نسخه‌های خودکار و حساب کاربری روی این گوشی برای همیشه پاک می‌شود و برنامه از اول شروع می‌شود.",
                     fontSize = 13.sp
                 )
                 Spacer(Modifier.height(8.dp))
@@ -222,10 +264,61 @@ fun PrivacySecurityScreen(
         SetPinDialog(
             onDismiss = { showSetPin = false },
             onConfirm = { pin ->
+                val firstTime = !lock.isEnabled || !lock.hasRecoveryCode
                 lock.setPin(pin)
                 lockEnabled = true
                 showSetPin = false
+                if (firstTime) shownRecoveryCode = lock.createRecoveryCode()
             }
+        )
+    }
+    if (verifyForChange || verifyForRecovery) {
+        VerifyPinDialog(
+            lock = lock,
+            title = if (verifyForChange) "تأیید رمز فعلی" else "ساخت کد بازیابی",
+            onDismiss = { verifyForChange = false; verifyForRecovery = false },
+            onVerified = {
+                if (verifyForChange) showSetPin = true else shownRecoveryCode = lock.createRecoveryCode()
+                verifyForChange = false
+                verifyForRecovery = false
+            }
+        )
+    }
+    shownRecoveryCode?.let { code ->
+        com.example.ui.components.RecoveryCodeShownDialog(code = code, onDone = { shownRecoveryCode = null })
+    }
+    if (askExportPassword) {
+        com.example.ui.components.BackupPasswordDialog(
+            forExport = true,
+            onDismiss = { askExportPassword = false },
+            onConfirm = { password ->
+                askExportPassword = false
+                pendingExportPassword = password
+                AppLockSession.skipNextLock = true
+                exportLauncher.launch(BackupManager.suggestedFileName(encrypted = password != null))
+            }
+        )
+    }
+    passwordRequest?.let { req ->
+        com.example.ui.components.BackupPasswordDialog(
+            forExport = false,
+            errorText = if (req.wrongPassword) "رمز اشتباه است یا فایل آسیب دیده است." else null,
+            onDismiss = { viewModel.cancelPasswordRequest() },
+            onConfirm = { password -> viewModel.restoreBackup(req.uri, password, onRestartApp) }
+        )
+    }
+    confirmSnapshot?.let { snap ->
+        AlertDialog(
+            onDismissRequest = { confirmSnapshot = null },
+            title = { Text("بازیابی نسخه خودکار؟") },
+            text = { Text("اطلاعات نسخه «${com.example.tools.LocalSnapshots.formatDate(snap)}» به برنامه برگردانده می‌شود؛ روزهایی که در هر دو هست با نسخه پشتیبان جایگزین می‌شوند و بقیه اطلاعات فعلی می‌ماند. سپس برنامه دوباره باز می‌شود.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmSnapshot = null
+                    viewModel.restoreSnapshot(snap, onRestartApp)
+                }) { Text("بازیابی") }
+            },
+            dismissButton = { TextButton(onClick = { confirmSnapshot = null }) { Text("انصراف") } }
         )
     }
     if (showDisablePin) {
@@ -248,7 +341,7 @@ fun PrivacySecurityScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showRestoreConfirm = null
-                    viewModel.restoreBackup(uri, onRestartApp)
+                    viewModel.restoreBackup(uri, null, onRestartApp)
                 }) { Text("بازیابی") }
             },
             dismissButton = { TextButton(onClick = { showRestoreConfirm = null }) { Text("انصراف") } }
@@ -328,7 +421,7 @@ private fun SetPinDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
         title = { Text("تعیین رمز قفل") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("رمز ۴ تا ۶ رقمی انتخاب کنید. اگر رمز را فراموش کنید، تنها راه، پاک کردن داده‌های برنامه است.", fontSize = 13.sp)
+                Text("رمز ۴ تا ۶ رقمی انتخاب کنید. بعد از ذخیره، یک کد بازیابی به شما داده می‌شود تا اگر رمز را فراموش کردید، بتوانید دوباره وارد شوید.", fontSize = 13.sp)
                 PinField(first, "رمز جدید") { first = it; error = null }
                 PinField(second, "تکرار رمز") { second = it; error = null }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
@@ -349,12 +442,12 @@ private fun SetPinDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
 }
 
 @Composable
-private fun VerifyPinDialog(lock: AppLockManager, onDismiss: () -> Unit, onVerified: () -> Unit) {
+private fun VerifyPinDialog(lock: AppLockManager, title: String = "خاموش کردن قفل", onDismiss: () -> Unit, onVerified: () -> Unit) {
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("خاموش کردن قفل") },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PinField(pin, "رمز فعلی") { pin = it; error = null }

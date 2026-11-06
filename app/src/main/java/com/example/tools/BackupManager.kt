@@ -16,9 +16,9 @@ import org.json.JSONObject
 import java.time.LocalDate
 
 /**
- * Local backup to a JSON file the user picks (Storage Access Framework), restore from it, and a
- * full local wipe. Nothing leaves the device unless the user moves the file themselves.
- * The app-lock PIN is never written to the backup.
+ * Local backup to a file the user picks (Storage Access Framework), optionally encrypted with a
+ * password, restore from it, and a full local wipe. Nothing leaves the device unless the user
+ * moves the file themselves. The app-lock PIN is never written to the backup.
  */
 object BackupManager {
     const val FORMAT = "hanita-backup"
@@ -27,9 +27,11 @@ object BackupManager {
 
     data class Summary(val logs: Int, val cycles: Int, val symptoms: Int, val healthEntries: Int)
 
-    fun suggestedFileName(): String = "hanita-backup-${LocalDate.now()}.json"
+    fun suggestedFileName(encrypted: Boolean = false): String =
+        if (encrypted) "hanita-backup-${LocalDate.now()}.hanita" else "hanita-backup-${LocalDate.now()}.json"
 
-    suspend fun export(context: Context, uri: Uri): Summary = withContext(Dispatchers.IO) {
+    /** Every record and setting of the app as one JSON document (the app-lock PIN is never included). */
+    suspend fun buildJson(context: Context): Pair<JSONObject, Summary> = withContext(Dispatchers.IO) {
         val db = AppDatabase.getDatabase(context)
         val logs = db.dailyLogDao().getAllLogsList()
         val cycles = db.cycleRecordDao().getAllCycleRecordsList()
@@ -46,22 +48,46 @@ object BackupManager {
             .put("healthEntries", JSONArray(entries.map { it.toJson() }))
             .put("userPrefs", prefsToJson(context, USER_PREFS))
             .put("wellnessPrefs", prefsToJson(context, WellnessPrefs.NAME))
-
-        val stream = context.contentResolver.openOutputStream(uri, "wt")
-            ?: throw IllegalStateException("فایل مقصد باز نشد")
-        stream.use { it.write(root.toString(2).toByteArray(Charsets.UTF_8)) }
-        Summary(logs.size, cycles.size, symptoms.size, entries.size)
+        root to Summary(logs.size, cycles.size, symptoms.size, entries.size)
     }
 
+    /**
+     * Writes a backup file. With a [password] the content is encrypted (AES-256-GCM, key derived
+     * from the password with PBKDF2), so the file is unreadable to anyone without the password.
+     */
+    suspend fun export(context: Context, uri: Uri, password: String? = null): Summary = withContext(Dispatchers.IO) {
+        val (root, summary) = buildJson(context)
+        val plain = root.toString().toByteArray(Charsets.UTF_8)
+        val bytes = if (password.isNullOrEmpty()) plain else BackupCrypto.encryptWithPassword(plain, password)
+        val stream = context.contentResolver.openOutputStream(uri, "wt")
+            ?: throw IllegalStateException("فایل مقصد باز نشد")
+        stream.use { it.write(bytes) }
+        summary
+    }
+
+    /** Thrown when a backup file is encrypted and no (or a wrong) password was given. */
+    class PasswordRequiredException(val wrongPassword: Boolean) :
+        Exception(if (wrongPassword) "رمز فایل پشتیبان اشتباه است" else "این فایل پشتیبان رمزدار است")
+
     /** Adds/overwrites records from the file. Existing records with other keys are kept. */
-    suspend fun restore(context: Context, uri: Uri): Summary = withContext(Dispatchers.IO) {
-        val text = context.contentResolver.openInputStream(uri)?.use { input ->
+    suspend fun restore(context: Context, uri: Uri, password: String? = null): Summary = withContext(Dispatchers.IO) {
+        val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
             // A real backup is a few MB at most; refuse anything absurdly large.
-            val bytes = input.readBytes()
-            require(bytes.size < 50 * 1024 * 1024) { "حجم فایل بیش از حد مجاز است" }
-            String(bytes, Charsets.UTF_8)
+            val data = input.readBytes()
+            require(data.size < 50 * 1024 * 1024) { "حجم فایل بیش از حد مجاز است" }
+            data
         } ?: throw IllegalStateException("فایل باز نشد")
-        val root = JSONObject(text)
+        val plain = if (BackupCrypto.isPasswordEncrypted(bytes)) {
+            if (password.isNullOrEmpty()) throw PasswordRequiredException(wrongPassword = false)
+            BackupCrypto.decryptWithPassword(bytes, password) ?: throw PasswordRequiredException(wrongPassword = true)
+        } else {
+            bytes
+        }
+        applyJson(context, JSONObject(String(plain, Charsets.UTF_8)))
+    }
+
+    /** Merges a backup document into the database and settings. */
+    suspend fun applyJson(context: Context, root: JSONObject): Summary = withContext(Dispatchers.IO) {
         require(root.optString("format") == FORMAT) { "این فایل پشتیبان هانیتا نیست" }
         require(root.optInt("version", 0) in 1..VERSION) { "نسخه فایل پشتیبان پشتیبانی نمی‌شود" }
 
@@ -87,16 +113,20 @@ object BackupManager {
         db.healthEntryDao().insertAll(newEntries)
         root.optJSONObject("userPrefs")?.let { jsonToPrefs(context, USER_PREFS, it) }
         root.optJSONObject("wellnessPrefs")?.let { jsonToPrefs(context, WellnessPrefs.NAME, it) }
+        // The shared settings object must see the restored values without a process restart.
+        com.example.data.preferences.UserPreferencesManager(context).reload()
         Summary(logs.size, cycles.size, newSymptoms.size, newEntries.size)
     }
 
-    /** Deletes every local record, setting and the app lock. Cloud data is handled separately. */
+    /** Deletes every local record, setting, automatic backup and the app lock. */
     @android.annotation.SuppressLint("ApplySharedPref") // must be on disk before the app restarts
     suspend fun wipeAll(context: Context) = withContext(Dispatchers.IO) {
         AppDatabase.getDatabase(context).clearAllTables()
         // The medicine-alarm store is left in place so the reschedule below can cancel old alarms.
         listOf(USER_PREFS, WellnessPrefs.NAME, AppLockManager.NAME, "hanita_permissions")
             .forEach { context.getSharedPreferences(it, Context.MODE_PRIVATE).edit().clear().commit() }
+        LocalSnapshots.deleteAll(context)
+        com.example.data.preferences.UserPreferencesManager(context).reload()
         WellnessReminders.scheduleAll(context, null, 28)
         com.example.utils.ReminderScheduler.rescheduleFromStorage(context)
         CycleWidgetProvider.requestUpdate(context)

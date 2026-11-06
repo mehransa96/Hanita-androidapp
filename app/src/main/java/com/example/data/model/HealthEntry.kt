@@ -34,7 +34,11 @@ object HealthEntryType {
     const val BLOOD_PRESSURE = "BLOOD_PRESSURE"
     const val PILL = "PILL"
     const val BREAST_EXAM = "BREAST_EXAM"
+    /** Hours of sleep, stored in [HealthEntry.num1] as minutes. */
+    const val SLEEP = "SLEEP"
+    /** Steps walked that day, in [HealthEntry.num1]. */
+    const val STEPS = "STEPS"
 
     /** Types that hold a single value per day (a new entry replaces the old one). */
-    val ONE_PER_DAY = setOf(MUCUS, OVULATION_TEST, PREGNANCY_TEST, PILL, BREAST_EXAM)
+    val ONE_PER_DAY = setOf(MUCUS, OVULATION_TEST, PREGNANCY_TEST, PILL, BREAST_EXAM, SLEEP, STEPS)
 }

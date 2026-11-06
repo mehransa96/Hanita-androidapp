@@ -108,7 +108,7 @@ fun DashboardScreen(
     onNavigateToCharts: () -> Unit,
     onNavigateToTools: () -> Unit,
     onNavigateToPrivacy: () -> Unit,
-    onLogout: () -> Unit
+    onLock: () -> Unit
 ) {
     val cycleInfo by viewModel.cycleInfo.collectAsState()
     val userName by viewModel.userName.collectAsState()
@@ -157,7 +157,7 @@ fun DashboardScreen(
                 onOpenSettings = { showSettingsDialog = true },
                 onNavigateToReminders = onNavigateToReminders,
                 onNavigateToAvatarGenerator = onNavigateToAvatarGenerator,
-                onLogout = onLogout
+                onLock = onLock
             )
             Spacer(modifier = Modifier.height(16.dp))
             
