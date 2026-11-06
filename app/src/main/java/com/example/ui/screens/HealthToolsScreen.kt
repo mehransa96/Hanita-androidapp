@@ -94,6 +94,8 @@ internal object HealthLabels {
         }
         HealthEntryType.PILL -> "قرص مصرف شد"
         HealthEntryType.BREAST_EXAM -> "خودآزمایی پستان: ${breastExam[e.value] ?: e.value}"
+        HealthEntryType.SLEEP -> "خواب: ${"%.1f".format(java.util.Locale.US, (e.num1 ?: 0) / 60f)} ساعت"
+        HealthEntryType.STEPS -> "قدم‌ها: ${e.num1 ?: 0}"
         else -> e.type
     }
 }

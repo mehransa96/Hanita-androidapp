@@ -67,6 +67,7 @@ fun AppLockScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var blockedSeconds by remember { mutableIntStateOf((lock.remainingBlockMillis() / 1000).toInt()) }
     val biometric = remember { lock.biometricEnabled && lock.isBiometricAvailable() }
+    var showRecovery by remember { mutableStateOf(false) }
 
 
     LaunchedEffect(blockedSeconds) {
@@ -109,6 +110,16 @@ fun AppLockScreen(
             decorFitsSystemWindows = false
         )
     ) {
+    if (showRecovery) {
+        RecoveryCodeDialog(
+            lock = lock,
+            onDismiss = { showRecovery = false },
+            onReset = {
+                showRecovery = false
+                onUnlocked()
+            }
+        )
+    }
     // The keypad keeps the familiar phone order (1 2 3 from left to right) even in RTL.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Surface(
@@ -175,6 +186,10 @@ fun AppLockScreen(
                     PadKey(label = "0", onClick = { press('0') })
                     PadIcon(Icons.AutoMirrored.Filled.Backspace, "پاک کردن") { if (pin.isNotEmpty()) pin = pin.dropLast(1) }
                 }
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.material3.TextButton(onClick = { showRecovery = true }) {
+                    Text("رمز را فراموش کرده‌ام", fontSize = 14.sp)
+                }
             }
         }
     }
@@ -226,5 +241,62 @@ fun showBiometricPrompt(context: Context, title: String = "باز کردن ها�
         )
     } catch (e: Exception) {
         android.util.Log.w("AppLock", "Biometric prompt unavailable", e)
+    }
+}
+
+/** Resets a forgotten PIN with the recovery code that was shown when the lock was turned on. */
+@Composable
+private fun RecoveryCodeDialog(lock: AppLockManager, onDismiss: () -> Unit, onReset: () -> Unit) {
+    var code by remember { mutableStateOf("") }
+    var newPin by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("بازیابی رمز") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!lock.hasRecoveryCode) {
+                        Text(
+                            "برای این قفل کد بازیابی ساخته نشده است. اگر رمز را به خاطر نمی‌آورید، تنها راه پاک کردن داده‌های برنامه از تنظیمات اندروید است؛ اگر فایل پشتیبان دارید، بعد از آن می‌توانید اطلاعات را بازیابی کنید.",
+                            fontSize = 13.sp
+                        )
+                    } else {
+                        Text("کد بازیابی ۱۲ حرفی که هنگام فعال کردن قفل دریافت کردید و یک رمز جدید وارد کنید.", fontSize = 13.sp)
+                        androidx.compose.material3.OutlinedTextField(
+                            value = code,
+                            onValueChange = { code = it.take(20); error = null },
+                            label = { Text("کد بازیابی (مثل ABCD-EFGH-JKMN)") },
+                            singleLine = true
+                        )
+                        androidx.compose.material3.OutlinedTextField(
+                            value = newPin,
+                            onValueChange = { v -> newPin = AppLockManager.normalizeDigits(v).take(6); error = null },
+                            label = { Text("رمز جدید ۴ تا ۶ رقمی") },
+                            singleLine = true,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
+                            )
+                        )
+                        error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+                    }
+                }
+            },
+            confirmButton = {
+                if (lock.hasRecoveryCode) {
+                    androidx.compose.material3.TextButton(onClick = {
+                        error = when {
+                            !AppLockManager.isValidPin(newPin) -> "رمز جدید باید ۴ تا ۶ رقم باشد."
+                            lock.remainingBlockMillis() > 0 -> "تلاش زیاد؛ کمی بعد دوباره امتحان کنید."
+                            lock.resetPinWithRecoveryCode(code, newPin) -> null
+                            else -> "کد بازیابی درست نیست."
+                        }
+                        if (error == null) onReset()
+                    }) { Text("تغییر رمز و ورود") }
+                }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("بستن") } }
+        )
     }
 }

@@ -83,6 +83,7 @@ import com.example.ui.viewmodel.MahitaViewModel
 import com.example.ui.viewmodel.PredictionInfo
 
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
@@ -100,7 +101,7 @@ fun HeaderRow(
     onOpenSettings: () -> Unit,
     onNavigateToReminders: () -> Unit,
     onNavigateToAvatarGenerator: () -> Unit,
-    onLogout: () -> Unit
+    onLock: () -> Unit
 ) {
     val jalaliToday = com.example.utils.JalaliCalendar.gregorianToJalali(java.time.LocalDate.now())
     Row(
@@ -160,10 +161,10 @@ fun HeaderRow(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            IconButton(onClick = onLogout) {
+            IconButton(onClick = onLock) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Logout,
-                    contentDescription = "خروج",
+                    imageVector = Icons.Filled.Lock,
+                    contentDescription = "قفل کردن برنامه",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

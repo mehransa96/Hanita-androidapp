@@ -14,6 +14,7 @@ import com.example.domain.CyclePredictor
 import com.example.domain.PillPack
 import com.example.tools.BackupManager
 import com.example.tools.DoctorReportPdf
+import com.example.tools.LocalSnapshots
 import com.example.utils.RescheduleWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -141,21 +142,66 @@ class HealthToolsViewModel(application: Application) : AndroidViewModel(applicat
         "گزارش PDF ذخیره شد. می‌توانید آن را برای پزشک بفرستید یا چاپ کنید."
     }
 
-    fun exportBackup(uri: Uri) = runFileTask {
-        val s = BackupManager.export(getApplication(), uri)
-        "پشتیبان ذخیره شد: ${s.logs} روز ثبت‌شده، ${s.symptoms} علامت و ${s.healthEntries} مورد سلامت."
+    fun exportBackup(uri: Uri, password: String? = null) = runFileTask {
+        val s = BackupManager.export(getApplication(), uri, password)
+        val lockNote = if (password.isNullOrEmpty()) "" else " فایل با رمز شما قفل شد."
+        "پشتیبان ذخیره شد: ${s.logs} روز ثبت‌شده، ${s.symptoms} علامت و ${s.healthEntries} مورد سلامت.$lockNote"
     }
 
+    /** Set while a restore waits for the password of an encrypted backup file. */
+    data class PasswordRequest(val uri: Uri, val wrongPassword: Boolean)
+
+    private val _passwordRequest = MutableStateFlow<PasswordRequest?>(null)
+    val passwordRequest: StateFlow<PasswordRequest?> = _passwordRequest.asStateFlow()
+    fun cancelPasswordRequest() { _passwordRequest.value = null }
+
     /** [onDone] runs after a successful restore so the app can restart with the restored data. */
-    fun restoreBackup(uri: Uri, onDone: () -> Unit) {
+    fun restoreBackup(uri: Uri, password: String? = null, onDone: () -> Unit) {
+        if (_busy.value) return
+        _busy.value = true
+        _passwordRequest.value = null
+        viewModelScope.launch {
+            try {
+                // A safety copy of the current state first, so a wrong file can be undone.
+                LocalSnapshots.takeIfDue(getApplication(), force = true)
+                BackupManager.restore(getApplication(), uri, password)
+                onDone()
+            } catch (e: BackupManager.PasswordRequiredException) {
+                _passwordRequest.value = PasswordRequest(uri, e.wrongPassword)
+            } catch (e: Exception) {
+                _message.value = "بازیابی انجام نشد: ${e.message ?: "فایل نامعتبر است"}"
+            } finally {
+                _busy.value = false
+            }
+        }
+    }
+
+    // --- Automatic encrypted safety copies ------------------------------------------------------
+
+    private val _snapshots = MutableStateFlow<List<LocalSnapshots.Snapshot>>(emptyList())
+    val snapshots: StateFlow<List<LocalSnapshots.Snapshot>> = _snapshots.asStateFlow()
+
+    fun refreshSnapshots() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            _snapshots.value = LocalSnapshots.list(getApplication())
+        }
+    }
+
+    fun takeSnapshotNow() = runFileTask {
+        val ok = LocalSnapshots.takeIfDue(getApplication(), force = true)
+        _snapshots.value = LocalSnapshots.list(getApplication())
+        if (ok) "نسخه امن خودکار به‌روز شد." else "هنوز اطلاعاتی برای ذخیره وجود ندارد."
+    }
+
+    fun restoreSnapshot(snapshot: LocalSnapshots.Snapshot, onDone: () -> Unit) {
         if (_busy.value) return
         _busy.value = true
         viewModelScope.launch {
             try {
-                BackupManager.restore(getApplication(), uri)
+                LocalSnapshots.restore(getApplication(), snapshot)
                 onDone()
             } catch (e: Exception) {
-                _message.value = "بازیابی انجام نشد: ${e.message ?: "فایل نامعتبر است"}"
+                _message.value = "بازیابی انجام نشد: ${e.message ?: "نسخه پشتیبان خوانا نیست"}"
             } finally {
                 _busy.value = false
             }

@@ -188,6 +188,7 @@ class MainActivity : ComponentActivity() {
                         val navController = rememberNavController()
                         val isLoggedIn by viewModel.isLoggedIn.collectAsState()
                         com.example.ui.components.AiConsentDialog(viewModel)
+                        DataRecoveryDialog(viewModel)
                         NotificationPermissionRequest(isLoggedIn)
 
                         // Notification shortcuts ("record today's symptoms", "open calendar").
@@ -229,9 +230,13 @@ class MainActivity : ComponentActivity() {
                             }
                         ) {
                             composable("login") {
+                                val healthVm: com.example.ui.viewmodel.HealthToolsViewModel = viewModel()
                                 LoginScreen(
-                                    onLoginSuccess = { name, cycleLength, lastPeriodDateStr ->
-                                        viewModel.login(name, cycleLength, lastPeriodDateStr)
+                                    lockManager = lockManager,
+                                    restoreViewModel = healthVm,
+                                    onRestored = { restartApp() },
+                                    onRegistered = { name, cycleLength, lastPeriodDateStr ->
+                                        viewModel.register(name, cycleLength, lastPeriodDateStr)
                                         navController.navigate("dashboard") {
                                             popUpTo("login") { inclusive = true }
                                         }
@@ -254,10 +259,16 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToCharts = { navController.navigateOnce("charts") },
                                     onNavigateToTools = { navController.navigateOnce("tools") },
                                     onNavigateToPrivacy = { navController.navigateOnce("privacy") },
-                                    onLogout = {
-                                        viewModel.logout()
-                                        navController.navigate("login") {
-                                            popUpTo("dashboard") { inclusive = true }
+                                    onLock = {
+                                        if (lockManager.isEnabled) {
+                                            isLocked = true
+                                        } else {
+                                            android.widget.Toast.makeText(
+                                                this@MainActivity,
+                                                "برای قفل کردن برنامه، ابتدا رمز قفل را فعال کنید.",
+                                                android.widget.Toast.LENGTH_LONG
+                                            ).show()
+                                            navController.navigateOnce("privacy")
                                         }
                                     }
                                 )
@@ -421,6 +432,10 @@ class MainActivity : ComponentActivity() {
         }
         // Keep the home-screen widget in step with what was just logged.
         com.example.tools.CycleWidgetProvider.requestUpdate(this)
+        // Refresh the encrypted automatic safety copy (at most every few hours).
+        if (com.example.data.preferences.UserPreferencesManager(this).isLoggedIn.value) {
+            com.example.tools.LocalSnapshots.takeInBackground(applicationContext)
+        }
     }
 
     /** FLAG_SECURE hides the app preview in "recent apps" and blocks screenshots. */
@@ -445,14 +460,21 @@ class MainActivity : ComponentActivity() {
     /** Deletes all local data (only after explicit confirmation on the recovery screen). */
     @android.annotation.SuppressLint("ApplySharedPref") // must be on disk before the process restarts
     private fun resetAllLocalData() {
+        // A last safety copy before the reset (if the database can still be read).
+        try {
+            kotlinx.coroutines.runBlocking { com.example.tools.LocalSnapshots.takeIfDue(applicationContext, force = true) }
+        } catch (_: Throwable) {
+        }
         getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE).edit().clear().commit()
         getSharedPreferences(HanitaApplication.CRASH_PREFS, android.content.Context.MODE_PRIVATE).edit().clear().commit()
         getSharedPreferences(com.example.data.preferences.WellnessPrefs.NAME, android.content.Context.MODE_PRIVATE).edit().clear().commit()
         getSharedPreferences(com.example.security.AppLockManager.NAME, android.content.Context.MODE_PRIVATE).edit().clear().commit()
         try {
+            com.example.data.AppDatabase.closeAndForget()
             deleteDatabase("hanita_database")
         } catch (_: Exception) {
         }
+        com.example.data.preferences.UserPreferencesManager(this).reload()
         val intent = packageManager.getLaunchIntentForPackage(packageName)
         if (intent != null) {
             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -498,4 +520,25 @@ private fun androidx.navigation.NavController.safePopBackStack() {
 private fun androidx.navigation.NavController.navigateOnce(route: String) {
     if (currentDestination?.route == route) return
     navigate(route) { launchSingleTop = true }
+}
+
+/**
+ * Shown when a registered user's database is found empty while an automatic encrypted copy still
+ * holds their data (for example after storage corruption). Nothing is restored without consent.
+ */
+@Composable
+private fun DataRecoveryDialog(viewModel: MahitaViewModel) {
+    val offer by viewModel.recoveryOffer.collectAsState()
+    val current = offer ?: return
+    AlertDialog(
+        onDismissRequest = { },
+        title = { Text("بازیابی اطلاعات شما") },
+        text = {
+            Text(
+                "به نظر می‌رسد اطلاعات ثبت‌شده شما روی این گوشی پیدا نمی‌شود، اما یک نسخه امن خودکار از تاریخ ${current.label} با ${current.records} مورد ثبت‌شده موجود است. آن را بازیابی کنیم؟"
+            )
+        },
+        confirmButton = { TextButton(onClick = { viewModel.acceptRecovery() }) { Text("بازیابی کن") } },
+        dismissButton = { TextButton(onClick = { viewModel.dismissRecovery() }) { Text("فعلاً نه") } }
+    )
 }

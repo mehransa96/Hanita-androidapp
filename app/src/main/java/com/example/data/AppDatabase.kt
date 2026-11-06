@@ -97,6 +97,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Closes the open database so its file can be deleted safely (full reset). */
+        fun closeAndForget() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
