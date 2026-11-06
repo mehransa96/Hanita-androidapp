@@ -169,6 +169,8 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
         return repository.getPhysicalSymptomsForDate(dateStr)
     }
 
+    suspend fun getLogForDate(dateStr: String): DailyLog? = repository.getLogByDate(dateStr)
+
     suspend fun getPhysicalSymptomsListForDate(dateStr: String): List<com.example.data.model.PhysicalSymptomLog> {
         return repository.getPhysicalSymptomsListForDate(dateStr)
     }
@@ -458,12 +460,17 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
             prefsManager.setAverageCycleLength(duration)
             
             if (startDate.isNotBlank()) {
-                val log = DailyLog(
+                // Mark the day as a bleeding day without wiping what was already logged for it
+                // (symptoms, moods, notes, medicines and water used to be erased here).
+                val existing = repository.getLogByDate(startDate)
+                val log = existing?.copy(
+                    periodFlow = if (existing.periodFlow == "NONE") "MEDIUM" else existing.periodFlow
+                ) ?: DailyLog(
                     dateStr = startDate,
                     periodFlow = "MEDIUM",
                     symptoms = "",
                     moods = "",
-                    notes = "تغییر تاریخ شروع سیکل قاعدگی"
+                    notes = ""
                 )
                 repository.insertLog(log)
                 
@@ -495,6 +502,7 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
             )
             database.cycleRecordDao().insertCycleRecord(record)
 
+            val savedDays = mutableListOf<String>()
             var curr = start
             while (!curr.isAfter(end)) {
                 val dateStr = curr.toString()
@@ -510,6 +518,7 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
                     notes = notes
                 )
                 repository.insertLog(updated)
+                savedDays.add(dateStr)
                 curr = curr.plusDays(1)
             }
 
@@ -520,6 +529,7 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
             if (uName.isNotBlank()) {
                 firestoreManager.uploadCycleRecord(record)
                 firestoreManager.uploadProfile(avgCycle, null)
+                savedDays.forEach { day -> repository.getLogByDate(day)?.let { firestoreManager.uploadLog(it) } }
             }
         }
     }
@@ -529,14 +539,20 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
             val start = if (startDate.isAfter(endDate)) endDate else startDate
             val end = if (startDate.isAfter(endDate)) startDate else endDate
 
-            database.cycleRecordDao().deleteCycleRecord("cycle_${start}")
+            val recordId = "cycle_${start}"
+            database.cycleRecordDao().deleteCycleRecord(recordId)
+            val signedIn = userName.value.isNotBlank()
+            // Without the cloud delete, the next sync downloaded the cycle again.
+            if (signedIn) firestoreManager.deleteCycleRecord(recordId)
 
             var curr = start
             while (!curr.isAfter(end)) {
                 val dateStr = curr.toString()
                 val existing = repository.getLogByDate(dateStr)
-                if (existing != null) {
-                    repository.insertLog(existing.copy(periodFlow = "NONE"))
+                if (existing != null && existing.periodFlow != "NONE") {
+                    val cleared = existing.copy(periodFlow = "NONE")
+                    repository.insertLog(cleared)
+                    if (signedIn) repository.getLogByDate(dateStr)?.let { firestoreManager.uploadLog(it) }
                 }
                 curr = curr.plusDays(1)
             }
@@ -843,7 +859,9 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
         emoji: String = "",
         waterIntake: Int = 0,
         bbt: Float? = null,
-        weight: Float? = null
+        weight: Float? = null,
+        /** true when the caller sends the full state of the day (form editors): empty moods/notes clear them. */
+        replaceDayState: Boolean = false
     ) {
         viewModelScope.launch {
             // 1. Delete previous physical symptoms for this date in Room to replace with updated state
@@ -859,9 +877,9 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
                 dateStr = dateStr,
                 periodFlow = if (flow.isNotBlank()) flow else (existing?.periodFlow ?: "NONE"),
                 symptoms = symptomNames,
-                moods = if (moods.isNotEmpty()) moods.joinToString(",") else (existing?.moods ?: ""),
-                notes = if (overallNotes.isNotBlank()) overallNotes else (existing?.notes ?: ""),
-                emoji = if (emoji.isNotBlank()) emoji else (existing?.emoji ?: ""),
+                moods = if (moods.isNotEmpty() || replaceDayState) moods.joinToString(",") else (existing?.moods ?: ""),
+                notes = if (overallNotes.isNotBlank() || replaceDayState) overallNotes else (existing?.notes ?: ""),
+                emoji = if (emoji.isNotBlank() || replaceDayState) emoji else (existing?.emoji ?: ""),
                 takenMeds = existing?.takenMeds ?: "",
                 waterIntake = if (waterIntake != 0) waterIntake else (existing?.waterIntake ?: 0),
                 bbt = bbt ?: existing?.bbt,
