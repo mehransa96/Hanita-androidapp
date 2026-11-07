@@ -299,7 +299,8 @@ fun DashboardScreen(
             PredictionNotificationCard(predictionInfo)
         }
         "cycle_chart" -> CardSheet("نمودار طول چرخه", { openSheet = null }) {
-            CycleHistoryChart(averageCycleLength = predictionInfo.calculatedAverage, modifier = Modifier.fillMaxWidth())
+            val recentCycles by viewModel.recentCycles.collectAsState()
+            CycleHistoryChart(cycles = recentCycles, averageCycleLength = predictionInfo.calculatedAverage, modifier = Modifier.fillMaxWidth())
         }
         "hormones" -> CardSheet("منحنی هورمون‌ها", { openSheet = null }) {
             HormoneLevelsChartCard(
@@ -323,7 +324,7 @@ fun DashboardScreen(
         "quick_log" -> CardSheet("ثبت سریع حال روزانه", { openSheet = null }) {
             com.example.ui.components.QuickSymptomWidget(
                 onSave = { mood, energy, sleep, pain ->
-                    viewModel.saveQuickLog(java.time.LocalDate.now().toString(), mood, energy, sleep, pain)
+                    viewModel.saveQuickLog(currentDate.toString(), mood, energy, sleep, pain)
                 },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -385,7 +386,8 @@ fun DashboardScreen(
     PregnancyTrackerDialog(
         show = showPregnancyDialog,
         onDismiss = { showPregnancyDialog = false },
-        lastPeriodDateStr = lastPeriodDate
+        lastPeriodDateStr = lastPeriodDate,
+        cycleLength = predictionInfo.calculatedAverage
     )
 
     if (showInteractivePeriodDialog) {

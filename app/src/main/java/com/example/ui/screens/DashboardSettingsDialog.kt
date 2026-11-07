@@ -550,7 +550,7 @@ fun SettingsDialog(
 
                             Button(
                                 onClick = {
-                                    val durationInt = editDuration.toIntOrNull()
+                                    val durationInt = com.example.security.AppLockManager.normalizeDigits(editDuration).toIntOrNull()
                                     if (durationInt == null || durationInt !in 21..45) {
                                         android.widget.Toast.makeText(context, "لطفاً طول چرخه معتبر بین ۲۱ تا ۴۵ روز وارد کنید.", android.widget.Toast.LENGTH_SHORT).show()
                                         return@Button
