@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.LocalDrink
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.DarkMode
@@ -51,6 +50,9 @@ import com.example.ui.components.InteractivePeriodCalendarWidget
 import com.example.ui.components.HormoneLevelsChartCard
 import com.example.ui.components.SmartInsightsCard
 import com.example.utils.JalaliCalendar
+import com.example.utils.PersianDates
+import com.example.utils.PersianNumbers
+import androidx.compose.runtime.saveable.rememberSaveable
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -83,10 +85,7 @@ import com.example.ui.viewmodel.MahitaViewModel
 import com.example.ui.viewmodel.PredictionInfo
 
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
@@ -111,28 +110,33 @@ fun DashboardScreen(
     val cycleInfo by viewModel.cycleInfo.collectAsState()
     val userName by viewModel.userName.collectAsState()
     val userAvatar by viewModel.userAvatar.collectAsState()
-    val averageCycleLength by viewModel.averageCycleLength.collectAsState()
     val predictionInfo by viewModel.predictionInfo.collectAsState()
     val logs by viewModel.allLogs.collectAsState()
     val userWeight by viewModel.userWeight.collectAsState()
     val waterGlasses by viewModel.waterGlasses.collectAsState()
-    val lastPeriodDate by viewModel.lastPeriodDate.collectAsState()
+    val lastPeriodStart by viewModel.lastPeriodStart.collectAsState()
+    val periodRuns by viewModel.periodRuns.collectAsState()
+    val completedCycles by viewModel.completedCycles.collectAsState()
     val allPhysicalSymptoms by viewModel.allPhysicalSymptoms.collectAsState()
-    val todayDateStr = remember { java.time.LocalDate.now().toString() }
-    val todayPhysicalSymptoms = remember(allPhysicalSymptoms, todayDateStr) {
-        allPhysicalSymptoms.filter { it.dateStr == todayDateStr }
+    val today by viewModel.today.collectAsState()
+    val todayPhysicalSymptoms = remember(allPhysicalSymptoms, today) {
+        allPhysicalSymptoms.filter { it.dateStr == today.toString() }
     }
-    val aiDailyTip by viewModel.aiDailyTip.collectAsState()
-    val isFetchingAiTip by viewModel.isFetchingAiTip.collectAsState()
+    val aiTip by viewModel.aiTip.collectAsState()
     val context = LocalContext.current
+    val isDark = ThemeProvider.isDark
 
-    var showSettingsDialog by remember { mutableStateOf(false) }
-    var showMedicalReportDialog by remember { mutableStateOf(false) }
-    var showPartnerSyncDialog by remember { mutableStateOf(false) }
-    var showPhaseGuideDialog by remember { mutableStateOf(false) }
-    var showPregnancyDialog by remember { mutableStateOf(false) }
-    var showInteractivePeriodDialog by remember { mutableStateOf(false) }
-    var showQuickCycleEditDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by rememberSaveable { mutableStateOf(false) }
+    var showMedicalReportDialog by rememberSaveable { mutableStateOf(false) }
+    var showPartnerSyncDialog by rememberSaveable { mutableStateOf(false) }
+    var showPhaseGuideDialog by rememberSaveable { mutableStateOf(false) }
+    var showPregnancyDialog by rememberSaveable { mutableStateOf(false) }
+    var showInteractivePeriodDialog by rememberSaveable { mutableStateOf(false) }
+    var showQuickCycleEditDialog by rememberSaveable { mutableStateOf(false) }
+    var showLogoutConfirm by rememberSaveable { mutableStateOf(false) }
+
+    // The period being edited is the last one really logged (not a date typed in the settings).
+    val lastRun = periodRuns.lastOrNull()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -142,7 +146,7 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -150,17 +154,23 @@ fun DashboardScreen(
             HeaderRow(
                 userName = userName,
                 userAvatar = userAvatar,
-                onToggleThemeMode = { viewModel.toggleThemeMode() },
+                today = today,
+                onToggleThemeMode = { viewModel.toggleThemeMode(isDark) },
                 onOpenSettings = { showSettingsDialog = true },
                 onNavigateToReminders = onNavigateToReminders,
                 onNavigateToAvatarGenerator = onNavigateToAvatarGenerator,
-                onLogout = onLogout
+                onLogout = { showLogoutConfirm = true }
             )
             Spacer(modifier = Modifier.height(16.dp))
-            
-            AnimatedVisibility(visible = !cycleInfo.isPeriod && (cycleInfo.isLate || cycleInfo.daysUntilNextPeriod in 0..3)) {
+
+            if (!cycleInfo.hasData) {
+                NoPeriodDataCard(onLogPeriod = { showQuickCycleEditDialog = true })
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            AnimatedVisibility(visible = cycleInfo.hasData && !cycleInfo.isPeriod && (cycleInfo.isLate || cycleInfo.daysUntilNextPeriod in 0..3)) {
                 Column {
-                    AlertBanner(cycleInfo)
+                    AlertBanner(cycleInfo, onLogPeriod = { showQuickCycleEditDialog = true })
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
@@ -168,33 +178,46 @@ fun DashboardScreen(
             Box(
                 modifier = Modifier
                     .padding(vertical = 12.dp)
-                    .size(240.dp)
-                    .fillMaxWidth(),
+                    .size(240.dp),
                 contentAlignment = Alignment.Center
             ) {
                 CycleVisualizer(
-                    info = cycleInfo, 
+                    info = cycleInfo,
                     cycleLength = predictionInfo.calculatedAverage,
                     modifier = Modifier.fillMaxSize()
                 )
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            PredictionsCard(cycleInfo)
-            
+
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Quick Period & Cycle Editor Card (User directive: editable from all sections with best UX)
+            PredictionsCard(cycleInfo, predictionInfo.calculatedAverage)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            FeaturesGrid(onNavigateToLog, onNavigateToCalendar, onNavigateToHealth, onNavigateToEducation, onNavigateToMood, onNavigateToChat, onNavigateToMeditation, onNavigateToReminders, onNavigateToCharts)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Quick period editor: always edits the last period that was really logged.
+            QuickPeriodEditCard(
+                lastPeriodStart = lastPeriodStart,
+                calculatedAverage = predictionInfo.calculatedAverage,
+                hasRealAverage = predictionInfo.hasEnoughData,
+                onClick = { showQuickCycleEditDialog = true }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Interactive Period Range Logger Card (Touch Start & End Dates)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { showQuickCycleEditDialog = true }
-                    .testTag("quick_edit_cycle_button"),
+                    .clickable(onClickLabel = "باز کردن تقویم لمسی") { showInteractivePeriodDialog = true }
+                    .testTag("open_interactive_period_card"),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f)
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
                 ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
                 shape = RoundedCornerShape(20.dp)
             ) {
                 Row(
@@ -213,80 +236,6 @@ fun DashboardScreen(
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.EditCalendar,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        Column {
-                            Text(
-                                text = "ویرایش سریع و حرفه‌ای تاریخ پریود 🩸✏️",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            val lastJalaliFormatted = remember(lastPeriodDate) {
-                                runCatching {
-                                    JalaliCalendar.gregorianToJalali(java.time.LocalDate.parse(lastPeriodDate)).formatLong()
-                                }.getOrDefault(if (lastPeriodDate.isNotBlank()) lastPeriodDate else "ثبت نشده")
-                            }
-                            Text(
-                                text = "آخرین پریود: $lastJalaliFormatted • طول چرخه: $averageCycleLength روز",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondary,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(Icons.Filled.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
-                            Text("ویرایش", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Interactive Period Range Logger Card (Touch Start & End Dates)
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showInteractivePeriodDialog = true }
-                    .testTag("open_interactive_period_card"),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
@@ -296,19 +245,19 @@ fun DashboardScreen(
                             Text(
                                 text = "ثبت لمسی روزهای شروع و پایان قاعدگی",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp,
+                                fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                text = "انتخاب تعاملی تاریخ‌ها با لمس تقویم هوشمند",
-                                fontSize = 11.sp,
+                                text = "شروع و پایان را روی تقویم لمس کنید",
+                                fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                     Icon(
                         Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = "باز کردن تقویم لمسی",
+                        contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -321,15 +270,12 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Smart AI Tips Widget
+            // Smart AI Tips Widget (sends the phase only after consent)
             AITipsCard(
                 info = cycleInfo,
-                averageCycleLength = averageCycleLength.toFloat(),
-                aiDailyTip = aiDailyTip,
-                isFetchingAiTip = isFetchingAiTip,
-                onFetchTip = { phase, day, avg ->
-                    viewModel.fetchAiDailyTip(phase, day, avg)
-                }
+                averageCycleLength = predictionInfo.calculatedAverage,
+                tipState = aiTip,
+                onFetchTip = { phase, day, avg -> viewModel.fetchAiDailyTip(phase, day, avg) }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -344,20 +290,19 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Daily Physical Symptoms Card (Room Database)
             DailyPhysicalSymptomsCard(
                 todaySymptoms = todayPhysicalSymptoms,
                 onNavigateToLog = onNavigateToLog
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             PredictionNotificationCard(predictionInfo)
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
-            CycleHistoryChart(averageCycleLength = predictionInfo.calculatedAverage, modifier = Modifier.fillMaxWidth())
-            
+
+            CycleHistoryChart(cycles = completedCycles, modifier = Modifier.fillMaxWidth())
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Hormonal fluctuations across cycle phases (Vico Chart)
@@ -366,28 +311,23 @@ fun DashboardScreen(
                 averageCycleLength = predictionInfo.calculatedAverage,
                 modifier = Modifier.fillMaxWidth()
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             SmartInsightsCard(
                 cycleInfo = cycleInfo,
                 modifier = Modifier.fillMaxWidth()
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             com.example.ui.components.QuickSymptomWidget(
                 onSave = { mood, energy, sleep, pain ->
-                    val todayStr = java.time.LocalDate.now().toString()
-                    viewModel.saveQuickLog(todayStr, mood, energy, sleep, pain)
+                    viewModel.saveQuickLog(java.time.LocalDate.now().toString(), mood, energy, sleep, pain)
                 },
                 modifier = Modifier.fillMaxWidth()
             )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            FeaturesGrid(onNavigateToLog, onNavigateToCalendar, onNavigateToHealth, onNavigateToEducation, onNavigateToMood, onNavigateToChat, onNavigateToMeditation, onNavigateToReminders, onNavigateToCharts)
-            
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Advanced Health & Partner Empathy Suite
@@ -401,7 +341,27 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(28.dp))
         }
     }
-    
+
+    if (showLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirm = false },
+            title = { Text("خروج از حساب؟") },
+            text = {
+                Text(
+                    "یادآورهای چرخه و داروها تا ورود دوباره متوقف می‌شوند. سوابق ثبت‌شده روی همین گوشی باقی می‌ماند.",
+                    lineHeight = 22.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLogoutConfirm = false
+                    onLogout()
+                }) { Text("خروج", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { showLogoutConfirm = false }) { Text("انصراف") } }
+        )
+    }
+
     SettingsDialog(
         show = showSettingsDialog,
         onDismiss = { showSettingsDialog = false },
@@ -417,9 +377,9 @@ fun DashboardScreen(
         onDismiss = { showMedicalReportDialog = false },
         userName = userName,
         userWeight = userWeight,
-        averageCycleLength = averageCycleLength,
         cycleInfo = cycleInfo,
         predictionInfo = predictionInfo,
+        completedCycles = completedCycles,
         logs = logs
     )
 
@@ -438,11 +398,10 @@ fun DashboardScreen(
     PregnancyTrackerDialog(
         show = showPregnancyDialog,
         onDismiss = { showPregnancyDialog = false },
-        lastPeriodDateStr = lastPeriodDate
+        lastPeriodStart = lastPeriodStart
     )
 
     if (showInteractivePeriodDialog) {
-        val context = LocalContext.current
         AlertDialog(
             onDismissRequest = { showInteractivePeriodDialog = false },
             confirmButton = {},
@@ -460,19 +419,13 @@ fun DashboardScreen(
                     InteractivePeriodCalendarWidget(
                         recordedLogs = logs,
                         onSavePeriod = { start, end, flow, notes ->
-                            viewModel.savePeriodRange(start, end, flow, notes)
+                            val saved = viewModel.savePeriodRange(start, end, flow, notes)
                             showInteractivePeriodDialog = false
-                            val startJ = JalaliCalendar.gregorianToJalali(start).formatShort()
-                            val endJ = JalaliCalendar.gregorianToJalali(end).formatShort()
-                            Toast.makeText(
-                                context,
-                                "دوره قاعدگی از $startJ تا $endJ با موفقیت ثبت شد ✨",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            Toast.makeText(context, periodSavedMessage(saved), Toast.LENGTH_LONG).show()
                         },
                         onClearPeriod = { start, end ->
                             viewModel.clearPeriodRange(start, end)
-                            Toast.makeText(context, "بازه انتخابی پاک شد", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "روزهای خونریزی این بازه پاک شد", Toast.LENGTH_SHORT).show()
                         }
                     )
                 }
@@ -483,29 +436,119 @@ fun DashboardScreen(
     }
 
     if (showQuickCycleEditDialog) {
-        val parsedLastPeriod = runCatching { java.time.LocalDate.parse(lastPeriodDate) }.getOrNull()
-            ?: java.time.LocalDate.now().minusDays(5)
+        val editStart = lastRun?.start ?: today.minusDays(1)
         ProfessionalCycleEditDialog(
-            initialStartDate = parsedLastPeriod,
-            initialEndDate = parsedLastPeriod.plusDays(4),
-            initialCycleLength = averageCycleLength,
-            title = "ویرایش حرفه‌ای دوره قاعدگی و تنظیم چرخه 🩸",
+            showCycleLength = !predictionInfo.hasEnoughData,
+            initialStartDate = editStart,
+            initialEndDate = lastRun?.end ?: minOf(editStart.plusDays(4), today),
+            initialCycleLength = predictionInfo.calculatedAverage,
+            isExistingCycle = lastRun != null,
+            title = if (lastRun != null) "ویرایش آخرین دوره قاعدگی 🩸" else "ثبت دوره قاعدگی 🩸",
             onDismissRequest = { showQuickCycleEditDialog = false },
             onSaveCycle = { newStart, newEnd, length, flow, notes ->
-                viewModel.updateFullCycleRecord(
-                    oldRecordId = null,
-                    oldStartDate = parsedLastPeriod,
-                    oldEndDate = null,
-                    newStartDate = newStart,
-                    newEndDate = newEnd,
-                    cycleLength = length,
+                val saved = viewModel.editPeriod(
+                    oldStart = lastRun?.start,
+                    newStart = newStart,
+                    newEnd = newEnd,
                     flow = flow,
-                    notes = notes
+                    notes = notes,
+                    cycleLength = length.takeIf { !predictionInfo.hasEnoughData }
                 )
                 showQuickCycleEditDialog = false
-                val startJalali = JalaliCalendar.gregorianToJalali(newStart).formatShort()
-                Toast.makeText(context, "اطلاعات چرخه با شروع $startJalali با موفقیت ثبت گردید ✨", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, periodSavedMessage(saved), Toast.LENGTH_LONG).show()
             }
         )
+    }
+}
+
+/** Confirmation text for a saved period (the end date may have been capped at today). */
+fun periodSavedMessage(saved: Pair<java.time.LocalDate, java.time.LocalDate>?): String =
+    if (saved == null) "روزهای آینده را نمی‌توان به‌عنوان خونریزی ثبت کرد."
+    else "دوره قاعدگی از ${PersianDates.short(saved.first)} تا ${PersianDates.short(saved.second)} ثبت شد ✨"
+
+@Composable
+private fun NoPeriodDataCard(onLogPeriod: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "هنوز پریودی ثبت نشده است",
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "برای پیش‌بینی دقیق، تاریخ شروع آخرین پریود خود را ثبت کنید. تا آن زمان اعداد زیر فقط تخمین پیش‌فرض هستند.",
+                fontSize = 13.sp,
+                lineHeight = 21.sp,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(onClick = onLogPeriod) { Text("ثبت آخرین پریود") }
+        }
+    }
+}
+
+@Composable
+private fun QuickPeriodEditCard(
+    lastPeriodStart: java.time.LocalDate?,
+    calculatedAverage: Int,
+    hasRealAverage: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = "ویرایش آخرین دوره", onClick = onClick)
+            .testTag("quick_edit_cycle_button"),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f)),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.EditCalendar, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(22.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "ویرایش آخرین دوره قاعدگی",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                val lastText = lastPeriodStart?.let { PersianDates.long(it) } ?: "ثبت نشده"
+                val lengthText = PersianNumbers.toPersianDigits(calculatedAverage) + " روز" + if (hasRealAverage) "" else " (پیش‌فرض)"
+                Text(
+                    text = "آخرین پریود: $lastText • طول چرخه: $lengthText",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Surface(color = MaterialTheme.colorScheme.secondary, shape = RoundedCornerShape(12.dp)) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondary, modifier = Modifier.size(14.dp))
+                    Text("ویرایش", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondary)
+                }
+            }
+        }
     }
 }

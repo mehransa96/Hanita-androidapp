@@ -35,6 +35,8 @@ import com.example.ui.viewmodel.CycleInfo
 import com.example.ui.viewmodel.PredictionInfo
 import com.example.utils.JalaliCalendar
 import java.time.LocalDate
+import com.example.utils.PersianDates
+import com.example.utils.PersianNumbers
 
 @Composable
 fun MedicalReportDialog(
@@ -42,9 +44,9 @@ fun MedicalReportDialog(
     onDismiss: () -> Unit,
     userName: String,
     userWeight: String,
-    averageCycleLength: Int,
     cycleInfo: CycleInfo,
     predictionInfo: PredictionInfo,
+    completedCycles: List<com.example.domain.CyclePredictor.CompletedCycle>,
     logs: List<DailyLog>
 ) {
     if (!show) return
@@ -53,8 +55,9 @@ fun MedicalReportDialog(
     val clipboardManager = LocalClipboardManager.current
     val scrollState = rememberScrollState()
 
-    val todayJalali = remember { JalaliCalendar.gregorianToJalali(LocalDate.now()) }
-    val todayJalaliStr = "${todayJalali.year}/${todayJalali.month}/${todayJalali.day}"
+    val todayJalaliStr = remember { PersianDates.long(LocalDate.now()) }
+    val averageCycleLength = predictionInfo.calculatedAverage
+    val fa = { n: Int -> PersianNumbers.toPersianDigits(n) }
 
     // Analysis calculations
     val periodLogs = remember(logs) { logs.filter { it.periodFlow != "NONE" } }
@@ -90,40 +93,59 @@ fun MedicalReportDialog(
         if (waterLogs.isNotEmpty()) waterLogs.map { it.waterIntake }.average().toFloat() else null
     }
 
-    val regularityStatus = if (predictionInfo.hasEnoughData) "منظم (۹۶٪)" else "در حال محاسبه الگوی دقیق"
-    val avgPeriodDuration = if (periodLogs.isNotEmpty()) "۵ الی ۶ روز" else "۵ روز (پیش‌فرض)"
+    // Every value below is computed from the user's own logs; nothing is estimated or invented.
+    val regularityStatus = when {
+        predictionInfo.totalCyclesCalculated < 3 -> "داده کافی نیست (کمتر از ۳ چرخه)"
+        predictionInfo.isIrregular -> "نامنظم (اختلاف ${fa(predictionInfo.cycleVariationDays)} روز)"
+        else -> "منظم (اختلاف ${fa(predictionInfo.cycleVariationDays)} روز)"
+    }
+    val avgPeriodDuration = if (periodLogs.isNotEmpty()) "${fa(predictionInfo.averagePeriodLength)} روز" else "ثبت نشده"
+    val cycleLengthText = if (predictionInfo.hasEnoughData) "${fa(averageCycleLength)} روز"
+    else "${fa(averageCycleLength)} روز (اظهار کاربر)"
+    val nextPeriodText = when {
+        predictionInfo.lastPeriodStart == null -> "نامشخص"
+        else -> PersianDates.long(cycleInfo.predictedPeriodStart)
+    }
 
     // Clinical text builder for sharing with doctor
     val clinicalSummaryText = buildString {
-        appendLine("📋 **خلاصه گزارش پزشکی سلامت زنان و چرخه قاعدگی**")
-        appendLine("برنامه هوشمند هانیتا (Hanita)")
+        appendLine("خلاصه سوابق چرخه قاعدگی")
+        appendLine("تهیه‌شده با اپلیکیشن هانیتا (ثبت شخصی کاربر، نه تشخیص پزشکی)")
         appendLine("----------------------------------")
-        appendLine("👤 نام مراجع: $userName")
-        appendLine("📅 تاریخ گزارش: $todayJalaliStr")
-        if (userWeight.isNotBlank()) appendLine("⚖️ وزن فعلی ثبت شده: $userWeight کیلوگرم")
-        if (avgBbt != null) appendLine("🌡 میانگین دمای پایه بدن (BBT): ${String.format(java.util.Locale.US, "%.1f", avgBbt)} درجه")
-        if (avgWater != null) appendLine("💧 میانگین مصرف آب: ${String.format(java.util.Locale.US, "%.1f", avgWater)} لیوان در روز")
-        appendLine("⏱ میانگین طول چرخه: $averageCycleLength روز")
-        appendLine("🩸 میانگین طول دوره خونریزی: $avgPeriodDuration")
-        appendLine("📊 وضعیت نظم چرخه: $regularityStatus")
-        appendLine("🔄 چرخه بعدی پیش‌بینی‌شده: ${cycleInfo.predictedPeriodStart}")
+        appendLine("نام: $userName")
+        appendLine("تاریخ گزارش: $todayJalaliStr")
+        if (userWeight.isNotBlank()) appendLine("وزن ثبت‌شده: ${PersianNumbers.toPersianDigits(userWeight)} کیلوگرم")
+        if (avgBbt != null) appendLine("میانگین دمای پایه بدن: ${PersianNumbers.formatDecimal(avgBbt)} درجه سانتی‌گراد")
+        if (avgWater != null) appendLine("میانگین مصرف آب: ${PersianNumbers.formatDecimal(avgWater)} لیوان در روز")
+        predictionInfo.lastPeriodStart?.let { appendLine("شروع آخرین پریود: ${PersianDates.long(it)}") }
+        appendLine("میانگین طول چرخه: $cycleLengthText")
+        appendLine("میانگین طول خونریزی: $avgPeriodDuration")
+        appendLine("نظم چرخه: $regularityStatus")
+        if (cycleInfo.isLate) appendLine("وضعیت فعلی: ${fa(cycleInfo.daysLate)} روز تأخیر")
+        appendLine("پریود بعدی (تخمین): $nextPeriodText")
+        if (completedCycles.isNotEmpty()) {
+            appendLine("----------------------------------")
+            appendLine("چرخه‌های اخیر (شروع / طول چرخه / روزهای خونریزی):")
+            completedCycles.takeLast(6).reversed().forEach {
+                appendLine(" • ${PersianDates.long(it.start)} / ${fa(it.lengthDays)} روز / ${fa(it.periodDays)} روز")
+            }
+        }
         if (symptomFrequency.isNotEmpty()) {
             appendLine("----------------------------------")
             appendLine("🩺 شایع‌ترین علائم ثبت شده:")
             for (item in symptomFrequency.take(4)) {
-                appendLine(" • ${item.first} (${item.second} مرتبه)")
+                appendLine(" • ${item.first} (${fa(item.second)} روز)")
             }
         }
         if (moodFrequency.isNotEmpty()) {
             appendLine("----------------------------------")
             appendLine("🧠 وضعیت‌های خلقی مکرر:")
             for (item in moodFrequency.take(3)) {
-                appendLine(" • ${item.first} (${item.second} مرتبه)")
+                appendLine(" • ${item.first} (${fa(item.second)} روز)")
             }
         }
         appendLine("----------------------------------")
-        appendLine("تعداد روزهای پایش شده: $loggedDaysCount روز")
-        appendLine("تولید شده توسط دستیار سلامت هانیتا")
+        appendLine("تعداد روزهای ثبت‌شده: ${fa(loggedDaysCount)} روز")
     }
 
     val shareReport = {
@@ -239,7 +261,7 @@ fun MedicalReportDialog(
                                     contentColor = Color.White
                                 ) {
                                     Text(
-                                        text = "$userWeight kg",
+                                        text = "${PersianNumbers.toPersianDigits(userWeight)} کیلوگرم",
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
@@ -257,7 +279,7 @@ fun MedicalReportDialog(
                     ) {
                         ClinicalMetricCard(
                             title = "میانگین طول چرخه",
-                            value = "$averageCycleLength روز",
+                            value = cycleLengthText,
                             subtitle = "محدوده نرمال: ۲۱-۳۵",
                             modifier = Modifier.weight(1f),
                             accentColor = MaterialTheme.colorScheme.primary
@@ -285,11 +307,12 @@ fun MedicalReportDialog(
                         ClinicalMetricCard(
                             title = "چرخه بعدی",
                             value = when {
-                                cycleInfo.isLate -> "${cycleInfo.daysLate} روز تأخیر"
+                                predictionInfo.lastPeriodStart == null -> "نامشخص"
+                                cycleInfo.isLate -> "${fa(cycleInfo.daysLate)} روز تأخیر"
                                 cycleInfo.daysUntilNextPeriod == 0 -> "امروز"
-                                else -> "${cycleInfo.daysUntilNextPeriod} روز دیگر"
+                                else -> "${fa(cycleInfo.daysUntilNextPeriod)} روز دیگر"
                             },
-                            subtitle = JalaliCalendar.gregorianToJalali(cycleInfo.predictedPeriodStart).formatLong(),
+                            subtitle = nextPeriodText,
                             modifier = Modifier.weight(1f),
                             accentColor = Color(0xFFA855F7)
                         )
@@ -327,7 +350,7 @@ fun MedicalReportDialog(
                                 ) {
                                     Text(text = "• ${item.first}", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                     Text(
-                                        text = "${item.second} بار گزارش شده",
+                                        text = "${PersianNumbers.toPersianDigits(item.second)} روز",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary
@@ -355,7 +378,7 @@ fun MedicalReportDialog(
                                 ) {
                                     Text(text = "• ${item.first}", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                     Text(
-                                        text = "${item.second} روز",
+                                        text = "${PersianNumbers.toPersianDigits(item.second)} روز",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF6366F1)

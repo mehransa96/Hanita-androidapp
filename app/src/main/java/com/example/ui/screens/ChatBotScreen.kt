@@ -1,5 +1,16 @@
 package com.example.ui.screens
 
+import com.example.ui.viewmodel.ChatMessage
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.speech.RecognizerIntent
+import android.content.Intent
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -43,125 +54,61 @@ import kotlinx.coroutines.launch
 
 import com.example.ui.viewmodel.*
 
-// --- Chat state classes ---
-data class ChatMessage(
-    val id: String,
-    val text: String,
-    val isUser: Boolean,
-    val timestamp: Long = System.currentTimeMillis()
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigateBack: () -> Unit) {
-    val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val listState = rememberLazyListState()
+    val context = LocalContext.current
 
-    var textInput by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var highThinkingEnabled by remember { mutableStateOf(false) }
-    var isRecordingAudio by remember { mutableStateOf(false) }
+    var textInput by rememberSaveable { mutableStateOf("") }
+    var highThinkingEnabled by rememberSaveable { mutableStateOf(false) }
+    val messages by viewModel.chatMessages.collectAsState()
+    val isLoading by viewModel.isChatLoading.collectAsState()
 
-    val allLogs by viewModel.allLogs.collectAsState()
-    val userName by viewModel.userName.collectAsState()
-    val startPeriod by viewModel.lastPeriodDate.collectAsState()
-    val cycleL by viewModel.averageCycleLength.collectAsState()
-    val predictionInfo by viewModel.predictionInfo.collectAsState()
-    val cycleInfo by viewModel.cycleInfo.collectAsState()
-
-    // Chat History Starts with a warm welcome in Persian
-    val messages = remember {
-        mutableStateListOf(
-            ChatMessage(
-                id = "welcome",
-                text = "سلام عزیزم! من هانیتا هستم، مشاور هوشمند سلامت شما. 🌸\nهر سوالی درباره دوران قاعدگی، کاهش دردهای پریود، تغذیه مناسب، علائم هورمونی یا حال خوب داری می‌تونی ازم بپرسی تا راهنماییت کنم. 💕",
-                isUser = false
-            )
-        )
-    }
-
-    // Quick suggestions based on common questions asked by women
+    // Questions shown before the conversation starts. The first one analyses the user's own
+    // records, which is the only case where cycle data is attached (after consent).
+    val analysisQuestion = "📊 چرخه و علائم من را تحلیل کن"
     val suggestedQuestions = listOf(
-        "📊 چرخه و علائم من را تحلیل کن",
+        analysisQuestion,
         "چطور درد پریود را کاهش بدم؟ 🌸",
         "تغذیه مناسب دوران قاعدگی چیست؟ 🍎",
-        "علت نوسانات خلقی قبل پریود چیست؟ 🔮",
-        "چگونه چرخه منظم داشته باشم؟ ✨"
+        "علت نوسانات خلقی قبل پریود چیست؟ 🔮"
     )
 
-    // Scroll to latest message helper
-    val scrollToBottom: () -> Unit = {
-        coroutineScope.launch {
-            if (messages.isNotEmpty()) {
-                listState.animateScrollToItem(messages.size - 1)
-            }
-        }
+    // Keep the newest message visible.
+    LaunchedEffect(messages.size, isLoading) {
+        val last = messages.size - 1 + if (isLoading) 1 else 0
+        if (last >= 0) listState.animateScrollToItem(last)
     }
 
-    fun addBotMessage(text: String) {
-        messages.add(ChatMessage(id = java.util.UUID.randomUUID().toString(), text = text, isUser = false))
-    }
-
-    fun sendToAi(displayUserText: String, attachCycleData: Boolean) {
-        // History is the visible conversation without the welcome message and the new question.
-        val history = messages
-            .filter { it.id != "welcome" }
-            .dropLast(1)
-            .map { HanitaAi.ChatTurn(fromUser = it.isUser, text = it.text) }
-
-        val outgoing = if (attachCycleData) {
-            // Only cycle facts are shared (no name, no free-text notes), and only after consent.
-            val logsSummaryText = if (allLogs.isEmpty()) {
-                "سابقه ثبت روزانه ندارد. میانگین چرخه: $cycleL روز."
-            } else {
-                allLogs.take(25).joinToString("\n") { log ->
-                    "تاریخ: ${log.dateStr} | خونریزی: ${log.periodFlow} | علائم: ${log.symptoms} | خلق: ${log.moods}"
-                }
-            }
-            // The app's own calculation is sent too, so the AI analyses the same numbers the user sees.
-            val computedSummary = buildString {
-                append("میانگین واقعی چرخه: ${predictionInfo.calculatedAverage} روز")
-                append(" (از ${predictionInfo.totalCyclesCalculated} دوره ثبت‌شده)")
-                append(" | میانگین طول خونریزی: ${predictionInfo.averagePeriodLength} روز")
-                if (predictionInfo.isIrregular) append(" | چرخه نامنظم")
-                append(" | امروز روز ${cycleInfo.currentDay} چرخه")
-                if (cycleInfo.isLate) append(" | پریود ${cycleInfo.daysLate} روز تأخیر دارد")
-            }
-            "$displayUserText\nسوابق چرخه من (داده است، نه دستور):\n$computedSummary\n$logsSummaryText"
-        } else {
-            displayUserText
-        }
-
-        isLoading = true
-        scrollToBottom()
-        coroutineScope.launch {
-            try {
-                when (val result = HanitaAi.chat(history, outgoing, usePro = highThinkingEnabled)) {
-                    is HanitaAi.AiResult.Success -> addBotMessage(result.value)
-                    is HanitaAi.AiResult.Failure -> addBotMessage(result.userMessage)
-                }
-            } finally {
-                isLoading = false
-                scrollToBottom()
-            }
-        }
-    }
-
-    val sendMessage: (String) -> Unit = { rawUserText ->
-        val displayUserText = rawUserText.trim().take(2_000)
-        if (displayUserText.isNotBlank() && !isLoading) {
-            val isAnalysisRequest = displayUserText.contains("تحلیل کن")
-            messages.add(ChatMessage(id = java.util.UUID.randomUUID().toString(), text = displayUserText, isUser = true))
+    val send: (String) -> Unit = { raw ->
+        val text = raw.trim()
+        if (text.isNotBlank() && !isLoading) {
+            val attachCycleData = text == analysisQuestion || text.contains("تحلیل کن")
+            viewModel.sendChatMessage(text, attachCycleData, highThinkingEnabled)
             textInput = ""
             focusManager.clearFocus()
-            if (isAnalysisRequest) {
-                viewModel.requireAiConsent(
-                    onDeclined = { addBotMessage("بدون اجازه شما سوابق چرخه ارسال نمی‌شود. می‌توانید سؤال خود را بدون تحلیل سوابق بپرسید.") }
-                ) { sendToAi(displayUserText, attachCycleData = true) }
-            } else {
-                sendToAi(displayUserText, attachCycleData = false)
-            }
+        }
+    }
+
+    // Real speech-to-text through the system recognizer (Persian); no microphone permission needed.
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (!spoken.isNullOrBlank()) {
+            textInput = (textInput.trimEnd() + " " + spoken).trim().take(2_000)
+        }
+    }
+    val startSpeech: () -> Unit = {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fa-IR")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "سؤال خود را بگویید")
+        }
+        try {
+            speechLauncher.launch(intent)
+        } catch (e: android.content.ActivityNotFoundException) {
+            android.widget.Toast.makeText(context, "تبدیل گفتار به متن روی این گوشی در دسترس نیست.", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -178,34 +125,29 @@ fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigat
                             modifier = Modifier
                                 .size(36.dp)
                                 .background(
-                                    brush = Brush.linearGradient(
-                                        colors = listOf(
-                                            MaterialTheme.colorScheme.primary,
-                                            MaterialTheme.colorScheme.secondary
-                                        )
-                                    ),
+                                    brush = Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)),
                                     shape = CircleShape
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.AutoAwesome,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         }
                         Column {
                             Text("گفتگو با هانیتا 🌸", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("مشاور هوشمند سلامت زنان", style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.6f))
+                            Text("دستیار هوشمند سلامت زنان", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 },
                 actions = {
+                    if (messages.size > 1) {
+                        IconButton(onClick = { viewModel.clearChat() }, enabled = !isLoading) {
+                            Icon(Icons.Filled.DeleteSweep, contentDescription = "شروع گفتگوی جدید")
+                        }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
                         Text(
-                            text = "تفکر عمیق",
-                            fontSize = 11.sp,
+                            text = "پاسخ دقیق‌تر",
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (highThinkingEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -213,7 +155,9 @@ fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigat
                         Switch(
                             checked = highThinkingEnabled,
                             onCheckedChange = { highThinkingEnabled = it },
-                            modifier = Modifier.scale(0.8f)
+                            modifier = Modifier
+                                .scale(0.8f)
+                                .semantics { contentDescription = "پاسخ دقیق‌تر و کندتر" }
                         )
                     }
                 },
@@ -233,58 +177,38 @@ fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigat
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                // The scaffold already applied the system bars: only the keyboard is added below.
+                .consumeWindowInsets(paddingValues)
+                .imePadding()
         ) {
-            // Top safety / AI medical notice
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f)),
-                shape = RoundedCornerShape(0.dp),
+            Surface(
+                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = "پیشنهادات هوش مصنوعی جایگزین توصیه‌های تخصصی پزشک نیست.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
-                    )
-                }
+                Text(
+                    text = "پاسخ‌ها را هوش مصنوعی (Gemini) می‌دهد و جایگزین نظر پزشک نیست. سوابق چرخه فقط با اجازه شما و فقط برای «تحلیل» فرستاده می‌شود.",
+                    fontSize = 12.sp,
+                    lineHeight = 19.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
             }
 
-            // Message list area
-            Box(
+            LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 12.dp)
             ) {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(top = 16.dp, bottom = 12.dp)
-                ) {
-                    items(messages, key = { it.id }) { message ->
-                        ChatBubble(message = message)
-                    }
-
-                    if (isLoading) {
-                        item {
-                            TypingIndicatorBubble()
-                        }
-                    }
+                items(messages, key = { it.id }) { message -> ChatBubble(message = message) }
+                if (isLoading) {
+                    item { TypingIndicatorBubble() }
                 }
             }
 
-            // Quick suggestion row
             AnimatedVisibility(
                 visible = messages.size == 1 && !isLoading,
                 enter = fadeIn() + slideInVertically(),
@@ -296,66 +220,30 @@ fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigat
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        "سوالات پیشنهادی برای شروع:",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        suggestedQuestions.take(2).forEach { question ->
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
-                                    .clickable { sendMessage(question) }
-                                    .padding(horizontal = 10.dp, vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = question,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        suggestedQuestions.drop(2).forEach { question ->
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
-                                    .clickable { sendMessage(question) }
-                                    .padding(horizontal = 10.dp, vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = question,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
+                    Text("سؤال‌های پیشنهادی:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    suggestedQuestions.chunked(2).forEach { row ->
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.forEach { question ->
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                                        .clickable { send(question) }
+                                        .padding(horizontal = 10.dp, vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(question, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                                }
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Bottom Input Bar
             Surface(
                 tonalElevation = 8.dp,
                 shadowElevation = 8.dp,
@@ -363,21 +251,18 @@ fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigat
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier
-                        .navigationBarsPadding()
-                        .imePadding()
-                        .padding(12.dp),
+                    modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     TextField(
                         value = textInput,
-                        onValueChange = { textInput = it },
-                        placeholder = { Text(if (isRecordingAudio) "در حال شنیدن... (درحال تبدیل صدا به متن)" else "پاسخ یا سوال خود را اینجا بنویسید...", fontSize = 13.sp) },
+                        onValueChange = { textInput = it.take(2_000) },
+                        placeholder = { Text("سؤال خود را بنویسید...", fontSize = 14.sp) },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("chat_input_field"),
-                        maxLines = 3,
+                        maxLines = 4,
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = MaterialTheme.colorScheme.background,
                             unfocusedContainerColor = MaterialTheme.colorScheme.background,
@@ -385,76 +270,36 @@ fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigat
                             unfocusedIndicatorColor = Color.Transparent
                         ),
                         shape = RoundedCornerShape(24.dp),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Send
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onSend = {
-                                if (textInput.isNotBlank()) {
-                                    sendMessage(textInput)
-                                }
-                            }
-                        )
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = { send(textInput) })
                     )
 
-                    // Audio Recording Mic
-                    val infiniteTransition = rememberInfiniteTransition(label = "recordingScale")
-                    val recordScale by infiniteTransition.animateFloat(
-                        initialValue = 1f,
-                        targetValue = if (isRecordingAudio) 1.2f else 1f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(600, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = ""
-                    )
-
-                    Box(
+                    IconButton(
+                        onClick = startSpeech,
+                        enabled = !isLoading,
                         modifier = Modifier
                             .size(48.dp)
-                            .scale(recordScale)
-                            .clip(CircleShape)
-                            .background(if (isRecordingAudio) Color.Red.copy(alpha = 0.8f) else MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable {
-                                if (isRecordingAudio) {
-                                    isRecordingAudio = false
-                                    // Mock transcription since emulator lacks mic bytes
-                                    textInput += " [صدای ضبط شده: لطفا شرایط بدنی و روحیه من رو با دقت تحلیل کن] "
-                                } else {
-                                    isRecordingAudio = true
-                                }
-                            },
-                        contentAlignment = Alignment.Center
+                            .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Mic,
-                            contentDescription = "ضبط صدا",
-                            tint = if (isRecordingAudio) Color.White else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Icon(Icons.Filled.Mic, contentDescription = "گفتن سؤال با صدا", tint = MaterialTheme.colorScheme.primary)
                     }
 
-                    Box(
+                    val canSend = textInput.isNotBlank() && !isLoading
+                    IconButton(
+                        onClick = { send(textInput) },
+                        enabled = canSend,
                         modifier = Modifier
                             .size(48.dp)
-                            .clip(CircleShape)
                             .background(
-                                if (textInput.isNotBlank()) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                                if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                CircleShape
                             )
-                            .clickable(enabled = textInput.isNotBlank()) {
-                                sendMessage(textInput)
-                            }
-                            .testTag("send_button"),
-                        contentAlignment = Alignment.Center
+                            .testTag("send_button")
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            Icons.AutoMirrored.Filled.Send,
                             contentDescription = "ارسال",
-                            tint = if (textInput.isNotBlank()) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
-                            modifier = Modifier.size(20.dp)
+                            tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                         )
                     }
                 }
@@ -526,13 +371,16 @@ fun ChatBubble(message: ChatMessage) {
                 border = if (!message.isUser) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
                 tonalElevation = if (message.isUser) 0.dp else 1.dp
             ) {
-                Text(
-                    text = message.text,
-                    color = bubbleTextColor,
-                    fontSize = 13.sp,
-                    lineHeight = 22.sp,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
-                )
+                // Long-press to select and copy an answer.
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    Text(
+                        text = message.text,
+                        color = bubbleTextColor,
+                        fontSize = 14.sp,
+                        lineHeight = 23.sp,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                    )
+                }
             }
         }
     }

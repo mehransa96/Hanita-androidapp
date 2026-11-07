@@ -1,5 +1,11 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Remove
+import com.example.utils.PersianDates
+import com.example.utils.PersianNumbers
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -57,19 +63,18 @@ fun LogScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Date management
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var selectedDate by rememberSaveable { mutableStateOf(LocalDate.now()) }
     val selectedDateStr = selectedDate.toString()
-    val jalaliSelected = remember(selectedDate) { JalaliCalendar.gregorianToJalali(selectedDate) }
+    val today = LocalDate.now()
 
-    // Collect saved Room data for selected date
-    val savedRoomSymptoms by viewModel.getPhysicalSymptomsForDate(selectedDateStr).collectAsState(initial = emptyList())
-    val allLogs by viewModel.allLogs.collectAsState()
-    val existingDailyLog = remember(allLogs, selectedDateStr) { allLogs.find { it.dateStr == selectedDateStr } }
+    // Saved symptoms of the selected date (the flow is created once per date, not per recomposition).
+    val savedRoomSymptoms by remember(selectedDateStr) { viewModel.getPhysicalSymptomsForDate(selectedDateStr) }
+        .collectAsState(initial = emptyList())
 
     // Form inputs
     val activeSymptoms = remember { mutableStateMapOf<String, String>() } // Symptom name -> Severity ("MILD", "MODERATE", "SEVERE")
     val symptomCategories = remember { mutableStateMapOf<String, String>() } // Symptom name -> Category
-    var overallPainScore by remember { mutableStateOf(1f) }
+    var overallPainScore by remember { mutableFloatStateOf(0f) }
     var selectedFlow by remember { mutableStateOf("NONE") }
     val moods = remember { mutableStateListOf<String>() }
     var notes by remember { mutableStateOf("") }
@@ -77,47 +82,76 @@ fun LogScreen(
     var waterIntake by remember { mutableIntStateOf(0) }
     var bbtInput by remember { mutableStateOf("") }
     var weightInput by remember { mutableStateOf("") }
+    var isLoaded by remember { mutableStateOf(false) }
+    var loadedSnapshot by remember { mutableStateOf("") }
+    var pendingLeave by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val bbtValue = PersianNumbers.parseDecimal(bbtInput, 34f..43f)
+    val weightValue = PersianNumbers.parseDecimal(weightInput, 25f..250f)
+    val bbtError = bbtInput.isNotBlank() && bbtValue == null
+    val weightError = weightInput.isNotBlank() && weightValue == null
 
     // Custom symptoms from preferences
     val customPhysical by viewModel.customPhysicalSymptoms.collectAsState()
     val customMood by viewModel.customMoodSymptoms.collectAsState()
+    val periodRuns by viewModel.periodRuns.collectAsState()
     var showAddPhysicalDialog by remember { mutableStateOf(false) }
     var showAddMoodDialog by remember { mutableStateOf(false) }
     var showCycleEditDialogInLog by remember { mutableStateOf(false) }
 
-    // Synchronize UI form when date or saved room data changes
-    var lastLoadedDate by remember { mutableStateOf("") }
-    LaunchedEffect(selectedDateStr, savedRoomSymptoms, existingDailyLog) {
-        if (lastLoadedDate != selectedDateStr) {
-            lastLoadedDate = selectedDateStr
-            activeSymptoms.clear()
-            symptomCategories.clear()
+    fun formSnapshot(): String = listOf(
+        activeSymptoms.toSortedMap().toString(), selectedFlow, moods.toList().toString(), notes.trim(),
+        selectedEmoji, waterIntake.toString(), bbtInput.trim(), weightInput.trim(), overallPainScore.toInt().toString()
+    ).joinToString("|")
 
-            if (savedRoomSymptoms.isNotEmpty()) {
-                savedRoomSymptoms.forEach { s ->
-                    activeSymptoms[s.symptomName] = s.severity
-                    symptomCategories[s.symptomName] = s.category
-                }
-            } else if (existingDailyLog != null && existingDailyLog.symptoms.isNotBlank()) {
-                // Fallback to symptoms string from DailyLog if any
-                existingDailyLog.symptoms.split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach { sym ->
-                    activeSymptoms[sym] = "MODERATE"
-                    symptomCategories[sym] = "عمومی"
-                }
+    // Loads the form once per date, from what is stored for that date (one-shot read, so the form
+    // is never locked before the database has answered).
+    LaunchedEffect(selectedDateStr) {
+        isLoaded = false
+        val (log, symptoms) = viewModel.loadDay(selectedDateStr)
+        activeSymptoms.clear()
+        symptomCategories.clear()
+        if (symptoms.isNotEmpty()) {
+            symptoms.forEach { s ->
+                activeSymptoms[s.symptomName] = s.severity
+                symptomCategories[s.symptomName] = s.category
             }
-
-            // Sync flow, moods, notes, emoji
-            selectedFlow = existingDailyLog?.periodFlow ?: "NONE"
-            notes = existingDailyLog?.notes ?: ""
-            selectedEmoji = existingDailyLog?.emoji ?: ""
-            waterIntake = existingDailyLog?.waterIntake ?: 0
-            bbtInput = existingDailyLog?.bbt?.let { if (it > 0f) it.toString() else "" } ?: ""
-            weightInput = existingDailyLog?.weight?.let { if (it > 0f) it.toString() else "" } ?: ""
-            moods.clear()
-            existingDailyLog?.moods?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }?.let {
-                moods.addAll(it)
+        } else {
+            log?.symptoms?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }?.forEach { sym ->
+                activeSymptoms[sym] = "MODERATE"
+                symptomCategories[sym] = "عمومی"
             }
         }
+        selectedFlow = log?.periodFlow ?: "NONE"
+        notes = log?.notes ?: ""
+        selectedEmoji = log?.emoji ?: ""
+        waterIntake = log?.waterIntake ?: 0
+        overallPainScore = (log?.painLevel ?: 0).toFloat()
+        bbtInput = log?.bbt?.takeIf { it > 0f }?.let { PersianNumbers.formatDecimal(it) } ?: ""
+        weightInput = log?.weight?.takeIf { it > 0f }?.let { PersianNumbers.formatDecimal(it) } ?: ""
+        moods.clear()
+        log?.moods?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }?.let { moods.addAll(it) }
+        isLoaded = true
+        loadedSnapshot = formSnapshot()
+    }
+
+    // Leaving the screen or switching the date with unsaved edits asks first.
+    val isDirty = isLoaded && formSnapshot() != loadedSnapshot
+    val guarded: (() -> Unit) -> Unit = { action -> if (isDirty) pendingLeave = action else action() }
+    BackHandler(enabled = isDirty) { pendingLeave = onBack }
+    pendingLeave?.let { action ->
+        AlertDialog(
+            onDismissRequest = { pendingLeave = null },
+            title = { Text("تغییرات ذخیره نشده") },
+            text = { Text("تغییرات این روز هنوز ذخیره نشده است. بدون ذخیره ادامه می‌دهید؟") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingLeave = null
+                    action()
+                }) { Text("بدون ذخیره", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { pendingLeave = null }) { Text("ادامه ویرایش") } }
+        )
     }
 
     Scaffold(
@@ -127,19 +161,19 @@ fun LogScreen(
                 title = {
                     Column {
                         Text(
-                            text = "ثبت روزانه علائم جسمانی",
+                            text = "ثبت روزانه",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "${jalaliSelected.formatLong()}",
+                            text = PersianDates.long(selectedDate),
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f)
                         )
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { guarded(onBack) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "بازگشت")
                     }
                 },
@@ -189,22 +223,15 @@ fun LogScreen(
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "ثبت علائم جسمی در دیتابیس محلی (Room)",
+                            text = "علائم، خونریزی و حال امروز",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
                         Spacer(modifier = Modifier.height(3.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.Storage,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (savedRoomSymptoms.isEmpty()) "هیچ علامتی برای این تاریخ ثبت نشده" else "${savedRoomSymptoms.size} علامت ذخیره شده در Room",
+                                text = if (savedRoomSymptoms.isEmpty()) "هنوز علامتی برای این تاریخ ثبت نشده" else "${PersianNumbers.toPersianDigits(savedRoomSymptoms.size)} علامت برای این تاریخ ثبت شده",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium
@@ -219,9 +246,9 @@ fun LogScreen(
             // Quick Date Switcher
             DateSelectorRow(
                 selectedDate = selectedDate,
-                onSelectDate = {
+                onSelectDate = { date ->
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    selectedDate = it
+                    if (date != selectedDate) guarded { selectedDate = date }
                 }
             )
 
@@ -361,6 +388,12 @@ fun LogScreen(
                 items = combinedGeneral,
                 activeSymptoms = activeSymptoms,
                 symptomCategories = symptomCategories,
+                removableItems = customPhysical.toSet(),
+                onRemoveItem = { item ->
+                    viewModel.removeCustomPhysicalSymptom(item)
+                    activeSymptoms.remove(item)
+                    symptomCategories.remove(item)
+                },
                 onAddCustom = { showAddPhysicalDialog = true },
                 onToggle = { sym, cat, isSel ->
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -394,16 +427,17 @@ fun LogScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "میزان کلی درد و ناراحتی جسمانی",
+                            text = "میزان کلی درد و ناراحتی",
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "${overallPainScore.toInt()} از ۱۰",
+                            text = if (overallPainScore < 1f) "ثبت نشده" else "${PersianNumbers.toPersianDigits(overallPainScore.toInt())} از ۱۰",
                             fontWeight = FontWeight.Black,
                             fontSize = 15.sp,
                             color = when {
+                                overallPainScore < 1f -> MaterialTheme.colorScheme.onSurfaceVariant
                                 overallPainScore <= 3 -> Color(0xFF10B981)
                                 overallPainScore <= 6 -> Color(0xFFF59E0B)
                                 else -> Color(0xFFEF4444)
@@ -417,8 +451,8 @@ fun LogScreen(
                             overallPainScore = it
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         },
-                        valueRange = 1f..10f,
-                        steps = 8,
+                        valueRange = 0f..10f,
+                        steps = 9,
                         colors = SliderDefaults.colors(
                             thumbColor = MaterialTheme.colorScheme.primary,
                             activeTrackColor = MaterialTheme.colorScheme.primary
@@ -428,7 +462,7 @@ fun LogScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("آرام و بی‌درد (۱)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("بدون ثبت (۰)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("متوسط (۵)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("شدید (۱۰)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -451,17 +485,22 @@ fun LogScreen(
             ) {
                 Icon(Icons.Filled.EditCalendar, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("ویرایش تاریخ و بازه کامل پریود برای این ماه 🩸", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("ثبت یا ویرایش کل بازه پریود 🩸", fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             // Mood & Mood Emojis
             SectionTitle("وضعیت روحی")
-            val combinedMood = (listOf("آرامش", "اضطراب", "افسردگی", "استرس", "پرانرژی", "حساس و تحریک‌پذیر") + customMood).distinct()
+            val combinedMood = (listOf("آرامش", "پرانرژی", "خواب‌آلود", "اضطراب", "استرس", "افسردگی", "حساس و تحریک‌پذیر") + customMood + moods).distinct()
             ChipGroup(
                 items = combinedMood,
                 selectedItems = moods,
+                removableItems = customMood.toSet(),
+                onRemoveItem = { item ->
+                    viewModel.removeCustomMoodSymptom(item)
+                    moods.remove(item)
+                },
                 onAddClick = { showAddMoodDialog = true }
             ) { item, isSelected ->
                 if (isSelected) moods.add(item) else moods.remove(item)
@@ -506,15 +545,16 @@ fun LogScreen(
             ) {
                 IconButton(
                     onClick = { if (waterIntake > 0) waterIntake-- },
+                    enabled = waterIntake > 0,
                     modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
                 ) {
-                    Text("-", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Filled.Remove, contentDescription = "یک لیوان کمتر", tint = MaterialTheme.colorScheme.primary)
                 }
                 Spacer(modifier = Modifier.width(20.dp))
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Filled.Opacity, contentDescription = null, tint = Color(0xFF0EA5E9), modifier = Modifier.size(32.dp))
                     Text(
-                        text = "$waterIntake لیوان",
+                        text = "${PersianNumbers.toPersianDigits(waterIntake)} لیوان",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
@@ -522,10 +562,11 @@ fun LogScreen(
                 }
                 Spacer(modifier = Modifier.width(20.dp))
                 IconButton(
-                    onClick = { waterIntake++ },
+                    onClick = { if (waterIntake < 16) waterIntake++ },
+                    enabled = waterIntake < 16,
                     modifier = Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape)
                 ) {
-                    Text("+", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Filled.Add, contentDescription = "یک لیوان بیشتر", tint = MaterialTheme.colorScheme.primary)
                 }
             }
 
@@ -537,11 +578,14 @@ fun LogScreen(
                     SectionTitle("وزن (کیلوگرم)")
                     OutlinedTextField(
                         value = weightInput,
-                        onValueChange = { weightInput = it },
+                        onValueChange = { weightInput = it.take(6) },
                         modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                        singleLine = true,
+                        isError = weightError,
+                        supportingText = if (weightError) { { Text("بین ۲۵ تا ۲۵۰") } } else null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
                         shape = RoundedCornerShape(16.dp),
-                        placeholder = { Text("مثلاً 65.5", fontSize = 13.sp) },
+                        placeholder = { Text("مثلاً ۶۵٫۵", fontSize = 13.sp) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
                             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
@@ -552,11 +596,14 @@ fun LogScreen(
                     SectionTitle("دمای پایه بدن (°C)")
                     OutlinedTextField(
                         value = bbtInput,
-                        onValueChange = { bbtInput = it },
+                        onValueChange = { bbtInput = it.take(5) },
                         modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        singleLine = true,
+                        isError = bbtError,
+                        supportingText = if (bbtError) { { Text("بین ۳۴ تا ۴۳") } } else null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
                         shape = RoundedCornerShape(16.dp),
-                        placeholder = { Text("مثلاً 36.5", fontSize = 13.sp) },
+                        placeholder = { Text("مثلاً ۳۶٫۵", fontSize = 13.sp) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
                             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
@@ -571,7 +618,7 @@ fun LogScreen(
             SectionTitle("یادداشت روزانه و شرح حال")
             OutlinedTextField(
                 value = notes,
-                onValueChange = { notes = it },
+                onValueChange = { notes = it.take(2000) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(110.dp),
@@ -591,8 +638,9 @@ fun LogScreen(
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            // Save to Room Button
+            // Save button
             Button(
+                enabled = isLoaded && !bbtError && !weightError,
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
@@ -614,23 +662,25 @@ fun LogScreen(
                         )
                     }
 
-                    // Save in Room database via ViewModel
-                    viewModel.savePhysicalSymptomForm(
+                    // The form is the full truth for this day: cleared fields are cleared in storage too.
+                    viewModel.saveDayLog(
                         dateStr = selectedDateStr,
                         symptoms = symptomsToSave,
                         flow = selectedFlow,
-                        moods = moods,
-                        overallNotes = notes,
+                        moods = moods.toList(),
+                        notes = notes,
                         emoji = selectedEmoji,
-                        waterIntake = waterIntake,
-                        bbt = bbtInput.toFloatOrNull(),
-                        weight = weightInput.toFloatOrNull()
+                        vitals = MahitaViewModel.DayVitals(
+                            waterIntake = waterIntake,
+                            bbt = bbtValue,
+                            weight = weightValue,
+                            painLevel = overallPainScore.toInt()
+                        )
                     )
 
+                    loadedSnapshot = formSnapshot()
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar(
-                            message = "علائم جسمانی با موفقیت در دیتابیس محلی (Room) ذخیره شد ✨"
-                        )
+                        snackbarHostState.showSnackbar("ثبت ${PersianDates.short(selectedDate)} ذخیره شد ✨")
                     }
                 },
                 modifier = Modifier
@@ -642,8 +692,8 @@ fun LogScreen(
                 Icon(Icons.Filled.Check, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "ذخیره در دیتابیس محلی (Room)",
-                    color = Color.White,
+                    text = "ذخیره",
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -664,13 +714,13 @@ fun LogScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "سوابق ثبت شده در دیتابیس Room برای این تاریخ",
+                            text = "علائم ذخیره‌شده این تاریخ",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "${savedRoomSymptoms.size} مورد",
+                            text = "${PersianNumbers.toPersianDigits(savedRoomSymptoms.size)} مورد",
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.primary
@@ -680,7 +730,7 @@ fun LogScreen(
 
                     if (savedRoomSymptoms.isEmpty()) {
                         Text(
-                            text = "هنوز علامتی برای این تاریخ در پایگاه داده ذخیره نشده است.",
+                            text = "هنوز علامتی برای این تاریخ ذخیره نشده است.",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             modifier = Modifier.padding(vertical = 6.dp)
@@ -738,9 +788,10 @@ fun LogScreen(
                 title = "افزودن علامت جسمی جدید",
                 onDismiss = { showAddPhysicalDialog = false },
                 onAdd = { newSymptom ->
-                    viewModel.addCustomPhysicalSymptom(newSymptom)
-                    activeSymptoms[newSymptom] = "MODERATE"
-                    symptomCategories[newSymptom] = "علائم سفارشی"
+                    viewModel.addCustomPhysicalSymptom(newSymptom)?.let { clean ->
+                        activeSymptoms[clean] = "MODERATE"
+                        symptomCategories[clean] = "علائم سفارشی"
+                    }
                     showAddPhysicalDialog = false
                 }
             )
@@ -751,36 +802,37 @@ fun LogScreen(
                 title = "افزودن وضعیت روحی جدید",
                 onDismiss = { showAddMoodDialog = false },
                 onAdd = { newMood ->
-                    viewModel.addCustomMoodSymptom(newMood)
-                    moods.add(newMood)
+                    viewModel.addCustomMoodSymptom(newMood)?.let { clean -> if (clean !in moods) moods.add(clean) }
                     showAddMoodDialog = false
                 }
             )
         }
 
         if (showCycleEditDialogInLog) {
+            // Editing the period that contains the selected day, or starting a new one there.
+            val existingRun = periodRuns.firstOrNull { it.contains(selectedDate) }
             ProfessionalCycleEditDialog(
-                initialStartDate = selectedDate,
-                initialEndDate = selectedDate.plusDays(4),
-                title = "ویرایش و ثبت دوره قاعدگی 🩸",
+                showCycleLength = false,
+                initialStartDate = existingRun?.start ?: selectedDate,
+                initialEndDate = existingRun?.end ?: minOf(selectedDate.plusDays(4), today),
+                isExistingCycle = existingRun != null,
+                title = if (existingRun != null) "ویرایش دوره قاعدگی 🩸" else "ثبت دوره قاعدگی 🩸",
                 onDismissRequest = { showCycleEditDialogInLog = false },
-                onSaveCycle = { newStart, newEnd, length, flow, notes ->
-                    viewModel.updateFullCycleRecord(
-                        oldRecordId = null,
-                        oldStartDate = null,
-                        oldEndDate = null,
-                        newStartDate = newStart,
-                        newEndDate = newEnd,
-                        cycleLength = length,
-                        flow = flow,
-                        notes = notes
-                    )
+                onSaveCycle = { newStart, newEnd, _, flow, periodNotes ->
+                    val saved = viewModel.editPeriod(existingRun?.start, newStart, newEnd, flow, periodNotes)
                     showCycleEditDialogInLog = false
-                    selectedDate = newStart
-                    selectedFlow = flow
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("دوره قاعدگی با موفقیت در دیتابیس ثبت و ذخیره گردید ✨")
+                    val before = selectedFlow
+                    if (saved != null && !selectedDate.isBefore(saved.first) && !selectedDate.isAfter(saved.second)) {
+                        selectedFlow = flow
+                    } else if (existingRun != null && existingRun.contains(selectedDate)) {
+                        selectedFlow = "NONE"
                     }
+                    // The flow was just saved with the period: it is not an unsaved edit of the form.
+                    if (selectedFlow != before) {
+                        loadedSnapshot = loadedSnapshot.split("|").toMutableList()
+                            .also { if (it.size > 1) it[1] = selectedFlow }.joinToString("|")
+                    }
+                    coroutineScope.launch { snackbarHostState.showSnackbar(periodSavedMessage(saved)) }
                 }
             )
         }
@@ -799,8 +851,7 @@ fun DateSelectorRow(
 
     val isOtherDate = selectedDate != today && selectedDate != yesterday && selectedDate != twoDaysAgo
     val otherLabel = if (isOtherDate) {
-        val j = JalaliCalendar.gregorianToJalali(selectedDate)
-        "${j.day} ${j.monthName}"
+        PersianDates.short(selectedDate)
     } else {
         "تقویم 📅"
     }
@@ -936,7 +987,7 @@ fun FeaturedSymptomCard(
 
             AnimatedVisibility(visible = isSelected) {
                 Column(modifier = Modifier.padding(top = 12.dp)) {
-                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                     Spacer(modifier = Modifier.height(10.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1025,6 +1076,8 @@ fun SymptomCategorySection(
     items: List<String>,
     activeSymptoms: Map<String, String>,
     symptomCategories: Map<String, String>,
+    removableItems: Set<String> = emptySet(),
+    onRemoveItem: (String) -> Unit = {},
     onAddCustom: (() -> Unit)? = null,
     onToggle: (String, String, Boolean) -> Unit,
     onSeverityChange: (String, String) -> Unit
@@ -1067,6 +1120,9 @@ fun SymptomCategorySection(
                         }
                     },
                     shape = RoundedCornerShape(14.dp),
+                    trailingIcon = if (item in removableItems) {
+                        { RemoveCustomIcon(item) { onRemoveItem(item) } }
+                    } else null,
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
                         selectedLabelColor = MaterialTheme.colorScheme.primary,
@@ -1102,6 +1158,19 @@ fun SymptomCategorySection(
             }
         }
     }
+}
+
+/** Small "x" that removes a user-defined symptom or mood from the list of choices. */
+@Composable
+private fun RemoveCustomIcon(label: String, onRemove: () -> Unit) {
+    Icon(
+        imageVector = Icons.Filled.Close,
+        contentDescription = "حذف «$label» از فهرست",
+        modifier = Modifier
+            .size(18.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onRemove)
+    )
 }
 
 @Composable
@@ -1163,6 +1232,8 @@ fun FlowSelector(selected: String, onSelect: (String) -> Unit) {
 fun ChipGroup(
     items: List<String>,
     selectedItems: List<String>,
+    removableItems: Set<String> = emptySet(),
+    onRemoveItem: (String) -> Unit = {},
     onAddClick: (() -> Unit)? = null,
     onSelectionChange: (String, Boolean) -> Unit
 ) {
@@ -1180,7 +1251,10 @@ fun ChipGroup(
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     onSelectionChange(item, !isSelected) 
                 },
-                label = { Text(item, style = MaterialTheme.typography.labelMedium) },
+                label = { Text(item, style = MaterialTheme.typography.labelLarge) },
+                trailingIcon = if (item in removableItems) {
+                    { RemoveCustomIcon(item) { onRemoveItem(item) } }
+                } else null,
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
                     selectedLabelColor = MaterialTheme.colorScheme.primary,
@@ -1235,8 +1309,8 @@ fun CustomSymptomDialog(
         text = {
             OutlinedTextField(
                 value = text,
-                onValueChange = { text = it },
-                label = { Text("نام علامت") },
+                onValueChange = { text = it.take(30) },
+                label = { Text("نام (حداکثر ۳۰ حرف)") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )

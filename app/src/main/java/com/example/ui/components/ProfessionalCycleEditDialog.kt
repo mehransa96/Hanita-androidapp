@@ -44,6 +44,8 @@ fun ProfessionalCycleEditDialog(
     initialFlow: String = "MEDIUM",
     initialNotes: String = "",
     isExistingCycle: Boolean = false,
+    /** The cycle length can be edited only where it is used (before real cycles exist). */
+    showCycleLength: Boolean = true,
     title: String = if (isExistingCycle) "ویرایش دوره قاعدگی 🩸✏️" else "ثبت یا ویرایش دوره جدید 🩸",
     onDismissRequest: () -> Unit,
     onSaveCycle: (startDate: LocalDate, endDate: LocalDate, cycleLength: Int, flow: String, notes: String) -> Unit,
@@ -51,8 +53,9 @@ fun ProfessionalCycleEditDialog(
 ) {
     val haptic = LocalHapticFeedback.current
     var startDate by remember { mutableStateOf(initialStartDate) }
+    val today = remember { LocalDate.now() }
     var endDate by remember {
-        mutableStateOf(initialEndDate ?: initialStartDate.plusDays(4))
+        mutableStateOf(minOf(initialEndDate ?: initialStartDate.plusDays(4), today).let { if (it.isBefore(initialStartDate)) initialStartDate else it })
     }
     var cycleLength by remember { mutableIntStateOf(initialCycleLength.coerceIn(21, 45)) }
     var flow by remember { mutableStateOf(initialFlow) }
@@ -82,8 +85,9 @@ fun ProfessionalCycleEditDialog(
     val nextPeriodJalali = remember(estimatedNextPeriod) {
         JalaliCalendar.gregorianToJalali(estimatedNextPeriod)
     }
-    val estimatedOvulation = remember(estimatedNextPeriod) {
-        estimatedNextPeriod.minusDays(14)
+    // Same rule as the prediction engine (luteal phase of ~14 days, never before day 10).
+    val estimatedOvulation = remember(startDate, cycleLength) {
+        startDate.plusDays((com.example.domain.CyclePredictor.ovulationDay(cycleLength) - 1).toLong())
     }
     val ovulationJalali = remember(estimatedOvulation) {
         JalaliCalendar.gregorianToJalali(estimatedOvulation)
@@ -187,16 +191,16 @@ fun ProfessionalCycleEditDialog(
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("طول خونریزی", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("$periodDurationDays روز", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SleekPrimary)
+                                    Text("${com.example.utils.PersianNumbers.toPersianDigits(periodDurationDays)} روز", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SleekPrimary)
                                 }
                                 Box(modifier = Modifier.width(1.dp).height(24.dp).background(MaterialTheme.colorScheme.outlineVariant))
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("طول چرخه", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("$cycleLength روز", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                                    Text("${com.example.utils.PersianNumbers.toPersianDigits(cycleLength)} روز", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
                                 }
                                 Box(modifier = Modifier.width(1.dp).height(24.dp).background(MaterialTheme.colorScheme.outlineVariant))
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("تخمک‌گذاری بعدی", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("تخمک‌گذاری", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Text(ovulationJalali.formatShort(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
                                 }
                             }
@@ -363,7 +367,7 @@ fun ProfessionalCycleEditDialog(
                                         .clip(RoundedCornerShape(8.dp))
                                         .clickable {
                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            endDate = startDate.plusDays((days - 1).toLong())
+                                            endDate = minOf(startDate.plusDays((days - 1).toLong()), today)
                                         }
                                 ) {
                                     Text(
@@ -379,7 +383,7 @@ fun ProfessionalCycleEditDialog(
                     }
 
                     // 5. Total Cycle Length Stepper (طول کل چرخه قاعدگی)
-                    Column {
+                    if (showCycleLength) Column {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -579,7 +583,7 @@ fun ProfessionalCycleEditDialog(
                     Button(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            val validEnd = if (endDate.isBefore(startDate)) startDate.plusDays(4) else endDate
+                            val validEnd = if (endDate.isBefore(startDate)) startDate else endDate
                             onSaveCycle(startDate, validEnd, cycleLength, flow, notes)
                         },
                         modifier = Modifier
@@ -608,7 +612,7 @@ fun ProfessionalCycleEditDialog(
             onDateSelected = { picked ->
                 startDate = picked
                 if (endDate.isBefore(picked)) {
-                    endDate = picked.plusDays(4)
+                    endDate = minOf(picked.plusDays(4), today)
                 }
                 showStartDatePicker = false
             }
@@ -621,11 +625,12 @@ fun ProfessionalCycleEditDialog(
             title = "انتخاب تاریخ پایان قاعدگی (پاکی) ✨",
             subtitle = "پایان خونریزی این دوره را مشخص نمایید",
             minDate = startDate,
+            maxDate = today,
             onDismissRequest = { showEndDatePicker = false },
             onDateSelected = { picked ->
                 if (picked.isBefore(startDate)) {
                     startDate = picked
-                    endDate = picked.plusDays(4)
+                    endDate = minOf(picked.plusDays(4), today)
                 } else {
                     endDate = picked
                 }

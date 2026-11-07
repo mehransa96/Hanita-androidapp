@@ -1,5 +1,11 @@
 package com.example.ui.screens
 
+import com.example.utils.PersianDates
+import com.example.utils.PersianNumbers
+import com.example.utils.MedicineReminderHelper
+import com.example.ui.components.HanitaTimePickerDialog
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import com.example.utils.privateOnLockScreen
 import android.Manifest
 import android.app.NotificationChannel
@@ -107,32 +113,54 @@ fun RemindersScreen(
         }
     }
 
-    val today: LocalDate = remember { LocalDate.now() }
-    val nextPeriodDate: LocalDate = remember(cycleInfo.predictedPeriodStart, averageCycleLength) {
-        cycleInfo.predictedPeriodStart ?: today.plusDays(averageCycleLength.toLong())
-    }
-    val nextPeriodJalali: String = remember(nextPeriodDate) {
-        JalaliCalendar.gregorianToJalali(nextPeriodDate).formatShort()
-    }
-    val daysUntilPeriod: Int = remember(nextPeriodDate, today) {
-        ChronoUnit.DAYS.between(today, nextPeriodDate).toInt().coerceAtLeast(0)
-    }
+    val today by viewModel.today.collectAsState()
+    val prediction by viewModel.cyclePrediction.collectAsState()
+    val reminderPlan by viewModel.reminderPlan.collectAsState()
+    val fa = { n: Int -> PersianNumbers.toPersianDigits(n) }
 
-    val ovulationDate: LocalDate = remember(nextPeriodDate) {
-        nextPeriodDate.minusDays(14)
+    // Every date on this screen comes from the same prediction as the dashboard and the alarms.
+    val hasData = cycleInfo.hasData
+    val nextPeriodJalali = if (!hasData) "پس از ثبت اولین پریود" else PersianDates.long(cycleInfo.predictedPeriodStart)
+    val periodBadge = when {
+        !hasData -> "—"
+        cycleInfo.isLate -> "${fa(cycleInfo.daysLate)} روز تأخیر"
+        cycleInfo.isPeriod -> "در جریان"
+        cycleInfo.daysUntilNextPeriod == 0 -> "امروز"
+        else -> "${fa(cycleInfo.daysUntilNextPeriod)} روز مانده"
     }
-    val ovulationJalali: String = remember(ovulationDate) {
-        JalaliCalendar.gregorianToJalali(ovulationDate).formatShort()
+    val ovulationDayNumber = com.example.domain.CyclePredictor.ovulationDay(prediction.averageCycleLength)
+    val ovulationDate: LocalDate? = remember(cycleInfo, prediction, today) {
+        if (!hasData || cycleInfo.isLate) null
+        else {
+            val cycleStart = today.minusDays((cycleInfo.currentDay - 1).toLong())
+            val thisCycle = cycleStart.plusDays((ovulationDayNumber - 1).toLong())
+            if (thisCycle.isBefore(today)) thisCycle.plusDays(prediction.averageCycleLength.toLong()) else thisCycle
+        }
     }
-    val fertileStartJalali: String = remember(ovulationDate) {
-        JalaliCalendar.gregorianToJalali(ovulationDate.minusDays(4)).formatShort()
+    val ovulationJalali = ovulationDate?.let { PersianDates.long(it) } ?: if (cycleInfo.isLate) "پس از شروع پریود" else "پس از ثبت اولین پریود"
+    val ovulationBadge = ovulationDate?.let {
+        val d = ChronoUnit.DAYS.between(today, it).toInt()
+        if (d == 0) "امروز" else "${fa(d)} روز مانده"
+    } ?: "—"
+    val fertileWindowText = ovulationDate?.let {
+        "پنجره باروری (تخمینی): ${PersianDates.short(it.minusDays(5))} تا ${PersianDates.short(it.plusDays(1))}"
+    } ?: "پنجره باروری پس از ثبت پریود محاسبه می‌شود."
+    fun fireText(reminder: com.example.domain.ReminderPlanner.Reminder?): String =
+        reminder?.let { "اعلان بعدی: ${PersianDates.long(it.fireAt.toLocalDate())} ساعت ${PersianNumbers.formatTime(it.fireAt.hour, it.fireAt.minute)}" }
+            ?: "فعلاً اعلانی زمان‌بندی نشده است (ابتدا پریود را ثبت کنید)."
+
+    val notificationsAllowed = hasNotificationPermission &&
+        androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+    fun runTest(send: () -> Unit) {
+        if (!notificationsAllowed) {
+            coroutineScope.launch { snackbarHostState.showSnackbar("اعلان‌های هانیتا خاموش است؛ ابتدا مجوز اعلان را فعال کنید.") }
+        } else {
+            send()
+            coroutineScope.launch { snackbarHostState.showSnackbar("اعلان نمونه ارسال شد؛ نوار اعلان گوشی را ببینید.") }
+        }
     }
-    val fertileEndJalali: String = remember(ovulationDate) {
-        JalaliCalendar.gregorianToJalali(ovulationDate.plusDays(1)).formatShort()
-    }
-    val daysUntilOvulation: Int = remember(ovulationDate, today) {
-        ChronoUnit.DAYS.between(today, ovulationDate).toInt().coerceAtLeast(0)
-    }
+    var showCycleTimePicker by remember { mutableStateOf(false) }
+    var showMedTimePicker by remember { mutableStateOf(false) }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var medicationToEdit by remember { mutableStateOf<MedicineReminder?>(null) }
@@ -150,54 +178,6 @@ fun RemindersScreen(
         "tea" to "☕ دمنوش آرامبخش",
         "powder" to "❄️ پودر/ساشه"
     )
-
-    // Send a live test notification immediately to test the alert mechanism
-    val triggerTestNotification: (String, String) -> Unit = { title, body ->
-        try {
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val channelId = "medication_reminders_test_channel"
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(
-                    channelId,
-                    "تست هشدارهای دارویی و چرخه قاعدگی",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "کانال برای تست و ارسال پیام‌های اضطراری هانیتا"
-                }
-                notificationManager.createNotificationChannel(channel)
-            }
-
-            val intent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            }
-            val pendingIntent = PendingIntent.getActivity(
-                context,
-                System.currentTimeMillis().toInt(),
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val notification = NotificationCompat.Builder(context, channelId).privateOnLockScreen(context, channelId)
-                .setSmallIcon(com.example.R.drawable.ic_stat_hanita)
-                .setContentTitle(title)
-                .setContentText(body)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setAutoCancel(true)
-                .setContentIntent(pendingIntent)
-                .build()
-
-            notificationManager.notify(System.currentTimeMillis().toInt(), notification)
-            
-            coroutineScope.launch {
-                snackbarHostState.showSnackbar("🔔 اعلان آزمایشی فرستاده شد! نوار اعلان گوشی را چک کنید.")
-            }
-        } catch (e: Exception) {
-            coroutineScope.launch {
-                snackbarHostState.showSnackbar("خطا در ارسال اعلان: ${e.localizedMessage}")
-            }
-        }
-    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -344,13 +324,14 @@ fun RemindersScreen(
                                     Column {
                                         Text("پیش‌بینی آغاز دوره بعدی:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                                         Text(nextPeriodJalali, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        Text(fireText(reminderPlan.period ?: reminderPlan.lateCheck), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     Surface(
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                                         shape = RoundedCornerShape(10.dp)
                                     ) {
                                         Text(
-                                            text = "$daysUntilPeriod روز مانده",
+                                            text = periodBadge,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
@@ -413,7 +394,7 @@ fun RemindersScreen(
                                         Text("💬 پیش‌نمایش اعلان دریافتی در گوشی:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = "🌸 یادآور هوشمند شروع قاعدگی\nدوره قاعدگی بعدی شما برای تاریخ $nextPeriodJalali پیش‌بینی شده است. ملزومات بهداشتی را همراه داشته باشید و به استراحت و مصرف مایعات گرم توجه فرمایید.",
+                                            text = "🌸 یادآور شروع قاعدگی\nقاعدگی بعدی شما ($nextPeriodJalali) پیش‌بینی می‌شود. لوازم بهداشتی را همراه داشته باشید و با شروع خونریزی آن را ثبت کنید.",
                                             fontSize = 10.5.sp,
                                             lineHeight = 16.sp,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
@@ -423,12 +404,7 @@ fun RemindersScreen(
 
                                 Spacer(modifier = Modifier.height(14.dp))
                                 Button(
-                                    onClick = {
-                                        viewModel.sendTestPeriodNotification()
-                                        coroutineScope.launch {
-                                            snackbarHostState.showSnackbar("🔔 اعلان تست شروع قاعدگی به سیستم ارسال شد!")
-                                        }
-                                    },
+                                    onClick = { runTest { viewModel.sendTestPeriodNotification() } },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
@@ -437,7 +413,7 @@ fun RemindersScreen(
                                 ) {
                                     Icon(imageVector = Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("ارسال تست زنده اعلان قاعدگی 🌸", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("نمایش اعلان نمونه", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -511,13 +487,14 @@ fun RemindersScreen(
                                         Column {
                                             Text("تاریخ تقریبی تخمک‌گذاری:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                                             Text(ovulationJalali, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                                            Text(fireText(reminderPlan.ovulation), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                         Surface(
                                             color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
                                             shape = RoundedCornerShape(10.dp)
                                         ) {
                                             Text(
-                                                text = "$daysUntilOvulation روز مانده",
+                                                text = ovulationBadge,
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.secondary,
@@ -526,7 +503,7 @@ fun RemindersScreen(
                                         }
                                     }
                                     Text(
-                                        text = "پنجره باروری: از $fertileStartJalali تا $fertileEndJalali",
+                                        text = fertileWindowText,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
@@ -586,7 +563,7 @@ fun RemindersScreen(
                                         Text("💬 پیش‌نمایش اعلان دریافتی در گوشی:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = "🥚✨ یادآور تخمک‌گذاری و پنجره باروری\nامروز وارد پنجره طلایی تخمک‌گذاری و بالاترین احتمال باروری شدید (تاریخ تخمینی: $ovulationJalali). سطح انرژی، شادابی و انگیزه بدن در اوج است!",
+                                            text = "🌸 یادآور تخمک‌گذاری و پنجره باروری\nروز تخمینی تخمک‌گذاری $ovulationJalali است. این تخمین است و جایگزین روش پیشگیری از بارداری نیست.",
                                             fontSize = 10.5.sp,
                                             lineHeight = 16.sp,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
@@ -596,12 +573,7 @@ fun RemindersScreen(
 
                                 Spacer(modifier = Modifier.height(14.dp))
                                 Button(
-                                    onClick = {
-                                        viewModel.sendTestOvulationNotification()
-                                        coroutineScope.launch {
-                                            snackbarHostState.showSnackbar("✨ اعلان تست زمان تخمک‌گذاری به سیستم ارسال شد!")
-                                        }
-                                    },
+                                    onClick = { runTest { viewModel.sendTestOvulationNotification() } },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
@@ -610,7 +582,7 @@ fun RemindersScreen(
                                 ) {
                                     Icon(imageVector = Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("ارسال تست زنده اعلان تخمک‌گذاری 🥚", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text("نمایش اعلان نمونه", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -643,9 +615,9 @@ fun RemindersScreen(
                                     )
                                 }
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("ساعت تحویل اعلان‌های هوشمند چرخه", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("ساعت ارسال اعلان‌های چرخه", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     Text(
-                                        text = "ساعت تحویل فعلی: %02d:%02d".format(notificationHour, notificationMinute),
+                                        text = "ساعت فعلی: ${PersianNumbers.formatTime(notificationHour, notificationMinute)}",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.SemiBold
@@ -664,13 +636,14 @@ fun RemindersScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                listOf(
-                                    Triple(8, 0, "۰۸:۰۰\nصبح 🌅"),
-                                    Triple(10, 0, "۱۰:۰۰\nصبح ☕"),
-                                    Triple(14, 0, "۱۴:۰۰\nظهر ☀️"),
-                                    Triple(20, 0, "۲۰:۰۰\nشب 🌙")
-                                ).forEach { (h, m, label) ->
-                                    val isSelected = notificationHour == h && notificationMinute == m
+                                val presets = listOf(
+                                    Triple(8, 0, "۰۸:۰۰\nصبح"),
+                                    Triple(14, 0, "۱۴:۰۰\nظهر"),
+                                    Triple(20, 0, "۲۰:۰۰\nشب")
+                                )
+                                val isCustomTime = presets.none { it.first == notificationHour && it.second == notificationMinute }
+                                (presets + Triple(-1, -1, if (isCustomTime) "${PersianNumbers.formatTime(notificationHour, notificationMinute)}\nدلخواه" else "ساعت\nدلخواه")).forEach { (h, m, label) ->
+                                    val isSelected = if (h < 0) isCustomTime else notificationHour == h && notificationMinute == m
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
@@ -679,16 +652,18 @@ fun RemindersScreen(
                                                 if (isSelected) MaterialTheme.colorScheme.tertiary
                                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                                             )
-                                            .clickable { viewModel.setNotificationTime(h, m) }
+                                            .selectable(selected = isSelected, role = Role.RadioButton) {
+                                                if (h < 0) showCycleTimePicker = true else viewModel.setNotificationTime(h, m)
+                                            }
                                             .padding(vertical = 8.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = label,
-                                            fontSize = 10.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
                                             textAlign = TextAlign.Center,
-                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                            color = if (isSelected) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurface
                                         )
                                     }
                                 }
@@ -743,7 +718,7 @@ fun RemindersScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text("اعلان هوشمند پیش‌بینی شروع دوره بعدی", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                                    Text("ارسال پیام همراه با توصیه‌های تغذیه و سلامت شخصی‌سازی شده توسط Gemini", fontSize = 10.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.6f))
+                                    Text("افزودن توصیه تغذیه از آخرین تحلیل هوش مصنوعی به یادآور قاعدگی", fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.6f))
                                 }
                                 Switch(
                                     checked = isAiRemindersEnabled,
@@ -773,10 +748,10 @@ fun RemindersScreen(
                                             color = MaterialTheme.colorScheme.secondary
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
-                                        val aiMsg = viewModel.getPersonalizedAiReminderMessage()
                                         Text(
-                                            text = "📌 ${aiMsg.first}:\n${aiMsg.second}",
-                                            fontSize = 10.sp,
+                                            text = viewModel.aiReminderPreview()
+                                                ?: "هنوز تحلیل هوشمندی انجام نشده است. پس از «تحلیل چرخه و علائم» در گفتگو با هانیتا، یک توصیه تغذیه شخصی به یادآور قاعدگی اضافه می‌شود.",
+                                            fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                             lineHeight = 15.sp
                                         )
@@ -785,10 +760,7 @@ fun RemindersScreen(
 
                                 Spacer(modifier = Modifier.height(14.dp))
                                 Button(
-                                    onClick = {
-                                        val aiMsg = viewModel.getPersonalizedAiReminderMessage()
-                                        triggerTestNotification(aiMsg.first, aiMsg.second)
-                                    },
+                                    onClick = { runTest { viewModel.sendTestPeriodNotification() } },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
@@ -797,7 +769,7 @@ fun RemindersScreen(
                                 ) {
                                     Icon(imageVector = Icons.Filled.NotificationsActive, contentDescription = null, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("تست یادآور هوشمند تحلیلی 🧠", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("نمایش یادآور قاعدگی با توصیه هوشمند", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -934,7 +906,7 @@ fun RemindersScreen(
                                     ) {
                                         Icon(Icons.Filled.AccessTime, contentDescription = null, modifier = Modifier.size(10.dp), tint = MaterialTheme.colorScheme.primary)
                                         Text(
-                                            text = "هر روز ساعت ${item.time}",
+                                            text = "هر روز ساعت ${PersianNumbers.toPersianDigits(item.time)}",
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                         )
@@ -948,12 +920,7 @@ fun RemindersScreen(
                                     // Live test reminder button
                                     if (item.isEnabled) {
                                         IconButton(
-                                            onClick = {
-                                                triggerTestNotification(
-                                                    "یادآور بهداشتی هانیتا 💊",
-                                                    "زمان مصرف ${item.name} فرا رسیده است ($medDosage) - ساعت ${item.time}"
-                                                )
-                                            }
+                                            onClick = { runTest { viewModel.sendTestMedicationNotification(item) } }
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Filled.NotificationsActive,
@@ -995,10 +962,15 @@ fun RemindersScreen(
                                     // Delete pill/medicine reminder
                                     IconButton(
                                         onClick = {
-                                            val updated = medicationReminders.filter { it.id != item.id }
-                                            viewModel.saveMedicationReminders(updated)
+                                            val before = medicationReminders
+                                            viewModel.saveMedicationReminders(before.filter { it.id != item.id })
                                             coroutineScope.launch {
-                                                snackbarHostState.showSnackbar("یادآور ${item.name} با موفقیت حذف گردید.")
+                                                val result = snackbarHostState.showSnackbar(
+                                                    message = "یادآور ${item.name} حذف شد.",
+                                                    actionLabel = "بازگردانی",
+                                                    duration = SnackbarDuration.Short
+                                                )
+                                                if (result == SnackbarResult.ActionPerformed) viewModel.saveMedicationReminders(before)
                                             }
                                         }
                                     ) {
@@ -1019,6 +991,33 @@ fun RemindersScreen(
     }
 
     // Modal dialog to add medicine reminders elegantly
+    if (showCycleTimePicker) {
+        HanitaTimePickerDialog(
+            title = "ساعت ارسال اعلان‌های چرخه",
+            initialHour = notificationHour,
+            initialMinute = notificationMinute,
+            onDismiss = { showCycleTimePicker = false },
+            onConfirm = { h, m ->
+                viewModel.setNotificationTime(h, m)
+                showCycleTimePicker = false
+            }
+        )
+    }
+
+    if (showMedTimePicker) {
+        val t = MedicineReminderHelper.parseTime(medTime) ?: java.time.LocalTime.of(9, 0)
+        HanitaTimePickerDialog(
+            title = "ساعت مصرف",
+            initialHour = t.hour,
+            initialMinute = t.minute,
+            onDismiss = { showMedTimePicker = false },
+            onConfirm = { h, m ->
+                medTime = MedicineReminderHelper.formatTime(java.time.LocalTime.of(h, m))
+                showMedTimePicker = false
+            }
+        )
+    }
+
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
@@ -1054,17 +1053,11 @@ fun RemindersScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        OutlinedTextField(
-                            value = medTime,
-                            onValueChange = { medTime = it },
-                            label = { Text("ساعت مصرف", fontSize = 12.sp) },
-                            placeholder = { Text("مثلاً: 14:00", fontSize = 11.sp) },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Number,
-                                imeAction = ImeAction.Next
-                            )
+                        TimeFieldButton(
+                            label = "ساعت مصرف",
+                            time = medTime,
+                            onClick = { showMedTimePicker = true },
+                            modifier = Modifier.weight(1f)
                         )
                         OutlinedTextField(
                             value = medDosage,
@@ -1114,10 +1107,10 @@ fun RemindersScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (medName.isNotBlank() && medTime.isNotBlank()) {
+                        if (medName.isNotBlank() && MedicineReminderHelper.parseTime(medTime) != null) {
                             val newReminder = MedicineReminder(
                                 id = UUID.randomUUID().toString(),
-                                name = medName,
+                                name = medName.trim().take(40),
                                 time = medTime,
                                 dosage = medDosage,
                                 isEnabled = true,
@@ -1151,7 +1144,21 @@ fun RemindersScreen(
     val medItem = medicationToEdit
     if (medItem != null) {
         var editMedName by remember(medItem.id) { mutableStateOf(medItem.name) }
-        var editMedTime by remember(medItem.id) { mutableStateOf(medItem.time) }
+        var editMedTime by remember(medItem.id) { mutableStateOf(MedicineReminderHelper.parseTime(medItem.time)?.let { MedicineReminderHelper.formatTime(it) } ?: "09:00") }
+        var showEditTimePicker by remember { mutableStateOf(false) }
+        if (showEditTimePicker) {
+            val t = MedicineReminderHelper.parseTime(editMedTime) ?: java.time.LocalTime.of(9, 0)
+            HanitaTimePickerDialog(
+                title = "ساعت مصرف",
+                initialHour = t.hour,
+                initialMinute = t.minute,
+                onDismiss = { showEditTimePicker = false },
+                onConfirm = { h, m ->
+                    editMedTime = MedicineReminderHelper.formatTime(java.time.LocalTime.of(h, m))
+                    showEditTimePicker = false
+                }
+            )
+        }
         var editMedDosage by remember(medItem.id) { mutableStateOf(medItem.dosage) }
         var editMedType by remember(medItem.id) { mutableStateOf(medItem.type) }
 
@@ -1184,12 +1191,11 @@ fun RemindersScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        OutlinedTextField(
-                            value = editMedTime,
-                            onValueChange = { editMedTime = it },
-                            label = { Text("ساعت مصرف", fontSize = 12.sp) },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
+                        TimeFieldButton(
+                            label = "ساعت مصرف",
+                            time = editMedTime,
+                            onClick = { showEditTimePicker = true },
+                            modifier = Modifier.weight(1f)
                         )
                         OutlinedTextField(
                             value = editMedDosage,
@@ -1232,8 +1238,8 @@ fun RemindersScreen(
                     onClick = {
                         if (editMedName.isNotBlank()) {
                             val updatedItem = medItem.copy(
-                                name = editMedName.trim(),
-                                time = editMedTime.trim(),
+                                name = editMedName.trim().take(40),
+                                time = editMedTime,
                                 dosage = editMedDosage.trim(),
                                 type = editMedType
                             )
@@ -1257,5 +1263,20 @@ fun RemindersScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(24.dp)
         )
+    }
+}
+
+/** Read-only time field that opens a time picker (free text times could not be scheduled). */
+@Composable
+private fun TimeFieldButton(label: String, time: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 56.dp),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(label, fontSize = 11.sp)
+            Text(PersianNumbers.toPersianDigits(time), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }

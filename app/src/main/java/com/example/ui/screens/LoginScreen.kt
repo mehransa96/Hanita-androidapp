@@ -1,12 +1,16 @@
 package com.example.ui.screens
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import com.example.utils.PersianNumbers
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.with
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -57,14 +61,16 @@ import androidx.compose.ui.platform.LocalContext
 fun LoginScreen(
     onLoginSuccess: (String, Int, String) -> Unit
 ) {
-    var step by remember { mutableIntStateOf(1) }
-    var name by remember { mutableStateOf("") }
-    
+    // Saveable: rotating the phone or a process restart must not reset the onboarding.
+    var step by rememberSaveable { mutableIntStateOf(1) }
+    var name by rememberSaveable { mutableStateOf("") }
+
     val todayJalali = remember { JalaliCalendar.gregorianToJalali(LocalDate.now()) }
-    var selectedYear by remember { mutableIntStateOf(todayJalali.year) }
-    var selectedMonth by remember { mutableIntStateOf(todayJalali.month) }
-    var selectedDay by remember { mutableIntStateOf(todayJalali.day) }
-    var averageCycleLength by remember { mutableFloatStateOf(28f) }
+    var selectedYear by rememberSaveable { mutableIntStateOf(todayJalali.year) }
+    var selectedMonth by rememberSaveable { mutableIntStateOf(todayJalali.month) }
+    var selectedDay by rememberSaveable { mutableIntStateOf(todayJalali.day) }
+    var averageCycleLength by rememberSaveable { mutableFloatStateOf(28f) }
+    var dontRemember by rememberSaveable { mutableStateOf(false) }
     
     var isVisible by remember { mutableStateOf(false) }
 
@@ -203,14 +209,14 @@ fun LoginScreen(
                 AnimatedContent(
                     targetState = step,
                     transitionSpec = {
-                        fadeIn(animationSpec = tween(300)) with fadeOut(animationSpec = tween(300))
+                        fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300))
                     },
                     label = "step"
                 ) { currentStep ->
                     when (currentStep) {
                         1 -> StepWelcome(
                             name = name,
-                            onNameChange = { name = it },
+                            onNameChange = { name = it.take(30) },
                             onNext = { step = 2 }
                         )
                         2 -> StepPeriodDate(
@@ -220,6 +226,8 @@ fun LoginScreen(
                             onYearChange = { selectedYear = it },
                             onMonthChange = { selectedMonth = it },
                             onDayChange = { selectedDay = it },
+                            dontRemember = dontRemember,
+                            onDontRememberChange = { dontRemember = it },
                             onBack = { step = 1 },
                             onNext = { step = 3 }
                         )
@@ -229,7 +237,8 @@ fun LoginScreen(
                             onBack = { step = 2 },
                             onSubmit = {
                                 val selectedLocalDate = JalaliCalendar.jalaliToGregorian(selectedYear, selectedMonth, selectedDay)
-                                onLoginSuccess(name, averageCycleLength.toInt(), selectedLocalDate.toString())
+                                // Without a real date nothing is logged: predictions start once a period is recorded.
+                                onLoginSuccess(name.trim(), averageCycleLength.toInt(), if (dontRemember) "" else selectedLocalDate.toString())
                             }
                         )
                     }
@@ -247,7 +256,8 @@ fun StepWelcome(
 ) {
     val context = LocalContext.current
     val auth = remember { runCatching { FirebaseAuth.getInstance() }.getOrNull() }
-    
+    var isSigningIn by rememberSaveable { mutableStateOf(false) }
+
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -255,7 +265,9 @@ fun StepWelcome(
         try {
             val account = task.getResult(ApiException::class.java)!!
             val credential = GoogleAuthProvider.getCredential(account.idToken, null)
+            if (auth == null) isSigningIn = false
             auth?.signInWithCredential(credential)?.addOnCompleteListener {
+                isSigningIn = false
                 if (it.isSuccessful) {
                     // Only the first name is kept locally; the account is identified by its Firebase uid.
                     onNameChange(account.givenName ?: account.displayName ?: "کاربر عزیز")
@@ -266,6 +278,7 @@ fun StepWelcome(
             }
         } catch (e: Exception) {
             // Cancelled by the user or Play services unavailable: stay on this step.
+            isSigningIn = false
         }
     }
 
@@ -327,7 +340,9 @@ fun StepWelcome(
 
         Button(
             onClick = {
-                // default_web_client_id is generated from google-services.json; absent in offline builds.
+                // default_web_client_id is generated from google-services.json; absent in offline builds,
+                // so it cannot be referenced as R.string (the build would fail without Firebase).
+                @android.annotation.SuppressLint("DiscouragedApi")
                 val clientIdRes = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
                 val auth = runCatching { FirebaseAuth.getInstance() }.getOrNull()
                 if (clientIdRes == 0 || auth == null) {
@@ -342,6 +357,7 @@ fun StepWelcome(
                         .requestEmail()
                         .build()
                     val googleSignInClient = GoogleSignIn.getClient(context, gso)
+                    isSigningIn = true
                     launcher.launch(googleSignInClient.signInIntent)
                 }
             },
@@ -354,7 +370,11 @@ fun StepWelcome(
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
         ) {
-            Text("ورود با حساب گوگل", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            if (isSigningIn) {
+                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+            } else {
+                Text("ورود با حساب گوگل (با پشتیبان ابری)", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -368,7 +388,7 @@ fun StepWelcome(
         OutlinedTextField(
             value = name,
             onValueChange = onNameChange,
-            label = { Text("ورود مهمان (نام شما)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+            label = { Text("نام شما (اطلاعات فقط روی همین گوشی می‌ماند)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("username_input"),
@@ -412,6 +432,8 @@ fun StepPeriodDate(
     onYearChange: (Int) -> Unit,
     onMonthChange: (Int) -> Unit,
     onDayChange: (Int) -> Unit,
+    dontRemember: Boolean,
+    onDontRememberChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     onNext: () -> Unit
 ) {
@@ -420,21 +442,20 @@ fun StepPeriodDate(
         "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
     )
 
-    // Calculate maximum days in current solar hijri selection
-    val isLeap = remember(selectedYear) {
-        val matches = intArrayOf(1, 5, 9, 13, 17, 22, 26, 30)
-        matches.contains(selectedYear % 33)
-    }
-    val maxDays = when {
-        selectedMonth <= 6 -> 31
-        selectedMonth <= 11 -> 30
-        else -> if (isLeap) 30 else 29
-    }
+    // Days of the selected Jalali month (same leap rule as the rest of the app).
+    val maxDays = JalaliDate(selectedYear, selectedMonth, 1).lengthOfMonth
+    val currentJalaliYear = remember { JalaliCalendar.gregorianToJalali(LocalDate.now()).year }
 
     // The first day of the last period cannot be in the future (it would never count as data).
     val isFutureDate = remember(selectedYear, selectedMonth, selectedDay) {
         runCatching {
             JalaliCalendar.jalaliToGregorian(selectedYear, selectedMonth, selectedDay).isAfter(LocalDate.now())
+        }.getOrDefault(false)
+    }
+    // A "last period" more than a year ago cannot anchor a useful prediction.
+    val isTooOld = remember(selectedYear, selectedMonth, selectedDay) {
+        runCatching {
+            JalaliCalendar.jalaliToGregorian(selectedYear, selectedMonth, selectedDay).isBefore(LocalDate.now().minusYears(1))
         }.getOrDefault(false)
     }
 
@@ -542,8 +563,8 @@ fun StepPeriodDate(
                 Spacer(modifier = Modifier.height(6.dp))
                 RollerControls(
                     value = selectedYear,
-                    onIncrement = { onYearChange(selectedYear + 1) },
-                    onDecrement = { onYearChange(selectedYear - 1) }
+                    onIncrement = { if (selectedYear < currentJalaliYear) onYearChange(selectedYear + 1) },
+                    onDecrement = { if (selectedYear > currentJalaliYear - 1) onYearChange(selectedYear - 1) }
                 )
             }
         }
@@ -556,14 +577,32 @@ fun StepPeriodDate(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = if (isFutureDate) "تاریخ شروع آخرین پریود نمی‌تواند در آینده باشد."
-                else "تاریخ انتخابی شما: $selectedDay ${months[selectedMonth - 1]} $selectedYear",
+                text = when {
+                    dontRemember -> "بدون تاریخ ادامه می‌دهید؛ با ثبت اولین پریود، پیش‌بینی‌ها شروع می‌شود."
+                    isFutureDate -> "تاریخ شروع آخرین پریود نمی‌تواند در آینده باشد."
+                    isTooOld -> "این تاریخ بیش از یک سال پیش است؛ اگر دقیق یادتان نیست گزینه زیر را بزنید."
+                    else -> "تاریخ انتخابی شما: ${PersianNumbers.toPersianDigits(selectedDay)} ${months[selectedMonth - 1]} ${PersianNumbers.toPersianDigits(selectedYear)}"
+                },
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (isFutureDate) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                color = if (!dontRemember && (isFutureDate || isTooOld)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(12.dp)
             )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .toggleable(value = dontRemember, role = Role.Checkbox, onValueChange = onDontRememberChange)
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(checked = dontRemember, onCheckedChange = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("دقیق یادم نیست؛ بعداً ثبت می‌کنم", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
         }
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -586,7 +625,7 @@ fun StepPeriodDate(
 
             Button(
                 onClick = onNext,
-                enabled = !isFutureDate,
+                enabled = dontRemember || (!isFutureDate && !isTooOld),
                 modifier = Modifier
                     .weight(1.5f)
                     .height(54.dp),
@@ -635,7 +674,7 @@ fun StepCycleLength(
                 drawCircle(color = trackCenterColor, radius = size.width * 0.15f, center = center)
             }
             Text(
-                averageCycleLength.toInt().toString(),
+                PersianNumbers.toPersianDigits(averageCycleLength.toInt()),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
@@ -664,7 +703,7 @@ fun StepCycleLength(
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = "${averageCycleLength.toInt()} روز",
+            text = "${PersianNumbers.toPersianDigits(averageCycleLength.toInt())} روز",
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Black
@@ -735,7 +774,7 @@ fun RollerControls(
                 Icon(Icons.Filled.ChevronRight, contentDescription = "کاهش", tint = MaterialTheme.colorScheme.onSurface)
             }
             Text(
-                text = value.toString(),
+                text = PersianNumbers.toPersianDigits(value),
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp,

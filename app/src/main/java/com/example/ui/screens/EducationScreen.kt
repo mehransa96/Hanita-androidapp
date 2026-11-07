@@ -71,7 +71,7 @@ fun EducationScreen(onNavigateBack: () -> Unit) {
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
                             Text("مطالب آموزش سلامت زنان", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                            Text("منابع معتبر علمی برای آشنایی بیشتر، راه‌های تغذیه و تمرینات ورزشی اصولی و حرفه‌ای در زمان‌های سیکل", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha=0.8f))
+                            Text("آشنایی با فازهای چرخه، تغذیه و ورزش مناسب هر فاز (اطلاعات عمومی، نه توصیه پزشکی)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha=0.8f))
                         }
                     }
                 }

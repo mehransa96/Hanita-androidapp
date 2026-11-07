@@ -68,6 +68,9 @@ class FirestoreManager(
         "waterIntake" to waterIntake,
         "bbt" to bbt?.toDouble(),
         "weight" to weight?.toDouble(),
+        "painLevel" to painLevel,
+        "sleepHours" to sleepHours?.toDouble(),
+        "steps" to steps,
         "updatedAt" to updatedAt
     )
 
@@ -85,6 +88,9 @@ class FirestoreManager(
             waterIntake = (getLong("waterIntake") ?: 0L).toInt().coerceIn(0, 30),
             bbt = getDouble("bbt")?.toFloat(),
             weight = getDouble("weight")?.toFloat(),
+            painLevel = (getLong("painLevel") ?: 0L).toInt().coerceIn(0, 10),
+            sleepHours = getDouble("sleepHours")?.toFloat()?.takeIf { it in 0f..24f },
+            steps = getLong("steps")?.toInt()?.takeIf { it in 0..200_000 },
             updatedAt = getLong("updatedAt") ?: 0L
         )
     }

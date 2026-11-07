@@ -98,16 +98,7 @@ fun MeditationMusicScreen(
     var breathPulseScale by remember { mutableStateOf(1.0f) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
-    val mediaPlayer = remember { android.media.MediaPlayer() }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            try {
-                if (mediaPlayer.isPlaying) mediaPlayer.stop()
-                mediaPlayer.release()
-            } catch(e: Exception) {}
-        }
-    }
+    val (mediaPlayer, audioFocus) = com.example.ui.components.rememberScreenPlayer(onPause = { isPlaying = false })
 
     fun playTrack(track: MeditationTrack) {
         try {
@@ -117,9 +108,13 @@ fun MeditationMusicScreen(
             afd.close()
             mediaPlayer.isLooping = isLooping
             mediaPlayer.prepare()
-            mediaPlayer.start()
-            isPlaying = true
             currentProgressSec = 0
+            if (audioFocus.request()) {
+                mediaPlayer.start()
+                isPlaying = true
+            } else {
+                isPlaying = false
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             isPlaying = false
@@ -136,10 +131,11 @@ fun MeditationMusicScreen(
         try {
             if (isPlaying) {
                 if (!mediaPlayer.isPlaying && currentTrack != null) {
-                    mediaPlayer.start()
+                    if (audioFocus.request()) mediaPlayer.start() else isPlaying = false
                 }
             } else {
                 if (mediaPlayer.isPlaying) mediaPlayer.pause()
+                audioFocus.abandon()
             }
         } catch (e: Exception) {}
     }
@@ -626,7 +622,7 @@ fun MeditationMusicScreen(
                                 ) {
                                     Icon(
                                         imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                        contentDescription = "پخش",
+                                        contentDescription = if (isPlaying) "توقف" else "پخش",
                                         tint = MaterialTheme.colorScheme.onPrimary
                                     )
                                 }

@@ -5,74 +5,53 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import java.time.LocalDate
+import com.example.domain.ReminderPlanner
 import java.time.ZoneId
 
 object PhaseReminderHelper {
     private const val BASE_REQUEST_CODE = 5000
 
-    fun schedulePhaseReminder(
-        context: Context,
-        targetDate: LocalDate,
-        phaseName: String,
-        message: String,
-        phaseIndex: Int,
-        cycleLength: Int,
-        hour: Int = 9,
-        minute: Int = 0
-    ) {
-        try {
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-            
-            // Check if targetDate is in the future, if not, project to the next cycle
-            val today = LocalDate.now()
-            var finalTargetDate = targetDate
-            val step = com.example.domain.CyclePredictor.clampCycleLength(cycleLength).toLong()
-            while (!finalTargetDate.isAfter(today)) {
-                finalTargetDate = finalTargetDate.plusDays(step)
+    fun title(kind: ReminderPlanner.PhaseKind): String = when (kind) {
+        ReminderPlanner.PhaseKind.MENSTRUAL -> "فاز قاعدگی"
+        ReminderPlanner.PhaseKind.FOLLICULAR -> "فاز فولیکولی"
+        ReminderPlanner.PhaseKind.OVULATION -> "فاز تخمک‌گذاری"
+        ReminderPlanner.PhaseKind.LUTEAL -> "فاز لوتئال"
+    }
+
+    fun message(kind: ReminderPlanner.PhaseKind): String = when (kind) {
+        ReminderPlanner.PhaseKind.MENSTRUAL -> "طبق پیش‌بینی، قاعدگی از امروز شروع می‌شود. اگر شروع شد آن را ثبت کنید؛ استراحت و مایعات گرم کمک می‌کند."
+        ReminderPlanner.PhaseKind.FOLLICULAR -> "انرژی در حال افزایش است. زمان خوبی برای برنامه‌های جدید و فعالیت بدنی است."
+        ReminderPlanner.PhaseKind.OVULATION -> "روزهای اوج انرژی و احتمال باروری است. این تخمین است و جایگزین روش پیشگیری نیست."
+        ReminderPlanner.PhaseKind.LUTEAL -> "به خواب کافی، آرامش ذهنی و تغذیه سبک توجه کنید؛ ممکن است علائم پیش از قاعدگی شروع شود."
+    }
+
+    fun apply(context: Context, phases: List<ReminderPlanner.PhaseReminder>) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        val planned = phases.associateBy { it.kind }
+        ReminderPlanner.PhaseKind.entries.forEach { kind ->
+            val pendingIntent = pendingIntent(context, kind)
+            alarmManager.cancel(pendingIntent)
+            val reminder = planned[kind] ?: return@forEach
+            try {
+                val millis = reminder.fireAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pendingIntent)
+            } catch (e: Exception) {
+                Log.e("PhaseReminderHelper", "Failed to schedule ${kind.name}: ${e.message}")
             }
-
-            val intent = Intent(context, PhaseReminderReceiver::class.java).apply {
-                putExtra("PHASE_NAME", phaseName)
-                putExtra("PHASE_MESSAGE", message)
-            }
-            
-            val requestCode = BASE_REQUEST_CODE + phaseIndex
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                requestCode,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val localDateTime = finalTargetDate.atTime(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
-            val zoneId = ZoneId.systemDefault()
-            val epochMillis = localDateTime.atZone(zoneId).toInstant().toEpochMilli()
-
-            // Set the alarm
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, epochMillis, pendingIntent)
-            Log.d("PhaseReminderHelper", "Scheduled phase reminder $phaseIndex on $finalTargetDate")
-        } catch (e: Exception) {
-            Log.e("PhaseReminderHelper", "Failed to schedule phase alarm: ${e.message}")
         }
     }
 
-    fun cancelAllPhaseReminders(context: Context) {
-        try {
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-            for (i in 0..4) {
-                val intent = Intent(context, PhaseReminderReceiver::class.java)
-                val pendingIntent = PendingIntent.getBroadcast(
-                    context,
-                    BASE_REQUEST_CODE + i,
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                alarmManager.cancel(pendingIntent)
-            }
-            Log.d("PhaseReminderHelper", "Cancelled phase reminders.")
-        } catch (e: Exception) {
-            Log.e("PhaseReminderHelper", "Failed to cancel phase alarms: ${e.message}")
+    private fun pendingIntent(context: Context, kind: ReminderPlanner.PhaseKind): PendingIntent {
+        val intent = Intent(context, PhaseReminderReceiver::class.java).apply {
+            putExtra(PhaseReminderReceiver.EXTRA_PHASE, kind.name)
         }
+        return PendingIntent.getBroadcast(
+            context,
+            BASE_REQUEST_CODE + kind.ordinal,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
     }
+
+    fun cancelAllPhaseReminders(context: Context) = apply(context, emptyList())
 }

@@ -42,42 +42,43 @@ data class SymptomPresetItem(
 
 val SYMPTOM_PRESETS = listOf(
     // شکم و لگن
-    SymptomPresetItem("cramps", "درد و گرفتگی شکم", "شکم و لگن", "⚡"),
+    SymptomPresetItem("cramps", "درد شکم", "شکم و لگن", "⚡"),
     SymptomPresetItem("backache", "کمردرد", "شکم و لگن", "🦴"),
-    SymptomPresetItem("bloating", "نفخ و احساس سنگینی", "شکم و لگن", "🎈"),
-    SymptomPresetItem("pelvic_pain", "درد تیرکشنده لگن", "شکم و لگن", "🎯"),
-    SymptomPresetItem("thigh_pain", "کوفتگی عضلات ران", "شکم و لگن", "🦵"),
+    SymptomPresetItem("bloating", "نفخ", "شکم و لگن", "🎈"),
+    SymptomPresetItem("pelvic_pain", "درد لگن", "شکم و لگن", "🎯"),
+    SymptomPresetItem("thigh_pain", "گرفتگی عضلات", "شکم و لگن", "🦵"),
 
     // سر و اعصاب
-    SymptomPresetItem("headache", "سردرد و میگرن", "سر و اعصاب", "🤕"),
-    SymptomPresetItem("fatigue", "خستگی و بی‌حالی", "سر و اعصاب", "🔋"),
-    SymptomPresetItem("dizziness", "سرگیجه و منگی", "سر و اعصاب", "💫"),
-    SymptomPresetItem("insomnia", "بی‌خوابی و اختلال خواب", "سر و اعصاب", "🌙"),
-    SymptomPresetItem("brain_fog", "مه‌مغزی و عدم تمرکز", "سر و اعصاب", "🌫️"),
+    SymptomPresetItem("headache", "سردرد", "سر و اعصاب", "🤕"),
+    SymptomPresetItem("fatigue", "خستگی", "سر و اعصاب", "🔋"),
+    SymptomPresetItem("dizziness", "سرگیجه", "سر و اعصاب", "💫"),
+    SymptomPresetItem("insomnia", "بی‌خوابی", "سر و اعصاب", "🌙"),
+    SymptomPresetItem("brain_fog", "افت تمرکز", "سر و اعصاب", "🌫️"),
 
     // پوست و بدن
-    SymptomPresetItem("breast_tender", "حساسیت و تورم سینه‌ها", "پوست و بدن", "🌸"),
-    SymptomPresetItem("acne", "جوش و آکنه هورمونی", "پوست و بدن", "✨"),
-    SymptomPresetItem("hot_flash", "گرگرفتگی و تعریق", "پوست و بدن", "🔥"),
+    SymptomPresetItem("breast_tender", "حساسیت سینه", "پوست و بدن", "🌸"),
+    SymptomPresetItem("acne", "جوش صورت", "پوست و بدن", "✨"),
+    SymptomPresetItem("hot_flash", "گرگرفتگی", "پوست و بدن", "🔥"),
     SymptomPresetItem("water_retention", "ورم و احتباس آب", "پوست و بدن", "💧"),
 
     // گوارش و اشتها
     SymptomPresetItem("nausea", "حالت تهوع", "گوارش و اشتها", "🤢"),
-    SymptomPresetItem("cravings", "هوس شیرینی و خوراکی", "گوارش و اشتها", "🍫"),
-    SymptomPresetItem("heavy_appetite", "اشتهای زیاد و پرخوری", "گوارش و اشتها", "🍽️"),
+    SymptomPresetItem("cravings", "هوس غذایی", "گوارش و اشتها", "🍫"),
+    SymptomPresetItem("heavy_appetite", "پرخوری", "گوارش و اشتها", "🍽️"),
     SymptomPresetItem("low_appetite", "بی‌اشتهایی", "گوارش و اشتها", "🥗"),
-    SymptomPresetItem("constipation", "یبوست یا اختلال گوارش", "گوارش و اشتها", "🌿")
+    SymptomPresetItem("constipation", "یبوست", "گوارش و اشتها", "🌿")
 )
 
+// Same labels as the daily log screen, so every chart and report counts them together.
 val MOOD_EMOJIS = listOf(
     "😊" to "شاد",
     "⚡" to "پرانرژی",
-    "🌿" to "آرام",
+    "🌿" to "آرامش",
     "🌪️" to "نوسان خلق",
-    "🥺" to "حساس",
+    "🥺" to "حساس و تحریک‌پذیر",
     "😤" to "عصبی",
-    "😰" to "مضطرب",
-    "🥱" to "خسته"
+    "😰" to "اضطراب",
+    "🥱" to "خواب‌آلود"
 )
 
 enum class CalendarCyclePhase {
@@ -90,7 +91,7 @@ enum class CalendarCyclePhase {
 
 /**
  * Visual interface for logging daily menstrual cycle symptoms and cycle phases,
- * using Room for local persistence.
+ * saved on the device.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -116,12 +117,12 @@ fun VisualDailySymptomLogger(
     val localDateStr = remember(selectedDate) { selectedDate.toLocalDate().toString() }
 
     // State for flow
-    var selectedFlow by remember(selectedDate, initialDailyLog) {
+    var selectedFlow by remember(localDateStr) {
         mutableStateOf(initialDailyLog?.periodFlow ?: "NONE")
     }
 
     // State for symptoms map: SymptomName -> Severity ("MILD", "MODERATE", "SEVERE")
-    val activeSymptoms = remember(selectedDate, initialSymptoms, initialDailyLog) {
+    val activeSymptoms = remember(localDateStr) {
         val map = mutableStateMapOf<String, String>()
         if (initialSymptoms.isNotEmpty()) {
             initialSymptoms.forEach { map[it.symptomName] = it.severity }
@@ -139,14 +140,14 @@ fun VisualDailySymptomLogger(
     var selectedCategory by remember { mutableStateOf("همه") }
 
     // State for emoji and notes
-    var selectedEmoji by remember(selectedDate, initialDailyLog) {
+    var selectedEmoji by remember(localDateStr) {
         mutableStateOf(initialDailyLog?.emoji ?: "")
     }
-    var notesText by remember(selectedDate, initialDailyLog) {
+    var notesText by remember(localDateStr) {
         mutableStateOf(initialDailyLog?.notes ?: "")
     }
 
-    // Has saved data in Room indicator
+    // Whether this day already has saved entries
     val hasRoomData = (initialSymptoms.isNotEmpty() || (initialDailyLog != null && (initialDailyLog.symptoms.isNotBlank() || initialDailyLog.periodFlow != "NONE" || initialDailyLog.notes.isNotBlank())))
 
     // Save confirmation trigger
@@ -166,7 +167,7 @@ fun VisualDailySymptomLogger(
                 .fillMaxWidth()
                 .padding(18.dp)
         ) {
-            // Header: Date & Room Local Persistence Badge
+            // Header: date and "already logged" badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -174,7 +175,7 @@ fun VisualDailySymptomLogger(
             ) {
                 Column {
                     Text(
-                        text = "ثبت علائم روز ${selectedDate.day} ${selectedDate.monthName} ${selectedDate.year}",
+                        text = "ثبت روز ${selectedDate.formatLong()}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -186,26 +187,14 @@ fun VisualDailySymptomLogger(
                     )
                 }
 
-                Surface(
-                    color = if (hasRoomData) SleekPrimaryLight else MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Storage,
-                            contentDescription = "Room Database",
-                            tint = if (hasRoomData) SleekPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(12.dp)
-                        )
+                if (hasRoomData) {
+                    Surface(color = SleekPrimaryLight, shape = RoundedCornerShape(10.dp)) {
                         Text(
-                            text = if (hasRoomData) "ذخیره در Room ✓" else "پایگاه داده Room",
-                            fontSize = 11.sp,
+                            text = "ثبت شده ✓",
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (hasRoomData) SleekPrimaryDark else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = SleekPrimaryDark,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -232,7 +221,7 @@ fun VisualDailySymptomLogger(
             }
             val phaseBg = when (cyclePhase) {
                 CalendarCyclePhase.MENSTRUAL -> SleekPrimaryLight
-                CalendarCyclePhase.FOLLICULAR -> Color(0xFFE8F5E9)
+                CalendarCyclePhase.FOLLICULAR -> Color(0xFF10B981).copy(alpha = 0.15f)
                 CalendarCyclePhase.OVULATION -> Indigo50
                 CalendarCyclePhase.LUTEAL -> Amber50
                 CalendarCyclePhase.REGULAR -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -678,7 +667,7 @@ fun VisualDailySymptomLogger(
                     ) {
                         Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
                         Text(
-                            text = "علائم و وضعیت روز با موفقیت در پایگاه داده Room ذخیره شد ✨",
+                            text = "ثبت این روز ذخیره شد ✨",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1B5E20)
@@ -688,7 +677,7 @@ fun VisualDailySymptomLogger(
             }
 
             // ==============================================================
-            // Section 5: Action Buttons (Room Local Persistence)
+            // Section 5: Action Buttons
             // ==============================================================
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -720,7 +709,13 @@ fun VisualDailySymptomLogger(
                             )
                         }
 
-                        val moods = if (selectedEmoji.isNotBlank()) listOf(selectedEmoji) else emptyList()
+                        // The quick mood replaces only the moods of this picker; moods logged on the
+                        // daily screen (e.g. «استرس») are kept. Labels are stored, not emoji characters.
+                        val pickerLabels = MOOD_EMOJIS.map { it.second }.toSet()
+                        val otherMoods = initialDailyLog?.moods.orEmpty().split(",")
+                            .map { it.trim() }
+                            .filter { it.isNotBlank() && it !in pickerLabels && MOOD_EMOJIS.none { e -> e.first == it } }
+                        val moods = otherMoods + listOfNotNull(MOOD_EMOJIS.firstOrNull { it.first == selectedEmoji }?.second)
 
                         onSave(
                             selectedFlow,
@@ -742,7 +737,7 @@ fun VisualDailySymptomLogger(
                     Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "ذخیره در پایگاه داده Room 💾",
+                        text = "ذخیره",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )
@@ -750,15 +745,30 @@ fun VisualDailySymptomLogger(
 
                 // Delete / Clear Button
                 if (hasRoomData) {
+                    var confirmClear by remember { mutableStateOf(false) }
+                    if (confirmClear) {
+                        AlertDialog(
+                            onDismissRequest = { confirmClear = false },
+                            title = { Text("پاک کردن ثبت‌های این روز؟") },
+                            text = { Text("خونریزی، علائم، حال و یادداشت این روز حذف می‌شود.") },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    confirmClear = false
+                                    activeSymptoms.clear()
+                                    selectedFlow = "NONE"
+                                    selectedEmoji = ""
+                                    notesText = ""
+                                    onDelete()
+                                    showSavedNotification = false
+                                }) { Text("پاک شود", color = MaterialTheme.colorScheme.error) }
+                            },
+                            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("انصراف") } }
+                        )
+                    }
                     OutlinedButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            activeSymptoms.clear()
-                            selectedFlow = "NONE"
-                            selectedEmoji = ""
-                            notesText = ""
-                            onDelete()
-                            showSavedNotification = false
+                            confirmClear = true
                         },
                         modifier = Modifier
                             .height(48.dp)

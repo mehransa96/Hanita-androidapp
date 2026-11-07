@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.LocalDrink
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.DarkMode
@@ -78,15 +77,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
+import com.example.utils.PersianNumbers
 import com.example.ui.viewmodel.CycleInfo
 import com.example.ui.viewmodel.MahitaViewModel
 import com.example.ui.viewmodel.PredictionInfo
 
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
@@ -141,7 +138,7 @@ fun AdvancedHealthSuiteCard(
                 }
                 Text(
                     text = "ویژه بانوان",
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     color = SleekPrimary,
                     fontWeight = FontWeight.Bold
                 )
@@ -237,15 +234,15 @@ fun QuickHydrationAndMoodCard(
                         )
                     }
                     Text(
-                        text = "ثبت سریع تندرستی روزانه 💧✨",
+                        text = "آب و حال امروز 💧",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.5.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 Text(
-                    text = "${waterGlasses * 250} / 2000 ml",
-                    fontSize = 11.sp,
+                    text = "${PersianNumbers.toPersianDigits(waterGlasses * 250)} از ۲۰۰۰ میلی‌لیتر",
+                    fontSize = 12.sp,
                     color = Color(0xFF0284C7),
                     fontWeight = FontWeight.Bold
                 )
@@ -264,13 +261,13 @@ fun QuickHydrationAndMoodCard(
                         progress = { progress },
                         modifier = Modifier.fillMaxSize(),
                         color = Color(0xFF0284C7),
-                        trackColor = Color(0xFFE0F2FE),
+                        trackColor = Color(0xFF0284C7).copy(alpha = 0.15f),
                         strokeWidth = 6.dp,
                         strokeCap = StrokeCap.Round
                     )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "$waterGlasses/8",
+                            text = "${PersianNumbers.toPersianDigits(waterGlasses)}/۸",
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF0284C7),
                             fontSize = 12.sp
@@ -288,8 +285,8 @@ fun QuickHydrationAndMoodCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "${waterGlasses * 250} ml مصرف شده",
-                        fontSize = 11.sp,
+                        text = "${PersianNumbers.toPersianDigits(waterGlasses)} لیوان (هر لیوان ۲۵۰ میلی‌لیتر)",
+                        fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -297,7 +294,8 @@ fun QuickHydrationAndMoodCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilledTonalIconButton(
                         onClick = onDecrementWater,
-                        modifier = Modifier.size(36.dp),
+                        modifier = Modifier.size(44.dp),
+                        enabled = waterGlasses > 0,
                         colors = IconButtonDefaults.filledTonalIconButtonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
                         )
@@ -306,16 +304,14 @@ fun QuickHydrationAndMoodCard(
                     }
 
                     Button(
-                        onClick = {
-                            onIncrementWater()
-                            android.widget.Toast.makeText(context, "یک لیوان آب ثبت شد (+۲۵۰ml) 💧", android.widget.Toast.LENGTH_SHORT).show()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                        onClick = onIncrementWater,
+                        enabled = waterGlasses < 16,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7), contentColor = Color.White),
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(44.dp)
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.Add, contentDescription = "افزودن یک لیوان آب", modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -325,38 +321,40 @@ fun QuickHydrationAndMoodCard(
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     text = "حال روحی شما در این لحظه چگونه است؟",
-                    fontSize = 11.5.sp,
+                    fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                // Stored with the same labels as the daily log, so charts and reports count them together.
                 val quickMoods = listOf(
-                    "پرانرژی ✨" to Color(0xFFF59E0B),
-                    "آرام و متمرکز 🧘" to Color(0xFF10B981),
-                    "خواب‌آلود و خسته 😴" to Color(0xFF6366F1),
-                    "حساس و احساساتی 🌧️" to Color(0xFFEC4899)
+                    Triple("پرانرژی", "پرانرژی ✨", Color(0xFFD97706)),
+                    Triple("آرامش", "آرام 🧘", Color(0xFF059669)),
+                    Triple("خواب‌آلود", "خسته 😴", Color(0xFF6366F1)),
+                    Triple("حساس و تحریک‌پذیر", "حساس 🌧️", Color(0xFFDB2777))
                 )
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    quickMoods.forEach { (moodText, moodColor) ->
+                    quickMoods.forEach { (moodValue, moodText, moodColor) ->
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(moodColor.copy(alpha = 0.1f))
                                 .border(1.dp, moodColor.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-                                .clickable {
-                                    onLogMood(moodText)
-                                    android.widget.Toast.makeText(context, "حالت «$moodText» برای امروز ثبت شد 🌸", android.widget.Toast.LENGTH_SHORT).show()
+                                .clickable(onClickLabel = "ثبت حال $moodValue برای امروز") {
+                                    onLogMood(moodValue)
+                                    android.widget.Toast.makeText(context, "حال «$moodValue» برای امروز ثبت شد 🌸", android.widget.Toast.LENGTH_SHORT).show()
                                 }
-                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = moodText,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
+                                maxLines = 1,
                                 fontWeight = FontWeight.SemiBold,
                                 color = moodColor,
                                 textAlign = TextAlign.Center
@@ -422,35 +420,13 @@ fun DailyPhysicalSymptomsCard(
                         )
                     }
                 }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Storage,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Room DB",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             if (todaySymptoms.isNotEmpty()) {
                 Text(
-                    text = "${todaySymptoms.size} علامت برای امروز در دیتابیس ثبت شده است:",
+                    text = "${PersianNumbers.toPersianDigits(todaySymptoms.size)} علامت برای امروز ثبت شده است:",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Medium
@@ -492,7 +468,7 @@ fun DailyPhysicalSymptomsCard(
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "+${todaySymptoms.size - 3} دیگر",
+                                text = "+${PersianNumbers.toPersianDigits(todaySymptoms.size - 3)} دیگر",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -501,7 +477,7 @@ fun DailyPhysicalSymptomsCard(
                 }
             } else {
                 Text(
-                    text = "امروز سردرد، خستگی، درد شکم یا علائم جسمی دیگری احساس کرده‌اید؟ برای ثبت و پیگیری در دیتابیس کلیک کنید.",
+                    text = "امروز سردرد، خستگی، درد شکم یا علائم جسمی دیگری احساس کرده‌اید؟ برای ثبت و پیگیری لمس کنید.",
                     fontSize = 12.sp,
                     lineHeight = 18.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -572,8 +548,8 @@ fun SuiteActionButton(
                 )
                 Text(
                     text = subtitle,
-                    fontSize = 10.sp,
-                    color = SleekTextMedium
+                    fontSize = 12.sp,
+                    color = SleekTextLight
                 )
             }
             Icon(

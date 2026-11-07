@@ -237,19 +237,19 @@ fun HormoneLevelsChartCard(
                             )
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFFEDE9FE)
+                                color = MaterialTheme.colorScheme.surfaceVariant
                             ) {
                                 Text(
-                                    text = "Vico Chart",
-                                    fontSize = 9.sp,
+                                    text = "الگوی تقریبی",
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF6D28D9),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
                         Text(
-                            text = "نوسانات استروژن، پروژسترون، LH و FSH در فازهای بدن",
+                            text = "الگوی عمومی تغییر استروژن، پروژسترون، LH و FSH در طول چرخه (نه اندازه‌گیری بدن شما)",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -274,7 +274,7 @@ fun HormoneLevelsChartCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "وضعیت کنونی شما: روز $currentCycleDay از چرخه",
+                        text = "وضعیت کنونی شما: روز ${com.example.utils.PersianNumbers.toPersianDigits(currentCycleDay)} از چرخه",
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
                         color = SleekPrimaryDark

@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CycleRecordDao {
-    @Query("SELECT * FROM cycle_records")
+    @Query("SELECT * FROM cycle_records ORDER BY startDate DESC")
     fun getAllCycleRecords(): Flow<List<CycleRecord>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -17,6 +17,9 @@ interface CycleRecordDao {
 
     @Query("SELECT * FROM cycle_records WHERE id = :id LIMIT 1")
     suspend fun getCycleRecordById(id: String): CycleRecord?
+
+    @Query("SELECT * FROM cycle_records")
+    suspend fun getAllCycleRecordsList(): List<CycleRecord>
 
     @Query("DELETE FROM cycle_records WHERE id = :id")
     suspend fun deleteCycleRecord(id: String)
