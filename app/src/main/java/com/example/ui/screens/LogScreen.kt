@@ -631,7 +631,8 @@ fun LogScreen(
                         bbt = bbtInput.toFloatOrNull(),
                         weight = weightInput.toFloatOrNull(),
                         // The form shows every field of the day, so clearing a mood or note sticks.
-                        replaceDayState = true
+                        replaceDayState = true,
+                        measurementsFromForm = true
                     )
 
                     coroutineScope.launch {

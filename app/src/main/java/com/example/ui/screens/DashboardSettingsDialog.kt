@@ -556,10 +556,15 @@ fun SettingsDialog(
                                         return@Button
                                     }
                                     if (editStartDate.isNotBlank()) {
-                                        try {
+                                        val parsedStart = try {
                                             java.time.LocalDate.parse(editStartDate, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
                                         } catch (e: Exception) {
                                             android.widget.Toast.makeText(context, "فرمت تاریخ شروع نامعتبر است (باید YYYY-MM-DD باشد)", android.widget.Toast.LENGTH_SHORT).show()
+                                            return@Button
+                                        }
+                                        // Same rule as the calendar: a period cannot start in the future.
+                                        if (parsedStart.isAfter(java.time.LocalDate.now())) {
+                                            android.widget.Toast.makeText(context, "شروع پریود را نمی‌توان برای روزهای آینده ثبت کرد", android.widget.Toast.LENGTH_SHORT).show()
                                             return@Button
                                         }
                                     }

@@ -152,12 +152,14 @@ fun DashboardScreen(
     val lastPeriodDate by viewModel.lastPeriodDate.collectAsState()
     val allPhysicalSymptoms by viewModel.allPhysicalSymptoms.collectAsState()
     val cycleRecords by viewModel.allCycleRecords.collectAsState()
-    val todayDateStr = remember { java.time.LocalDate.now().toString() }
+    val currentDate by viewModel.currentDate.collectAsState()
+    val todayDateStr = currentDate.toString()
     val todayPhysicalSymptoms = remember(allPhysicalSymptoms, todayDateStr) {
         allPhysicalSymptoms.filter { it.dateStr == todayDateStr }
     }
     val aiDailyTip by viewModel.aiDailyTip.collectAsState()
     val isFetchingAiTip by viewModel.isFetchingAiTip.collectAsState()
+    val aiTipError by viewModel.aiTipError.collectAsState()
     val context = LocalContext.current
 
     var selectedTab by rememberSaveable { mutableIntStateOf(startTab.coerceIn(0, HomeTab.values().lastIndex)) }
@@ -283,7 +285,8 @@ fun DashboardScreen(
                         cycleInfo = cycleInfo,
                         predictionInfo = predictionInfo,
                         onOpenSettings = { showSettingsDialog = true },
-                        onLock = onLock
+                        onLock = onLock,
+                        today = currentDate
                     )
                 }
             }
@@ -320,8 +323,7 @@ fun DashboardScreen(
         "quick_log" -> CardSheet("ثبت سریع حال روزانه", { openSheet = null }) {
             com.example.ui.components.QuickSymptomWidget(
                 onSave = { mood, energy, sleep, pain ->
-                    val todayStr = java.time.LocalDate.now().toString()
-                    viewModel.saveQuickLog(todayStr, mood, energy, sleep, pain)
+                    viewModel.saveQuickLog(java.time.LocalDate.now().toString(), mood, energy, sleep, pain)
                 },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -341,7 +343,8 @@ fun DashboardScreen(
                 averageCycleLength = averageCycleLength.toFloat(),
                 aiDailyTip = aiDailyTip,
                 isFetchingAiTip = isFetchingAiTip,
-                onFetchTip = { phase, day, avg -> viewModel.fetchAiDailyTip(phase, day, avg) }
+                onFetchTip = { phase, day, avg -> viewModel.fetchAiDailyTip(phase, day, avg) },
+                aiTipError = aiTipError
             )
         }
     }

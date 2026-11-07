@@ -91,7 +91,8 @@ fun PartnerTab(
     cycleInfo: CycleInfo,
     predictionInfo: PredictionInfo,
     onOpenSettings: () -> Unit,
-    onLock: () -> Unit
+    onLock: () -> Unit,
+    today: LocalDate = LocalDate.now()
 ) {
     val context = LocalContext.current
     val prefs = remember { PartnerPrefs(context) }
@@ -125,9 +126,9 @@ fun PartnerTab(
             if (todayEvent == PartnerAlerts.Event.PERIOD_SOON) cycleInfo.daysUntilNextPeriod else daysBefore
         )
     }
-    val upcoming = remember(version, predictionInfo) {
+    val upcoming = remember(version, predictionInfo, today) {
         PartnerAlerts.upcoming(
-            predictionInfo.lastPeriodStart, predictionInfo.calculatedAverage, LocalDate.now(),
+            predictionInfo.lastPeriodStart, predictionInfo.calculatedAverage, today,
             events, daysBefore
         ).take(3)
     }
