@@ -44,10 +44,13 @@ fun CycleHistoryScreen(
     val context = LocalContext.current
     val records by viewModel.allCycleRecords.collectAsState()
     val avgCycleLength by viewModel.averageCycleLength.collectAsState()
+    // The figure shown is the real average of the logged cycles (the setting is only the fallback).
+    val prediction by viewModel.cyclePrediction.collectAsState()
 
     // Dialog state for editing an existing record or creating a new one
     var recordToEdit by remember { mutableStateOf<CycleRecord?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var recordToDelete by remember { mutableStateOf<CycleRecord?>(null) }
 
     // Sort records descending by start date
     val sortedRecords = remember(records) {
@@ -181,7 +184,7 @@ fun CycleHistoryScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("میانگین طول چرخه", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text("$avgCycleLength روز", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text("${prediction.averageCycleLength} روز", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         }
                         Box(modifier = Modifier.width(1.dp).height(30.dp).background(MaterialTheme.colorScheme.outlineVariant))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -283,7 +286,8 @@ fun CycleHistoryScreen(
                             },
                             onDelete = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                viewModel.deleteFullCycleRecord(record)
+                                // One tap used to delete the cycle and its bleeding days at once.
+                                recordToDelete = record
                             }
                         )
                     }
@@ -323,6 +327,24 @@ fun CycleHistoryScreen(
                 viewModel.deleteFullCycleRecord(curr)
                 recordToEdit = null
             }
+        )
+    }
+
+    recordToDelete?.let { record ->
+        val startJ = runCatching {
+            com.example.utils.JalaliCalendar.gregorianToJalali(LocalDate.parse(record.startDate)).formatLong()
+        }.getOrDefault(record.startDate)
+        AlertDialog(
+            onDismissRequest = { recordToDelete = null },
+            title = { Text("حذف این دوره؟", fontWeight = FontWeight.Bold) },
+            text = { Text("دوره‌ای که در $startJ شروع شده و روزهای پریود آن حذف می‌شود.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteFullCycleRecord(record)
+                    recordToDelete = null
+                }) { Text("حذف شود", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { recordToDelete = null }) { Text("انصراف") } }
         )
     }
 

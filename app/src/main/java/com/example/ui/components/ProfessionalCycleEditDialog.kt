@@ -50,9 +50,11 @@ fun ProfessionalCycleEditDialog(
     onDeleteCycle: (() -> Unit)? = null
 ) {
     val haptic = LocalHapticFeedback.current
-    var startDate by remember { mutableStateOf(initialStartDate) }
+    // Bleeding cannot be logged ahead of time: a default end such as "start + 4 days" used to
+    // write future days that later counted as real bleeding.
+    var startDate by remember { mutableStateOf(earlierOf(initialStartDate, LocalDate.now())) }
     var endDate by remember {
-        mutableStateOf(initialEndDate ?: initialStartDate.plusDays(4))
+        mutableStateOf(laterOf(earlierOf(initialEndDate ?: initialStartDate.plusDays(4), LocalDate.now()), earlierOf(initialStartDate, LocalDate.now())))
     }
     var cycleLength by remember { mutableIntStateOf(initialCycleLength.coerceIn(21, 45)) }
     var flow by remember { mutableStateOf(initialFlow) }
@@ -579,8 +581,14 @@ fun ProfessionalCycleEditDialog(
                     Button(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            val validEnd = if (endDate.isBefore(startDate)) startDate.plusDays(4) else endDate
-                            onSaveCycle(startDate, validEnd, cycleLength, flow, notes)
+                            val today = LocalDate.now()
+                            val safeStart = earlierOf(startDate, today)
+                            val validEnd = laterOf(
+                                safeStart,
+                                if (endDate.isBefore(safeStart)) earlierOf(safeStart.plusDays(4), today) else earlierOf(endDate, today)
+                            )
+                            startDate = safeStart
+                            onSaveCycle(safeStart, validEnd, cycleLength, flow, notes)
                         },
                         modifier = Modifier
                             .weight(1.6f)
@@ -608,7 +616,7 @@ fun ProfessionalCycleEditDialog(
             onDateSelected = { picked ->
                 startDate = picked
                 if (endDate.isBefore(picked)) {
-                    endDate = picked.plusDays(4)
+                    endDate = laterOf(earlierOf(picked.plusDays(4), LocalDate.now()), picked)
                 }
                 showStartDatePicker = false
             }
@@ -621,11 +629,13 @@ fun ProfessionalCycleEditDialog(
             title = "انتخاب تاریخ پایان قاعدگی (پاکی) ✨",
             subtitle = "پایان خونریزی این دوره را مشخص نمایید",
             minDate = startDate,
+            // A period cannot end in the future.
+            maxDate = laterOf(startDate, LocalDate.now()),
             onDismissRequest = { showEndDatePicker = false },
             onDateSelected = { picked ->
                 if (picked.isBefore(startDate)) {
                     startDate = picked
-                    endDate = picked.plusDays(4)
+                    endDate = laterOf(earlierOf(picked.plusDays(4), LocalDate.now()), picked)
                 } else {
                     endDate = picked
                 }
@@ -662,3 +672,7 @@ fun ProfessionalCycleEditDialog(
         )
     }
 }
+
+/** LocalDate is Comparable<ChronoLocalDate>, so the stdlib minOf/maxOf do not apply to it. */
+internal fun earlierOf(a: LocalDate, b: LocalDate): LocalDate = if (a.isAfter(b)) b else a
+internal fun laterOf(a: LocalDate, b: LocalDate): LocalDate = if (a.isBefore(b)) b else a

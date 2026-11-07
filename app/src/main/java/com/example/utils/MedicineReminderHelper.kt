@@ -53,10 +53,13 @@ object MedicineReminderHelper {
             }
 
             try {
-                val parts = reminder.time.split(":")
-                if (parts.size == 2) {
-                    val hour = parts[0].toIntOrNull() ?: 8
-                    val minute = parts[1].toIntOrNull() ?: 0
+                // Same reading as the add/edit form, so "۱۴:۳۰" or "14.30" rings at the right time.
+                val time = com.example.domain.TimeText.parse(reminder.time)
+                if (time == null) {
+                    Log.w("MedicineReminderHelper", "Unreadable time for a medicine reminder; not scheduled")
+                    alarmManager.cancel(pendingIntent)
+                } else {
+                    val (hour, minute) = time
 
                     val calendar = Calendar.getInstance().apply {
                         timeInMillis = System.currentTimeMillis()
@@ -71,10 +74,11 @@ object MedicineReminderHelper {
                         calendar.add(Calendar.DAY_OF_YEAR, 1)
                     }
 
-                    alarmManager.setRepeating(
+                    // Inexact repeating alarms can be delayed by hours under Doze; a one-shot alarm
+                    // that is re-armed when it fires (MedicineReminderReceiver) stays on time.
+                    alarmManager.setAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
                         calendar.timeInMillis,
-                        AlarmManager.INTERVAL_DAY,
                         pendingIntent
                     )
                     Log.d("MedicineReminderHelper", "Scheduled ${reminder.name} at ${reminder.time}")
