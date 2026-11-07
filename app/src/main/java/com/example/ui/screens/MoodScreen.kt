@@ -77,21 +77,11 @@ fun MoodScreen(
     var currentPositionSeconds by remember { mutableStateOf(0) }
     var trackDurationSeconds by remember { mutableStateOf(24) }
     var isLooping by remember { mutableStateOf(true) }
-    var isFavorited by remember { mutableStateOf(false) }
+    val favoriteTracks by viewModel.favoriteTracks.collectAsState()
+    val isFavorited = currentPlayingMusic?.id?.let { it in favoriteTracks } == true
 
     val context = LocalContext.current
-    val mediaPlayer = remember { MediaPlayer() }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            try {
-                if (mediaPlayer.isPlaying) mediaPlayer.stop()
-                mediaPlayer.release()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
+    val (mediaPlayer, audioFocus) = com.example.ui.components.rememberScreenPlayer(onPause = { isPlaying = false })
 
     // Playback logic with bundled offline raw audio resources
     fun startTrackPlayback(track: CycleMusic) {
@@ -102,9 +92,13 @@ fun MoodScreen(
             afd.close()
             mediaPlayer.isLooping = isLooping
             mediaPlayer.prepare()
-            mediaPlayer.start()
-            isPlaying = true
             currentPositionSeconds = 0
+            if (audioFocus.request()) {
+                mediaPlayer.start()
+                isPlaying = true
+            } else {
+                isPlaying = false
+            }
             trackDurationSeconds = (mediaPlayer.duration / 1000).coerceAtLeast(track.durationSeconds)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -119,10 +113,13 @@ fun MoodScreen(
                     if (mediaPlayer.isPlaying) mediaPlayer.pause()
                 } catch (e: Exception) {}
                 isPlaying = false
+                audioFocus.abandon()
             } else {
                 try {
-                    mediaPlayer.start()
-                    isPlaying = true
+                    if (audioFocus.request()) {
+                        mediaPlayer.start()
+                        isPlaying = true
+                    }
                 } catch (e: Exception) {
                     startTrackPlayback(music)
                 }
@@ -491,24 +488,8 @@ fun MoodScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                SuggestionChip(
-                                    onClick = {},
-                                    label = { Text(track.categoryBadge, fontSize = 10.sp) },
-                                    colors = SuggestionChipDefaults.suggestionChipColors(
-                                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                                        labelColor = MaterialTheme.colorScheme.primary
-                                    ),
-                                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                                )
-                                SuggestionChip(
-                                    onClick = {},
-                                    label = { Text(track.frequencyLabel, fontSize = 10.sp) },
-                                    colors = SuggestionChipDefaults.suggestionChipColors(
-                                        containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f),
-                                        labelColor = MaterialTheme.colorScheme.secondary
-                                    ),
-                                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f))
-                                )
+                                TrackTag(track.categoryBadge, MaterialTheme.colorScheme.primary)
+                                TrackTag(track.frequencyLabel, MaterialTheme.colorScheme.secondary)
                             }
                         }
                     }
@@ -635,13 +616,13 @@ fun MoodScreen(
 
                                 // Favorite Toggle
                                 IconButton(
-                                    onClick = { isFavorited = !isFavorited },
+                                    onClick = { currentPlayingMusic?.let { viewModel.toggleFavoriteTrack(it.id) } },
                                     modifier = Modifier.testTag("player_favorite_button")
                                 ) {
                                     Icon(
                                         imageVector = if (isFavorited) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                         tint = if (isFavorited) Color(0xFFFF4C4C) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        contentDescription = "علاقه‌مندی"
+                                        contentDescription = if (isFavorited) "حذف از علاقه‌مندی‌ها" else "افزودن به علاقه‌مندی‌ها"
                                     )
                                 }
                             }
@@ -816,5 +797,17 @@ fun MoodScreen(
                 }
             }
         }
+    }
+}
+
+/** Static label (not a button), so screen readers do not announce a control that does nothing. */
+@Composable
+private fun TrackTag(text: String, color: Color) {
+    Surface(
+        color = color.copy(alpha = 0.08f),
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(0.5.dp, color.copy(alpha = 0.3f))
+    ) {
+        Text(text, fontSize = 12.sp, color = color, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
     }
 }

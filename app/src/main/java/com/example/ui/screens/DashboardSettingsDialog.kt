@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.LocalDrink
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.DarkMode
@@ -51,6 +50,8 @@ import com.example.ui.components.InteractivePeriodCalendarWidget
 import com.example.ui.components.HormoneLevelsChartCard
 import com.example.ui.components.SmartInsightsCard
 import com.example.utils.JalaliCalendar
+import com.example.utils.PersianDates
+import com.example.utils.PersianNumbers
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -83,10 +84,7 @@ import com.example.ui.viewmodel.MahitaViewModel
 import com.example.ui.viewmodel.PredictionInfo
 
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
@@ -112,24 +110,18 @@ fun SettingsDialog(
     val currentTheme by viewModel.appTheme.collectAsState()
     val currentFont by viewModel.appFont.collectAsState()
     val currentThemeMode by viewModel.themeMode.collectAsState()
-    val lastPeriodDate by viewModel.lastPeriodDate.collectAsState()
+    val lastPeriodStart by viewModel.lastPeriodStart.collectAsState()
 
-    var editWeight by remember { mutableStateOf(userWeight) }
+    var editWeight by remember { mutableStateOf(PersianNumbers.toPersianDigits(userWeight)) }
     LaunchedEffect(userWeight) {
-        editWeight = userWeight
+        editWeight = PersianNumbers.toPersianDigits(userWeight)
     }
 
-    var editStartDate by remember { mutableStateOf(lastPeriodDate) }
-    var editDuration by remember { mutableStateOf(averageCycleLength.toString()) }
+    var editDuration by remember { mutableStateOf(PersianNumbers.toPersianDigits(averageCycleLength)) }
     var showStartDatePickerInSettings by remember { mutableStateOf(false) }
 
-    LaunchedEffect(lastPeriodDate) {
-        if (editStartDate.isBlank() && lastPeriodDate.isNotBlank()) {
-            editStartDate = lastPeriodDate
-        }
-    }
     LaunchedEffect(averageCycleLength) {
-        editDuration = averageCycleLength.toString()
+        editDuration = PersianNumbers.toPersianDigits(averageCycleLength)
     }
 
     val haptic = LocalHapticFeedback.current
@@ -161,7 +153,7 @@ fun SettingsDialog(
             ) {
                 // Section 1: Light / Dark Mode Toggle
                 Text(
-                    "حالت روشنایی (Theme Mode)",
+                    "حالت نمایش",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     color = SleekPrimary
@@ -215,7 +207,7 @@ fun SettingsDialog(
 
                 // Section 2: Dynamic Theme Selector
                 Text(
-                    "پوسته و هماهنگی تم‌ها (شیک و مینیمال)",
+                    "پوسته رنگی",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     color = SleekPrimary
@@ -287,7 +279,7 @@ fun SettingsDialog(
 
                 // Section 1.5: Dynamic Font Selector
                 Text(
-                    "انتخاب قلم و فونت برنامه (جذاب و فانتزی) 🌸",
+                    "قلم برنامه",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     color = SleekPrimary
@@ -408,7 +400,7 @@ fun SettingsDialog(
                             OutlinedTextField(
                                 value = editWeight,
                                 onValueChange = { editWeight = it },
-                                label = { Text("وزن فعلی شما (kg)", fontSize = 11.sp) },
+                                label = { Text("وزن فعلی (کیلوگرم)", fontSize = 12.sp) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1.2f),
                                 singleLine = true,
@@ -420,14 +412,19 @@ fun SettingsDialog(
                             )
                             Button(
                                 onClick = {
-                                    viewModel.setWeight(editWeight)
-                                    android.widget.Toast.makeText(context, "وزن شما با موفقیت در فایربیس ذخیره شد.", android.widget.Toast.LENGTH_SHORT).show()
+                                    val kg = PersianNumbers.parseDecimal(editWeight, 25f..250f)
+                                    if (kg == null) {
+                                        android.widget.Toast.makeText(context, "وزن را بین ۲۵ تا ۲۵۰ کیلوگرم وارد کنید.", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        viewModel.setWeight(kg)
+                                        android.widget.Toast.makeText(context, savedMessage(viewModel.isCloudSyncAvailable()), android.widget.Toast.LENGTH_SHORT).show()
+                                    }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = SleekPrimary),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.height(45.dp)
                             ) {
-                                Text("ذخیره وزن", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("ذخیره", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                             }
                         }
 
@@ -435,18 +432,14 @@ fun SettingsDialog(
 
                         // 2. Menstrual Cycle Form Fields
                         Text(
-                            text = "فرم اطلاعات شروع و طول چرخه (سیستم هوشمند)",
+                            text = "شروع پریود و طول چرخه",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 11.sp,
                             color = SleekTextMedium
                         )
 
                         // Visual Jalali Date Trigger Card with Calendar Dialog
-                        val currentJalaliDisplay = remember(editStartDate) {
-                            runCatching {
-                                JalaliCalendar.gregorianToJalali(java.time.LocalDate.parse(editStartDate)).formatLong()
-                            }.getOrDefault(if (editStartDate.isNotBlank()) editStartDate else "انتخاب نشده")
-                        }
+                        val currentJalaliDisplay = lastPeriodStart?.let { PersianDates.long(it) } ?: "ثبت نشده"
 
                         Card(
                             modifier = Modifier
@@ -475,7 +468,7 @@ fun SettingsDialog(
                                     )
                                     Column {
                                         Text(
-                                            text = "تاریخ شروع آخرین قاعدگی:",
+                                            text = "شروع آخرین پریود ثبت‌شده:",
                                             fontSize = 10.5.sp,
                                             color = SleekTextMedium
                                         )
@@ -492,7 +485,7 @@ fun SettingsDialog(
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
                                     Text(
-                                        text = "تغییر تاریخ 📅",
+                                        text = "ثبت شروع جدید",
                                         fontSize = 10.5.sp,
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
@@ -503,15 +496,16 @@ fun SettingsDialog(
                         }
 
                         if (showStartDatePickerInSettings) {
-                            val initialParsed = runCatching { java.time.LocalDate.parse(editStartDate) }.getOrNull() ?: java.time.LocalDate.now()
                             ProfessionalDatePickerDialog(
-                                initialDate = initialParsed,
-                                title = "انتخاب تاریخ شروع آخرین پریود 🩸",
+                                initialDate = java.time.LocalDate.now(),
+                                title = "اولین روز پریود را انتخاب کنید 🩸",
                                 maxDate = java.time.LocalDate.now(),
                                 onDismissRequest = { showStartDatePickerInSettings = false },
                                 onDateSelected = { pickedDate ->
-                                    editStartDate = pickedDate.toString()
+                                    // Adds the bleeding day; anything else logged that day is kept.
+                                    viewModel.markPeriodStart(pickedDate)
                                     showStartDatePickerInSettings = false
+                                    android.widget.Toast.makeText(context, "شروع پریود در ${PersianDates.long(pickedDate)} ثبت شد.", android.widget.Toast.LENGTH_SHORT).show()
                                 }
                             )
                         }
@@ -524,7 +518,7 @@ fun SettingsDialog(
                             OutlinedTextField(
                                 value = editDuration,
                                 onValueChange = { editDuration = it },
-                                label = { Text("طول کل چرخه (روز)", fontSize = 11.sp) },
+                                label = { Text("طول چرخه پیش‌فرض (روز)", fontSize = 12.sp) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
@@ -545,28 +539,20 @@ fun SettingsDialog(
 
                             Button(
                                 onClick = {
-                                    val durationInt = editDuration.toIntOrNull()
-                                    if (durationInt == null || durationInt !in 21..45) {
-                                        android.widget.Toast.makeText(context, "لطفاً طول چرخه معتبر بین ۲۱ تا ۴۵ روز وارد کنید.", android.widget.Toast.LENGTH_SHORT).show()
+                                    val durationInt = PersianNumbers.parseInt(editDuration, 21..45)
+                                    if (durationInt == null) {
+                                        android.widget.Toast.makeText(context, "طول چرخه باید بین ۲۱ تا ۴۵ روز باشد.", android.widget.Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
-                                    if (editStartDate.isNotBlank()) {
-                                        try {
-                                            java.time.LocalDate.parse(editStartDate, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-                                        } catch (e: Exception) {
-                                            android.widget.Toast.makeText(context, "فرمت تاریخ شروع نامعتبر است (باید YYYY-MM-DD باشد)", android.widget.Toast.LENGTH_SHORT).show()
-                                            return@Button
-                                        }
-                                    }
-                                    viewModel.updateCycleSettings(editStartDate, durationInt)
+                                    viewModel.setAverageCycleLength(durationInt)
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    android.widget.Toast.makeText(context, "اطلاعات چرخه شما ذخیره و در فایربیس ابری همگام‌سازی شد.", android.widget.Toast.LENGTH_SHORT).show()
+                                    android.widget.Toast.makeText(context, savedMessage(viewModel.isCloudSyncAvailable()), android.widget.Toast.LENGTH_SHORT).show()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA78BFA)),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.height(45.dp).weight(1.3f)
                             ) {
-                                Text("ذخیره چرخه در فایربیس", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("ذخیره", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondary)
                             }
                         }
                         
@@ -630,8 +616,11 @@ fun SettingsDialog(
                 )
                 
                 Text(
-                    "اطلاعات شما به‌طور پیش‌فرض فقط روی همین گوشی ذخیره می‌شود. اگر با حساب گوگل وارد شده باشید، یک نسخه پشتیبان رمزنگاری‌شده فقط برای حساب خودتان در Firebase نگهداری می‌شود و هیچ کاربر دیگری به آن دسترسی ندارد.",
-                    fontSize = 11.sp,
+                    if (viewModel.isCloudSyncAvailable())
+                        "با حساب گوگل وارد شده‌اید؛ یک نسخه پشتیبان فقط برای حساب خودتان روی سرور نگهداری می‌شود و هیچ کاربر دیگری به آن دسترسی ندارد."
+                    else
+                        "اطلاعات شما فقط روی همین گوشی ذخیره می‌شود. پشتیبان ابری فقط برای کاربرانی فعال است که هنگام ورود، حساب گوگل را انتخاب کرده باشند.",
+                    fontSize = 12.sp,
                     color = SleekTextMedium,
                     lineHeight = 16.sp
                 )
@@ -651,7 +640,7 @@ fun SettingsDialog(
                     }
                 }
 
-                Button(
+                if (viewModel.isCloudSyncAvailable()) Button(
                     onClick = { viewModel.syncWithCloud() },
                     enabled = !isSyncing,
                     modifier = Modifier.fillMaxWidth(),
@@ -674,7 +663,7 @@ fun SettingsDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                     }
                     Text(
-                        if (isSyncing) "در حال همگام‌سازی..." else "همگام‌سازی دستی با سرور",
+                        if (isSyncing) "در حال همگام‌سازی..." else "همگام‌سازی اکنون",
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp
                     )
@@ -730,3 +719,7 @@ fun SettingsDialog(
         shape = RoundedCornerShape(24.dp)
     )
 }
+
+/** Honest confirmation: data is saved on the phone, and also in the cloud only for a signed-in user. */
+fun savedMessage(cloudAvailable: Boolean): String =
+    if (cloudAvailable) "ذخیره شد و در پشتیبان ابری هم ثبت می‌شود." else "روی همین گوشی ذخیره شد."

@@ -5,12 +5,11 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.example.domain.ReminderPlanner
 import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 
+/** Schedules the period, ovulation and late-period alarms decided by [ReminderPlanner]. */
 object CycleNotificationHelper {
     private const val TAG = "CycleNotificationHelper"
 
@@ -18,207 +17,47 @@ object CycleNotificationHelper {
     private const val REQUEST_CODE_OVULATION = 7002
     private const val REQUEST_CODE_LATE = 7003
 
-    /** A gentle check-in is sent when the period is this many days late and still not logged. */
-    const val LATE_CHECK_DAYS = 3
-
-    fun scheduleAllReminders(
-        context: Context,
-        lastPeriodStart: LocalDate,
-        cycleLength: Int,
-        isPeriodEnabled: Boolean,
-        daysBeforePeriod: Int,
-        isOvulationEnabled: Boolean,
-        daysBeforeOvulation: Int,
-        hour: Int = 9,
-        minute: Int = 0
-    ) {
-        val safeCycleLength = if (cycleLength in 20..45) cycleLength else 28
-        val today = LocalDate.now()
-
-        // 1. Calculate future period start
-        var projectedPeriod = lastPeriodStart
-        while (!projectedPeriod.isAfter(today)) {
-            projectedPeriod = projectedPeriod.plusDays(safeCycleLength.toLong())
-        }
-
-        // Schedule or cancel Period Reminder
-        if (isPeriodEnabled) {
-            var targetPeriodDate = projectedPeriod.minusDays(daysBeforePeriod.toLong())
-            var targetPeriodStart = projectedPeriod
-
-            // If scheduled date/time is already past for this upcoming period, schedule for the next cycle
-            val nowTime = LocalTime.now()
-            if (targetPeriodDate.isBefore(today) || (targetPeriodDate.isEqual(today) && nowTime.isAfter(LocalTime.of(hour, minute)))) {
-                targetPeriodStart = projectedPeriod.plusDays(safeCycleLength.toLong())
-                targetPeriodDate = targetPeriodStart.minusDays(daysBeforePeriod.toLong())
-            }
-
-            val jalaliDate = JalaliCalendar.gregorianToJalali(targetPeriodStart).formatShort()
-            val daysUntil = ChronoUnit.DAYS.between(today, targetPeriodStart).toInt().coerceAtLeast(0)
-
-            scheduleAlarm(
-                context = context,
-                action = CycleNotificationReceiver.ACTION_PERIOD_REMINDER,
-                requestCode = REQUEST_CODE_PERIOD,
-                targetDate = targetPeriodDate,
-                hour = hour,
-                minute = minute,
-                title = "یادآور هوشمند شروع قاعدگی 🌸",
-                body = "دوره جدید طبق محاسبات چرخه شما برای $jalaliDate پیش‌بینی شده است. برای آرامش بیشتر و ثبت علائم به هانیتا سر بزنید.",
-                jalaliDate = jalaliDate,
-                daysLeft = daysUntil
-            )
-            Log.d(TAG, "Scheduled Period Reminder on $targetPeriodDate at $hour:$minute for period starting $targetPeriodStart")
-        } else {
-            cancelReminder(context, CycleNotificationReceiver.ACTION_PERIOD_REMINDER, REQUEST_CODE_PERIOD)
-        }
-
-        // 1b. Late-period check-in. It is anchored on the last logged period, so logging the new
-        // period moves it to the next cycle automatically (the scheduler runs on every change).
-        val lateCheckDate = lastPeriodStart.plusDays((safeCycleLength + LATE_CHECK_DAYS).toLong())
-        val lateCheckTime = LocalDateTime.of(lateCheckDate, LocalTime.of(hour, minute))
-        if (isPeriodEnabled && lateCheckTime.isAfter(LocalDateTime.now())) {
-            scheduleAlarm(
-                context = context,
-                action = CycleNotificationReceiver.ACTION_PERIOD_REMINDER,
-                requestCode = REQUEST_CODE_LATE,
-                targetDate = lateCheckDate,
-                hour = hour,
-                minute = minute,
-                title = "پریود شما کمی دیر کرده است 🌷",
-                body = "$LATE_CHECK_DAYS روز از زمان پیش‌بینی‌شده گذشته است. اگر پریود شروع شده آن را در هانیتا ثبت کنید. تأخیر گاهی به استرس، خواب یا تغییر وزن برمی‌گردد؛ اگر احتمال بارداری هست تست بدهید.",
-                jalaliDate = JalaliCalendar.gregorianToJalali(lateCheckDate).formatShort(),
-                daysLeft = -LATE_CHECK_DAYS
-            )
-        } else {
-            cancelReminder(context, CycleNotificationReceiver.ACTION_PERIOD_REMINDER, REQUEST_CODE_LATE)
-        }
-
-        // 2. Schedule or cancel Ovulation Reminder
-        if (isOvulationEnabled) {
-            val ovulationDayInCycle = (safeCycleLength - 14).coerceAtLeast(10)
-            var currentCycleStart = projectedPeriod.minusDays(safeCycleLength.toLong())
-            var projectedOvulation = currentCycleStart.plusDays(ovulationDayInCycle.toLong())
-
-            // If this cycle's ovulation is already past, project to next cycle
-            if (projectedOvulation.isBefore(today)) {
-                projectedOvulation = projectedPeriod.plusDays(ovulationDayInCycle.toLong())
-            }
-
-            var targetOvulationDate = projectedOvulation.minusDays(daysBeforeOvulation.toLong())
-            var targetOvulationDay = projectedOvulation
-
-            val nowTime = LocalTime.now()
-            if (targetOvulationDate.isBefore(today) || (targetOvulationDate.isEqual(today) && nowTime.isAfter(LocalTime.of(hour, minute)))) {
-                targetOvulationDay = projectedPeriod.plusDays(safeCycleLength.toLong()).plusDays(ovulationDayInCycle.toLong())
-                targetOvulationDate = targetOvulationDay.minusDays(daysBeforeOvulation.toLong())
-            }
-
-            val jalaliOvulationDate = JalaliCalendar.gregorianToJalali(targetOvulationDay).formatShort()
-            val daysUntilOvulation = ChronoUnit.DAYS.between(today, targetOvulationDay).toInt().coerceAtLeast(0)
-
-            scheduleAlarm(
-                context = context,
-                action = CycleNotificationReceiver.ACTION_OVULATION_REMINDER,
-                requestCode = REQUEST_CODE_OVULATION,
-                targetDate = targetOvulationDate,
-                hour = hour,
-                minute = minute,
-                title = "یادآور تخمک‌گذاری و پنجره باروری 🥚✨",
-                body = "زمان تخمک‌گذاری شما برای $jalaliOvulationDate تخمین زده شده است. روزهای اوج انرژی و بالاترین احتمال باروری در انتظار شماست.",
-                jalaliDate = jalaliOvulationDate,
-                daysLeft = daysUntilOvulation
-            )
-            Log.d(TAG, "Scheduled Ovulation Reminder on $targetOvulationDate at $hour:$minute for ovulation at $targetOvulationDay")
-        } else {
-            cancelReminder(context, CycleNotificationReceiver.ACTION_OVULATION_REMINDER, REQUEST_CODE_OVULATION)
-        }
+    fun apply(context: Context, plan: ReminderPlanner.Plan) {
+        set(context, CycleNotificationReceiver.ACTION_PERIOD_REMINDER, REQUEST_CODE_PERIOD, plan.period)
+        set(context, CycleNotificationReceiver.ACTION_OVULATION_REMINDER, REQUEST_CODE_OVULATION, plan.ovulation)
+        set(context, CycleNotificationReceiver.ACTION_LATE_CHECK, REQUEST_CODE_LATE, plan.lateCheck)
     }
 
-    private fun scheduleAlarm(
-        context: Context,
-        action: String,
-        requestCode: Int,
-        targetDate: LocalDate,
-        hour: Int,
-        minute: Int,
-        title: String,
-        body: String,
-        jalaliDate: String,
-        daysLeft: Int
-    ) {
+    fun cancelAll(context: Context) = apply(context, ReminderPlanner.Plan.EMPTY)
+
+    private fun set(context: Context, action: String, requestCode: Int, reminder: ReminderPlanner.Reminder?) {
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-            val intent = Intent(context, CycleNotificationReceiver::class.java).apply {
-                this.action = action
-                putExtra(CycleNotificationReceiver.EXTRA_TITLE, title)
-                putExtra(CycleNotificationReceiver.EXTRA_BODY, body)
-                putExtra(CycleNotificationReceiver.EXTRA_DATE_JALALI, jalaliDate)
-                putExtra(CycleNotificationReceiver.EXTRA_DAYS_LEFT, daysLeft)
-            }
-
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                requestCode,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val reminderDateTime = LocalDateTime.of(targetDate, LocalTime.of(hour, minute))
-            val epochMillis = reminderDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-
+            val pendingIntent = pendingIntent(context, action, requestCode, reminder?.eventDate)
             alarmManager.cancel(pendingIntent)
-
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, epochMillis, pendingIntent)
+            if (reminder == null) return
+            val millis = reminder.fireAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pendingIntent)
+            Log.d(TAG, "Scheduled $action at ${reminder.fireAt} for ${reminder.eventDate}")
         } catch (e: Exception) {
-            Log.e(TAG, "Error scheduling alarm for action $action: ${e.message}")
+            Log.e(TAG, "Error scheduling $action: ${e.message}")
         }
     }
 
-    private fun cancelReminder(context: Context, action: String, requestCode: Int) {
-        try {
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-            val intent = Intent(context, CycleNotificationReceiver::class.java).apply {
-                this.action = action
-            }
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                requestCode,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            alarmManager.cancel(pendingIntent)
-            Log.d(TAG, "Cancelled reminder for $action")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error cancelling alarm $action: ${e.message}")
-        }
-    }
-
-    fun cancelAll(context: Context) {
-        cancelReminder(context, CycleNotificationReceiver.ACTION_PERIOD_REMINDER, REQUEST_CODE_PERIOD)
-        cancelReminder(context, CycleNotificationReceiver.ACTION_PERIOD_REMINDER, REQUEST_CODE_LATE)
-        cancelReminder(context, CycleNotificationReceiver.ACTION_OVULATION_REMINDER, REQUEST_CODE_OVULATION)
-    }
-
-    // Trigger immediate notifications for testing or manual preview
-    fun sendImmediateNotification(
-        context: Context,
-        isOvulation: Boolean,
-        customTitle: String? = null,
-        customBody: String? = null,
-        dateJalali: String = "",
-        daysLeft: Int = 1
-    ) {
+    private fun pendingIntent(context: Context, action: String, requestCode: Int, eventDate: LocalDate?): PendingIntent {
         val intent = Intent(context, CycleNotificationReceiver::class.java).apply {
-            action = if (isOvulation) {
-                CycleNotificationReceiver.ACTION_OVULATION_REMINDER
-            } else {
-                CycleNotificationReceiver.ACTION_PERIOD_REMINDER
-            }
-            putExtra(CycleNotificationReceiver.EXTRA_TITLE, customTitle)
-            putExtra(CycleNotificationReceiver.EXTRA_BODY, customBody)
-            putExtra(CycleNotificationReceiver.EXTRA_DATE_JALALI, dateJalali)
-            putExtra(CycleNotificationReceiver.EXTRA_DAYS_LEFT, daysLeft)
+            this.action = action
+            if (eventDate != null) putExtra(CycleNotificationReceiver.EXTRA_EVENT_DATE, eventDate.toString())
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    /** Shows a preview of a reminder right away (from the reminders screen). */
+    fun sendPreview(context: Context, action: String, eventDate: LocalDate) {
+        val intent = Intent(context, CycleNotificationReceiver::class.java).apply {
+            this.action = action
+            putExtra(CycleNotificationReceiver.EXTRA_EVENT_DATE, eventDate.toString())
+            putExtra(CycleNotificationReceiver.EXTRA_PREVIEW, true)
         }
         context.sendBroadcast(intent)
     }

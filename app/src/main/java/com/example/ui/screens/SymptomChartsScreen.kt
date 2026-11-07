@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.example.utils.PersianNumbers
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -30,7 +32,7 @@ fun SymptomChartsScreen(
 ) {
     val allLogs by viewModel.allLogs.collectAsState()
     val cycleInfo by viewModel.cycleInfo.collectAsState()
-    val averageCycleLength by viewModel.averageCycleLength.collectAsState()
+    val prediction by viewModel.cyclePrediction.collectAsState()
 
     // Filter logs for the last 90 days
     val threeMonthsAgo = LocalDate.now().minusDays(90)
@@ -45,46 +47,21 @@ fun SymptomChartsScreen(
         }
     }
 
-    val customPhysical by viewModel.customPhysicalSymptoms.collectAsState()
-    val customMood by viewModel.customMoodSymptoms.collectAsState()
+    // Count what was really logged (any label, including custom ones), most frequent first.
+    // A fixed list of names would miss labels such as «جوش صورت» and show empty bars.
+    fun tally(values: List<String>): Map<String, Float> = values
+        .flatMap { it.split(",") }
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("انرژی:") && !it.startsWith("خواب:") }
+        .groupingBy { it }
+        .eachCount()
+        .entries
+        .sortedByDescending { it.value }
+        .take(6)
+        .associate { it.key to it.value.toFloat() }
 
-    // Tally physical symptoms
-    val physicalSymptoms = (listOf("درد شکم", "سردرد", "نفخ", "حساسیت سینه", "جوش") + customPhysical).distinct()
-    val physicalTally = remember(recentLogs, physicalSymptoms) {
-        val counts = mutableMapOf<String, Float>()
-        physicalSymptoms.forEach { counts[it] = 0f }
-        recentLogs.forEach { log ->
-            if (log.symptoms.isNotBlank()) {
-                val symptomsList = log.symptoms.split(",")
-                symptomsList.forEach { s ->
-                    val trimmed = s.trim()
-                    if (counts.containsKey(trimmed)) {
-                        counts[trimmed] = counts[trimmed]!! + 1f
-                    }
-                }
-            }
-        }
-        counts
-    }
-
-    // Tally moods
-    val moodSymptoms = (listOf("اضطراب", "افسردگی", "استرس", "انرژی پایین", "عدم تمرکز") + customMood).distinct()
-    val moodTally = remember(recentLogs, moodSymptoms) {
-        val counts = mutableMapOf<String, Float>()
-        moodSymptoms.forEach { counts[it] = 0f }
-        recentLogs.forEach { log ->
-            if (log.moods.isNotBlank()) {
-                val moodList = log.moods.split(",")
-                moodList.forEach { m ->
-                    val trimmed = m.trim()
-                    if (counts.containsKey(trimmed)) {
-                        counts[trimmed] = counts[trimmed]!! + 1f
-                    }
-                }
-            }
-        }
-        counts
-    }
+    val physicalTally = remember(recentLogs) { tally(recentLogs.map { it.symptoms }) }
+    val moodTally = remember(recentLogs) { tally(recentLogs.map { it.moods }) }
 
     Scaffold(
         topBar = {
@@ -109,19 +86,19 @@ fun SymptomChartsScreen(
             // Visual Hormone fluctuations chart using Vico
             HormoneLevelsChartCard(
                 cycleInfo = cycleInfo,
-                averageCycleLength = averageCycleLength
+                averageCycleLength = prediction.averageCycleLength
             )
 
             ChartCard(
                 title = "فراوانی علائم جسمی (۳ ماه اخیر)",
                 data = physicalTally,
-                labels = physicalSymptoms
+                labels = physicalTally.keys.toList()
             )
             
             ChartCard(
                 title = "فراوانی وضعیت روحی (۳ ماه اخیر)",
                 data = moodTally,
-                labels = moodSymptoms
+                labels = moodTally.keys.toList()
             )
             
         }
@@ -156,7 +133,7 @@ fun ChartCard(title: String, data: Map<String, Float>, labels: List<String>) {
             } else {
                 val chartEntryModel = entryModelOf(*values.toTypedArray())
                 val bottomAxisValueFormatter = AxisValueFormatter<AxisPosition.Horizontal.Bottom> { value, _ ->
-                    labels.getOrNull(value.toInt()) ?: ""
+                    labels.getOrNull(value.toInt())?.let { if (it.length > 9) it.take(8) + "…" else it } ?: ""
                 }
                 
                 Chart(
@@ -168,8 +145,19 @@ fun ChartCard(title: String, data: Map<String, Float>, labels: List<String>) {
                     bottomAxis = rememberBottomAxis(
                         valueFormatter = bottomAxisValueFormatter
                     ),
-                    modifier = Modifier.height(220.dp)
+                    modifier = Modifier
+                        .height(220.dp)
+                        .clearAndSetSemantics { }
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+                // The same numbers as text (readable by screen readers and for long labels).
+                labels.forEachIndexed { i, label ->
+                    Text(
+                        text = "• $label: ${PersianNumbers.toPersianDigits(values[i].toInt())} روز",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

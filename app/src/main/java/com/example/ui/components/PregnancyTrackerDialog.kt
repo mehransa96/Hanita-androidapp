@@ -46,39 +46,29 @@ data class WeekMilestone(
 fun PregnancyTrackerDialog(
     show: Boolean,
     onDismiss: () -> Unit,
-    lastPeriodDateStr: String
+    lastPeriodStart: LocalDate?
 ) {
     if (!show) return
 
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    // Calculate pregnancy week based on last period
-    val lastPeriodDate = remember(lastPeriodDateStr) {
-        runCatching { LocalDate.parse(lastPeriodDateStr) }.getOrNull() ?: LocalDate.now().minusWeeks(14)
-    }
-
-    val daysSinceLmp = remember(lastPeriodDate) {
-        val days = ChronoUnit.DAYS.between(lastPeriodDate, LocalDate.now())
-        if (days < 0) 0L else days
+    // Gestational age is counted from the first day of the last logged period (Naegele's rule).
+    // Without a logged period nothing is invented: the weeks can only be browsed.
+    val hasLmp = lastPeriodStart != null
+    val daysSinceLmp = remember(lastPeriodStart) {
+        lastPeriodStart?.let { ChronoUnit.DAYS.between(it, LocalDate.now()).coerceAtLeast(0L) } ?: 0L
     }
 
     var currentWeek by remember(daysSinceLmp) {
-        val w = (daysSinceLmp / 7).toInt() + 1
-        mutableIntStateOf(w.coerceIn(1, 40))
+        mutableIntStateOf(((daysSinceLmp / 7).toInt() + 1).coerceIn(1, 40))
     }
 
-    val estimatedDueDate = remember(lastPeriodDate) {
-        lastPeriodDate.plusDays(280) // 40 weeks standard
-    }
-    val dueJalali = remember(estimatedDueDate) {
-        JalaliCalendar.gregorianToJalali(estimatedDueDate)
-    }
-    val dueJalaliStr = "${dueJalali.year}/${dueJalali.month}/${dueJalali.day}"
+    val estimatedDueDate = remember(lastPeriodStart) { lastPeriodStart?.plusDays(280) }
+    val dueJalaliStr = estimatedDueDate?.let { com.example.utils.PersianDates.long(it) } ?: "نامشخص"
 
     val daysRemaining = remember(estimatedDueDate) {
-        val r = ChronoUnit.DAYS.between(LocalDate.now(), estimatedDueDate)
-        if (r < 0) 0L else r
+        estimatedDueDate?.let { ChronoUnit.DAYS.between(LocalDate.now(), it).coerceAtLeast(0L) }
     }
 
     // Trimester
@@ -155,7 +145,7 @@ fun PregnancyTrackerDialog(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "هفته $currentWeek بارداری • $trimesterName",
+                                text = "هفته ${com.example.utils.PersianNumbers.toPersianDigits(currentWeek)} بارداری • $trimesterName",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFE11D48),
                                 fontWeight = FontWeight.SemiBold
@@ -193,13 +183,13 @@ fun PregnancyTrackerDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "هفته جاری: هفته $currentWeek از ۴۰",
+                                    text = "هفته ${com.example.utils.PersianNumbers.toPersianDigits(currentWeek)} از ۴۰",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
                                     color = Color(0xFF9F1239)
                                 )
                                 Text(
-                                    text = "$daysRemaining روز تا زایمان",
+                                    text = daysRemaining?.let { "${com.example.utils.PersianNumbers.toPersianDigits(it.toInt())} روز تا زایمان" } ?: "",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFE11D48)
@@ -218,6 +208,13 @@ fun PregnancyTrackerDialog(
                                 )
                             )
 
+                            Text(
+                                text = if (hasLmp) "هفته بارداری از اولین روز آخرین پریود ثبت‌شده محاسبه شده و فقط در صورت بارداری معنا دارد. برای مرور، اسلایدر را جابه‌جا کنید."
+                                else "پریودی ثبت نشده است؛ برای محاسبه سن بارداری ابتدا اولین روز آخرین پریود را ثبت کنید. فعلاً می‌توانید هفته‌ها را مرور کنید.",
+                                fontSize = 12.sp,
+                                lineHeight = 19.sp,
+                                color = Color(0xFF9F1239)
+                            )
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween

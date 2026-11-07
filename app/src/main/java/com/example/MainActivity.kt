@@ -1,5 +1,6 @@
 package com.example
 
+import androidx.core.content.edit
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -42,6 +43,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -54,9 +56,18 @@ class MainActivity : ComponentActivity() {
         private val DEEP_LINK_ROUTES = setOf("log", "calendar", "reminders")
     }
 
+    /** Route requested by a notification; also updated when the activity is already running. */
+    private val pendingRoute = mutableStateOf<String?>(null)
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingRoute.value = intent.getStringExtra(EXTRA_NAVIGATE_TO)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+        if (savedInstanceState == null) pendingRoute.value = intent?.getStringExtra(EXTRA_NAVIGATE_TO)
         enableEdgeToEdge()
         setContent {
             val crashPrefs = remember { getSharedPreferences(HanitaApplication.CRASH_PREFS, android.content.Context.MODE_PRIVATE) }
@@ -147,7 +158,7 @@ class MainActivity : ComponentActivity() {
                                 
                                 OutlinedButton(
                                     onClick = {
-                                        crashPrefs.edit().remove(HanitaApplication.KEY_LAST_CRASH).apply()
+                                        crashPrefs.edit { remove(HanitaApplication.KEY_LAST_CRASH) }
                                         crashStackTrace = null
                                     },
                                     modifier = Modifier.fillMaxWidth()
@@ -184,17 +195,25 @@ class MainActivity : ComponentActivity() {
 
                         // Notification shortcuts ("record today's symptoms", "open calendar").
                         // Only known screens are accepted, and only for an onboarded user.
-                        val deepLink = remember { intent?.getStringExtra(EXTRA_NAVIGATE_TO) }
+                        val deepLink by pendingRoute
                         LaunchedEffect(deepLink, isLoggedIn) {
-                            if (isLoggedIn && deepLink in DEEP_LINK_ROUTES) {
+                            val route = deepLink
+                            if (isLoggedIn && route in DEEP_LINK_ROUTES) {
+                                pendingRoute.value = null
                                 intent?.removeExtra(EXTRA_NAVIGATE_TO)
-                                navController.navigate(deepLink!!) { launchSingleTop = true }
+                                navController.navigate(route!!) {
+                                    popUpTo("dashboard")
+                                    launchSingleTop = true
+                                }
                             }
                         }
 
+                        // Decided once: changing it later would rebuild the whole navigation graph.
+                        // Login and logout navigate explicitly instead.
+                        val startDestination = rememberSaveable { if (isLoggedIn) "dashboard" else "login" }
                         NavHost(
-                            navController = navController, 
-                            startDestination = if (isLoggedIn) "dashboard" else "login",
+                            navController = navController,
+                            startDestination = startDestination,
                             enterTransition = {
                                 slideIntoContainer(
                                     AnimatedContentTransitionScope.SlideDirection.Start,
@@ -225,7 +244,7 @@ class MainActivity : ComponentActivity() {
                                     onLoginSuccess = { name, cycleLength, lastPeriodDateStr ->
                                         viewModel.login(name, cycleLength, lastPeriodDateStr)
                                         navController.navigate("dashboard") {
-                                            popUpTo("login") { inclusive = true }
+                                            popUpTo(navController.graph.id) { inclusive = true }
                                         }
                                     }
                                 )
@@ -247,7 +266,7 @@ class MainActivity : ComponentActivity() {
                                     onLogout = {
                                         viewModel.logout()
                                         navController.navigate("login") {
-                                            popUpTo("dashboard") { inclusive = true }
+                                            popUpTo(navController.graph.id) { inclusive = true }
                                         }
                                     }
                                 )
@@ -380,8 +399,8 @@ class MainActivity : ComponentActivity() {
     /** Deletes all local data (only after explicit confirmation on the recovery screen). */
     @android.annotation.SuppressLint("ApplySharedPref") // must be on disk before the process restarts
     private fun resetAllLocalData() {
-        getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE).edit().clear().commit()
-        getSharedPreferences(HanitaApplication.CRASH_PREFS, android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE).edit(commit = true) { clear() }
+        getSharedPreferences(HanitaApplication.CRASH_PREFS, android.content.Context.MODE_PRIVATE).edit(commit = true) { clear() }
         try {
             deleteDatabase("hanita_database")
         } catch (_: Exception) {
@@ -413,7 +432,7 @@ private fun NotificationPermissionRequest(isLoggedIn: Boolean) {
             context, android.Manifest.permission.POST_NOTIFICATIONS
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         if (isLoggedIn && !granted && !prefs.getBoolean("notifications_asked", false)) {
-            prefs.edit().putBoolean("notifications_asked", true).apply()
+            prefs.edit { putBoolean("notifications_asked", true) }
             launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
     }

@@ -1,5 +1,10 @@
 package com.example.ui.screens
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
+import com.example.utils.PersianDates
+import com.example.utils.PersianNumbers
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -40,7 +45,7 @@ import com.example.utils.JalaliCalendar
 import com.example.utils.JalaliDate
 import java.time.LocalDate
 
-enum class CyclePhaseType {
+enum class CalendarDayType {
     PERIOD, FOLLICULAR, FERTILE, PMS, REGULAR
 }
 
@@ -59,16 +64,21 @@ fun CalendarScreen(
     val logs by viewModel.allLogs.collectAsState()
     val allPhysicalSymptoms by viewModel.allPhysicalSymptoms.collectAsState()
     val cycleRecords by viewModel.allCycleRecords.collectAsState()
-    val lastPeriodDateStr by viewModel.lastPeriodDate.collectAsState()
-    val averageCycleLength by viewModel.averageCycleLength.collectAsState()
+    val periodRuns by viewModel.periodRuns.collectAsState()
+    val isDark = com.example.ui.theme.ThemeProvider.isDark
+    val follicularBg = Color(0xFF10B981).copy(alpha = 0.18f)
+    val follicularText = if (isDark) Color(0xFF6EE7B7) else Color(0xFF047857)
+    val symptomDot = if (isDark) Color(0xFFC4B5FD) else Color(0xFF7C3AED)
+    var recordToDelete by remember { mutableStateOf<CycleRecord?>(null) }
+    val logsByDate = remember(logs) { logs.associateBy { it.dateStr } }
 
     // Symptoms grouped by dateStr from Room local database
     val symptomsByDate = remember(allPhysicalSymptoms) {
         allPhysicalSymptoms.groupBy { it.dateStr }
     }
 
-    // Active Screen Tab (0: Visual Calendar & Daily Symptom Logger, 1: Touch Period Range Selector)
-    var selectedTab by remember { mutableIntStateOf(0) }
+    // Active tab (1: month overview, the default; 0: touch period range selector)
+    var selectedTab by rememberSaveable { mutableIntStateOf(1) }
 
     // Pre-selected range for the interactive widget
     var interactiveInitialStart by remember { mutableStateOf<LocalDate?>(null) }
@@ -137,11 +147,11 @@ fun CalendarScreen(
                 val isFollicular = follicularDates.contains(date) && !isPeriod && !isFertile && !isPms
                 
                 when {
-                    isPeriod -> CyclePhaseType.PERIOD
-                    isFollicular -> CyclePhaseType.FOLLICULAR
-                    isFertile -> CyclePhaseType.FERTILE
-                    isPms -> CyclePhaseType.PMS
-                    else -> CyclePhaseType.REGULAR
+                    isPeriod -> CalendarDayType.PERIOD
+                    isFollicular -> CalendarDayType.FOLLICULAR
+                    isFertile -> CalendarDayType.FERTILE
+                    isPms -> CalendarDayType.PMS
+                    else -> CalendarDayType.REGULAR
                 }
             }
         }
@@ -198,8 +208,8 @@ fun CalendarScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 listOf(
-                    0 to "ثبت لمسی شروع و پایان 🩸",
-                    1 to "نمای ماهانه و یادداشت‌ها 📅"
+                    1 to "نمای ماهانه 📅",
+                    0 to "ثبت لمسی پریود 🩸"
                 ).forEach { (tabIndex, tabTitle) ->
                     val isTabSelected = selectedTab == tabIndex
                     Box(
@@ -210,15 +220,15 @@ fun CalendarScreen(
                                 if (isTabSelected) MaterialTheme.colorScheme.primary
                                 else Color.Transparent
                             )
-                            .clickable { selectedTab = tabIndex }
+                            .selectable(selected = isTabSelected, role = Role.Tab) { selectedTab = tabIndex }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = tabTitle,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = if (isTabSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isTabSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (isTabSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -235,18 +245,12 @@ fun CalendarScreen(
                     initialStartDate = interactiveInitialStart,
                     initialEndDate = interactiveInitialEnd,
                     onSavePeriod = { start, end, flow, notes ->
-                        viewModel.savePeriodRange(start, end, flow, notes)
-                        val startJ = JalaliCalendar.gregorianToJalali(start).formatShort()
-                        val endJ = JalaliCalendar.gregorianToJalali(end).formatShort()
-                        Toast.makeText(
-                            context,
-                            "دوره قاعدگی از $startJ تا $endJ با موفقیت ثبت شد ✨",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        val saved = viewModel.savePeriodRange(start, end, flow, notes)
+                        Toast.makeText(context, periodSavedMessage(saved), Toast.LENGTH_LONG).show()
                     },
                     onClearPeriod = { start, end ->
                         viewModel.clearPeriodRange(start, end)
-                        Toast.makeText(context, "اطلاعات دوره انتخابی پاک شد", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "روزهای خونریزی این بازه پاک شد", Toast.LENGTH_SHORT).show()
                     }
                 )
 
@@ -273,7 +277,7 @@ fun CalendarScreen(
                                     color = SleekTextDark
                                 )
                                 Text(
-                                    text = "${cycleRecords.size} دوره",
+                                    text = "${PersianNumbers.toPersianDigits(cycleRecords.size)} دوره",
                                     fontSize = 11.sp,
                                     color = SleekTextLight
                                 )
@@ -281,14 +285,8 @@ fun CalendarScreen(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             cycleRecords.take(5).forEach { record ->
-                                val startJ = runCatching {
-                                    JalaliCalendar.gregorianToJalali(LocalDate.parse(record.startDate)).formatShort()
-                                }.getOrDefault(record.startDate)
-                                val endJ = if (record.endDate.isNotBlank()) {
-                                    runCatching {
-                                        JalaliCalendar.gregorianToJalali(LocalDate.parse(record.endDate)).formatShort()
-                                    }.getOrDefault(record.endDate)
-                                } else null
+                                val startJ = PersianDates.parseOrNull(record.startDate)?.let { PersianDates.short(it) } ?: record.startDate
+                                val endJ = PersianDates.parseOrNull(record.endDate)?.let { PersianDates.short(it) }
 
                                 Row(
                                     modifier = Modifier
@@ -331,7 +329,7 @@ fun CalendarScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         IconButton(
                                             onClick = { cycleToEditInCalendar = record },
-                                            modifier = Modifier.size(28.dp)
+                                            modifier = Modifier.size(40.dp)
                                         ) {
                                             Icon(
                                                 Icons.Default.Edit,
@@ -341,8 +339,8 @@ fun CalendarScreen(
                                             )
                                         }
                                         IconButton(
-                                            onClick = { viewModel.deleteFullCycleRecord(record) },
-                                            modifier = Modifier.size(28.dp)
+                                            onClick = { recordToDelete = record },
+                                            modifier = Modifier.size(40.dp)
                                         ) {
                                             Icon(
                                                 Icons.Default.Delete,
@@ -389,7 +387,8 @@ fun CalendarScreen(
                             },
                             colors = IconButtonDefaults.iconButtonColors(containerColor = SleekBorder.copy(alpha = 0.3f))
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "ماه قبل", tint = SleekPrimary)
+                            // In RTL "previous" sits on the right and points outward (right).
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "ماه قبل", tint = SleekPrimary)
                         }
                         
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -404,7 +403,7 @@ fun CalendarScreen(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
-                                    text = "${currentMonth.year}",
+                                    text = PersianNumbers.toPersianDigits(currentMonth.year),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = SleekTextLight
@@ -441,7 +440,7 @@ fun CalendarScreen(
                             },
                             colors = IconButtonDefaults.iconButtonColors(containerColor = SleekBorder.copy(alpha = 0.3f))
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "ماه بعد", tint = SleekPrimary)
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "ماه بعد", tint = SleekPrimary)
                         }
                     }
                 }
@@ -495,7 +494,7 @@ fun CalendarScreen(
                                     val dayIndex = slotIndex - offset
                                     val date = JalaliDate(currentMonth.year, currentMonth.month, dayIndex + 1)
                                     val localDateStr = date.toLocalDate().toString()
-                                    val dayLog = logs.find { it.dateStr == localDateStr }
+                                    val dayLog = logsByDate[localDateStr]
                                     val daySymptoms = symptomsByDate[localDateStr] ?: emptyList()
                                     
                                     val hasRecordedPeriodFlow = dayLog?.periodFlow != null && dayLog.periodFlow != "NONE"
@@ -511,16 +510,16 @@ fun CalendarScreen(
                                     val bgColor = when {
                                         isSelected -> SleekPrimary
                                         isPeriod -> SleekPrimaryLight
-                                        isFollicular -> Color(0xFFE8F5E9)
+                                        isFollicular -> follicularBg
                                         isFertile -> Indigo50
                                         isPms -> Amber50
                                         isToday -> SleekBorder.copy(alpha = 0.6f)
                                         else -> Color.Transparent
                                     }
                                     val textColor = when {
-                                        isSelected -> Color.White
+                                        isSelected -> MaterialTheme.colorScheme.onPrimary
                                         isPeriod -> SleekPrimaryDark
-                                        isFollicular -> Color(0xFF2E7D32)
+                                        isFollicular -> follicularText
                                         isFertile -> Indigo500
                                         isPms -> Amber500
                                         isToday -> SleekTextDark
@@ -555,7 +554,7 @@ fun CalendarScreen(
                                             .scale(itemScale)
                                             .clip(CircleShape)
                                             .background(animatedBgColor)
-                                            .clickable { selectedDate = date },
+                                            .clickable(onClickLabel = "انتخاب ${PersianDates.long(date.toLocalDate())}") { selectedDate = date },
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Column(
@@ -563,7 +562,7 @@ fun CalendarScreen(
                                             verticalArrangement = Arrangement.Center
                                         ) {
                                             Text(
-                                                text = "${dayIndex + 1}",
+                                                text = PersianNumbers.toPersianDigits(dayIndex + 1),
                                                 color = animatedTextColor,
                                                 fontWeight = if (isPeriod || isFertile || isPms || isFollicular || isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
                                                 fontSize = 13.sp
@@ -585,7 +584,7 @@ fun CalendarScreen(
                                                         modifier = Modifier
                                                             .size(if (isSelected) 5.dp else 4.dp)
                                                             .clip(CircleShape)
-                                                            .background(if (isSelected) Color.White else Color(0xFF7C3AED))
+                                                            .background(if (isSelected) MaterialTheme.colorScheme.onPrimary else symptomDot)
                                                     )
                                                 }
                                                 // Phase indicator dot (if not selected and no flow/symptoms)
@@ -593,7 +592,7 @@ fun CalendarScreen(
                                                     if (isPeriod) {
                                                         Box(modifier = Modifier.size(3.5.dp).clip(CircleShape).background(SleekPrimary))
                                                     } else if (isFollicular) {
-                                                        Box(modifier = Modifier.size(3.5.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                                                        Box(modifier = Modifier.size(3.5.dp).clip(CircleShape).background(follicularText))
                                                     } else if (isFertile) {
                                                         Box(modifier = Modifier.size(3.5.dp).clip(CircleShape).background(Indigo500))
                                                     } else if (isPms) {
@@ -619,6 +618,13 @@ fun CalendarScreen(
                             val jDate = JalaliCalendar.gregorianToJalali(date)
                             jDate.year == currentMonth.year && jDate.month == currentMonth.month && log.periodFlow != "NONE"
                         } else false
+                    }
+                }
+                val symptomEntriesInMonth = remember(allPhysicalSymptoms, currentMonth) {
+                    allPhysicalSymptoms.count { s ->
+                        val date = PersianDates.parseOrNull(s.dateStr) ?: return@count false
+                        val j = JalaliCalendar.gregorianToJalali(date)
+                        j.year == currentMonth.year && j.month == currentMonth.month
                     }
                 }
                 val totalSymptomDaysInMonth = remember(allPhysicalSymptoms, logs, currentMonth) {
@@ -653,18 +659,18 @@ fun CalendarScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "🩸 پریود این ماه", fontSize = 11.sp, color = SleekTextMedium)
-                            Text(text = "$totalPeriodDaysInMonth روز", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SleekPrimary)
+                            Text(text = "🩸 روز پریود", fontSize = 12.sp, color = SleekTextMedium)
+                            Text(text = "${PersianNumbers.toPersianDigits(totalPeriodDaysInMonth)} روز", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SleekPrimary)
                         }
                         Box(modifier = Modifier.height(24.dp).width(1.dp).background(SleekBorder))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "📝 ثبت علائم (Room)", fontSize = 11.sp, color = SleekTextMedium)
-                            Text(text = "$totalSymptomDaysInMonth روز", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7C3AED))
+                            Text(text = "📝 روز با علامت", fontSize = 12.sp, color = SleekTextMedium)
+                            Text(text = "${PersianNumbers.toPersianDigits(totalSymptomDaysInMonth)} روز", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = symptomDot)
                         }
                         Box(modifier = Modifier.height(24.dp).width(1.dp).background(SleekBorder))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "🟣 کل علائم ثبت‌شده", fontSize = 11.sp, color = SleekTextMedium)
-                            Text(text = "${allPhysicalSymptoms.size} مورد", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SleekTextDark)
+                            Text(text = "🟣 علائم این ماه", fontSize = 12.sp, color = SleekTextMedium)
+                            Text(text = "${PersianNumbers.toPersianDigits(symptomEntriesInMonth)} مورد", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SleekTextDark)
                         }
                     }
                 }
@@ -674,6 +680,7 @@ fun CalendarScreen(
                 // Actions for selected date
                 if (selectedDate != null) {
                     val localDate = selectedDate!!.toLocalDate()
+                    val isFutureDay = localDate.isAfter(todayLocalDate)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -681,26 +688,28 @@ fun CalendarScreen(
                         Button(
                             onClick = {
                                 interactiveInitialStart = localDate
-                                interactiveInitialEnd = localDate.plusDays(4)
+                                interactiveInitialEnd = minOf(localDate.plusDays(4), todayLocalDate)
                                 selectedTab = 0
                             },
+                            enabled = !isFutureDay,
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("انتخاب بازه شروع و پایان 🩸", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("ثبت بازه پریود", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
 
                         OutlinedButton(
                             onClick = {
-                                viewModel.updateCycleSettings(localDate.toString(), averageCycleLength)
-                                Toast.makeText(context, "تاریخ شروع به $localDate تغییر یافت.", Toast.LENGTH_SHORT).show()
+                                viewModel.markPeriodStart(localDate)
+                                Toast.makeText(context, "شروع پریود در ${PersianDates.long(localDate)} ثبت شد.", Toast.LENGTH_SHORT).show()
                             },
+                            enabled = !isFutureDay,
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("شروع پریود", fontSize = 12.sp)
+                            Text("شروع پریود", fontSize = 13.sp)
                         }
                     }
                     Spacer(modifier = Modifier.height(10.dp))
@@ -710,39 +719,39 @@ fun CalendarScreen(
                 val phaseType = selectedDatePhaseType.value
                 if (phaseType != null) {
                     val title = when (phaseType) {
-                        CyclePhaseType.PERIOD -> "دوره قاعدگی (شروع چرخه جدید) 🩸"
-                        CyclePhaseType.FOLLICULAR -> "فاز فولیکولار (بهار بدن و انرژی نو) 🌱"
-                        CyclePhaseType.FERTILE -> "پنجره باروری و زمان تخمک‌گذاری 🥚✨"
-                        CyclePhaseType.PMS -> "روزهای سندرم پیش از قاعدگی (PMS) 🌪️💛"
-                        CyclePhaseType.REGULAR -> "فاز فعال معمول بدنی 🌸"
+                        CalendarDayType.PERIOD -> "دوره قاعدگی (شروع چرخه جدید) 🩸"
+                        CalendarDayType.FOLLICULAR -> "فاز فولیکولار (بهار بدن و انرژی نو) 🌱"
+                        CalendarDayType.FERTILE -> "پنجره باروری و زمان تخمک‌گذاری 🥚✨"
+                        CalendarDayType.PMS -> "روزهای سندرم پیش از قاعدگی (PMS) 🌪️💛"
+                        CalendarDayType.REGULAR -> "فاز فعال معمول بدنی 🌸"
                     }
                     val description = when (phaseType) {
-                        CyclePhaseType.PERIOD -> "رحم در حال پاکسازی و بازسازی دیواره خود است. سطح عمومی هورمون‌ها پایین است و استراحت کافی اهمیت بالایی دارد."
-                        CyclePhaseType.FOLLICULAR -> "فولیکول‌ها در تخمدان در حال رشد هستند و استروژن به تدریج بالا می‌رود. تمرکز ذهنی و انرژی رو به صعود است."
-                        CyclePhaseType.FERTILE -> "روزهای اوج شادابی! استروژن در بالاترین حد بیولوژیکی قرار دارد که منجر به افزایش فوق‌العاده سطح انرژی و انگیزه می‌شود."
-                        CyclePhaseType.PMS -> "پروژسترون کاهش یافته و ممکن است علائم فیزیکی مانند خستگی خفیف یا نوسانات احساسی جزئی پیش آید."
-                        CyclePhaseType.REGULAR -> "سطح عمومی هورمون‌ها در منظم‌ترین حالت ممکن قرار دارد. تمرکز فکری شما بالاست."
+                        CalendarDayType.PERIOD -> "رحم در حال پاکسازی و بازسازی دیواره خود است. سطح عمومی هورمون‌ها پایین است و استراحت کافی اهمیت بالایی دارد."
+                        CalendarDayType.FOLLICULAR -> "فولیکول‌ها در تخمدان در حال رشد هستند و استروژن به تدریج بالا می‌رود. تمرکز ذهنی و انرژی رو به صعود است."
+                        CalendarDayType.FERTILE -> "روزهای اوج شادابی! استروژن در بالاترین حد بیولوژیکی قرار دارد که منجر به افزایش فوق‌العاده سطح انرژی و انگیزه می‌شود."
+                        CalendarDayType.PMS -> "پروژسترون کاهش یافته و ممکن است علائم فیزیکی مانند خستگی خفیف یا نوسانات احساسی جزئی پیش آید."
+                        CalendarDayType.REGULAR -> "سطح عمومی هورمون‌ها در منظم‌ترین حالت ممکن قرار دارد. تمرکز فکری شما بالاست."
                     }
                     val recommendation = when (phaseType) {
-                        CyclePhaseType.PERIOD -> "استراحت کافی، مصرف مکمل آهن، گرم نگه داشتن شکم و نوشیدن دمنوش بابونه یا زنجبیل پیشنهاد می‌شود."
-                        CyclePhaseType.FOLLICULAR -> "تغذیه سرشار از پروتئین و آنتی‌اکسیدان، برنامه‌ریزی پروژه‌های جدید و فعالیت‌های ورزشی با انگیزه."
-                        CyclePhaseType.FERTILE -> "زمان مناسب برای تمرینات پرنشاط، فعالیت‌های اجتماعی و تصمیم‌گیری‌های مهم کاری است."
-                        CyclePhaseType.PMS -> "نوشیدن آب مداوم، کاهش مصرف نمک و شکر، یوگای سبک و مراقبه‌های ذهن‌آگاهی هانیتا توصیه می‌شود."
-                        CyclePhaseType.REGULAR -> "تغذیه متعادل و فعالیت‌های بدنی منظم را برای حفظ این ثبات ادامه دهید."
+                        CalendarDayType.PERIOD -> "استراحت کافی، مصرف مکمل آهن، گرم نگه داشتن شکم و نوشیدن دمنوش بابونه یا زنجبیل پیشنهاد می‌شود."
+                        CalendarDayType.FOLLICULAR -> "تغذیه سرشار از پروتئین و آنتی‌اکسیدان، برنامه‌ریزی پروژه‌های جدید و فعالیت‌های ورزشی با انگیزه."
+                        CalendarDayType.FERTILE -> "زمان مناسب برای تمرینات پرنشاط، فعالیت‌های اجتماعی و تصمیم‌گیری‌های مهم کاری است."
+                        CalendarDayType.PMS -> "نوشیدن آب مداوم، کاهش مصرف نمک و شکر، یوگای سبک و مراقبه‌های ذهن‌آگاهی هانیتا توصیه می‌شود."
+                        CalendarDayType.REGULAR -> "تغذیه متعادل و فعالیت‌های بدنی منظم را برای حفظ این ثبات ادامه دهید."
                     }
                     val mainColor = when (phaseType) {
-                        CyclePhaseType.PERIOD -> SleekPrimary
-                        CyclePhaseType.FOLLICULAR -> Color(0xFF10B981)
-                        CyclePhaseType.FERTILE -> Indigo500
-                        CyclePhaseType.PMS -> Amber500
-                        CyclePhaseType.REGULAR -> SleekSecondary
+                        CalendarDayType.PERIOD -> SleekPrimary
+                        CalendarDayType.FOLLICULAR -> follicularText
+                        CalendarDayType.FERTILE -> Indigo500
+                        CalendarDayType.PMS -> Amber500
+                        CalendarDayType.REGULAR -> SleekSecondary
                     }
                     val containerColor = when (phaseType) {
-                        CyclePhaseType.PERIOD -> SleekPrimaryLight
-                        CyclePhaseType.FOLLICULAR -> Color(0xFFE8F5E9)
-                        CyclePhaseType.FERTILE -> Indigo50
-                        CyclePhaseType.PMS -> Amber50
-                        CyclePhaseType.REGULAR -> SleekBorder.copy(alpha = 0.5f)
+                        CalendarDayType.PERIOD -> SleekPrimaryLight
+                        CalendarDayType.FOLLICULAR -> follicularBg
+                        CalendarDayType.FERTILE -> Indigo50
+                        CalendarDayType.PMS -> Amber50
+                        CalendarDayType.REGULAR -> SleekBorder.copy(alpha = 0.5f)
                     }
 
                     Card(
@@ -824,10 +833,10 @@ fun CalendarScreen(
                     val initialSymptoms = symptomsByDate[localDateStr] ?: emptyList()
 
                     val mappedCalendarPhase = when (selectedDatePhaseType.value) {
-                        CyclePhaseType.PERIOD -> CalendarCyclePhase.MENSTRUAL
-                        CyclePhaseType.FOLLICULAR -> CalendarCyclePhase.FOLLICULAR
-                        CyclePhaseType.FERTILE -> CalendarCyclePhase.OVULATION
-                        CyclePhaseType.PMS -> CalendarCyclePhase.LUTEAL
+                        CalendarDayType.PERIOD -> CalendarCyclePhase.MENSTRUAL
+                        CalendarDayType.FOLLICULAR -> CalendarCyclePhase.FOLLICULAR
+                        CalendarDayType.FERTILE -> CalendarCyclePhase.OVULATION
+                        CalendarDayType.PMS -> CalendarCyclePhase.LUTEAL
                         else -> CalendarCyclePhase.REGULAR
                     }
 
@@ -838,33 +847,28 @@ fun CalendarScreen(
                         initialSymptoms = initialSymptoms,
                         medReminders = medReminders,
                         onSave = { flow, symptoms, moods, notes, emoji ->
-                            viewModel.savePhysicalSymptomForm(
-                                dateStr = localDateStr,
-                                symptoms = symptoms,
-                                flow = flow,
-                                moods = moods,
-                                overallNotes = notes,
-                                emoji = emoji
-                            )
-                            Toast.makeText(context, "اطلاعات روز $localDateStr با موفقیت در Room ذخیره شد ✨", Toast.LENGTH_SHORT).show()
+                            if (selDate.toLocalDate().isAfter(todayLocalDate)) {
+                                Toast.makeText(context, "برای روزهای آینده نمی‌توان ثبت انجام داد.", Toast.LENGTH_SHORT).show()
+                            } else {
+                                // Water, temperature, weight and pain of the day are kept as they were.
+                                viewModel.saveDayLog(localDateStr, symptoms, flow, moods, notes, emoji, vitals = null)
+                                Toast.makeText(context, "ثبت ${PersianDates.long(selDate.toLocalDate())} ذخیره شد ✨", Toast.LENGTH_SHORT).show()
+                            }
                         },
                         onDelete = {
-                            viewModel.savePhysicalSymptomForm(
-                                dateStr = localDateStr,
-                                symptoms = emptyList(),
-                                flow = "NONE",
-                                moods = emptyList(),
-                                overallNotes = "",
-                                emoji = ""
-                            )
-                            Toast.makeText(context, "علائم این روز از پایگاه داده Room پاک شد", Toast.LENGTH_SHORT).show()
+                            viewModel.clearDay(localDateStr)
+                            Toast.makeText(context, "ثبت‌های ${PersianDates.long(selDate.toLocalDate())} پاک شد", Toast.LENGTH_SHORT).show()
                         },
                         onToggleMedication = { medId, taken ->
                             viewModel.toggleMedicationTaken(localDateStr, medId, taken)
                         },
                         onSetPeriodStart = {
-                            viewModel.updateCycleSettings(localDateStr, averageCycleLength)
-                            Toast.makeText(context, "شروع چرخه قاعدگی برای $localDateStr ثبت شد 🩸", Toast.LENGTH_SHORT).show()
+                            if (selDate.toLocalDate().isAfter(todayLocalDate)) {
+                                Toast.makeText(context, "روزهای آینده را نمی‌توان شروع پریود ثبت کرد.", Toast.LENGTH_SHORT).show()
+                            } else {
+                                viewModel.markPeriodStart(selDate.toLocalDate())
+                                Toast.makeText(context, "شروع پریود در ${PersianDates.long(selDate.toLocalDate())} ثبت شد 🩸", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     )
                 }
@@ -881,7 +885,7 @@ fun CalendarScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            "راهنمای فازها و نشانگرهای تقویم هانیتا",
+                            "راهنمای رنگ‌های تقویم",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Black,
                             color = SleekTextDark,
@@ -889,15 +893,15 @@ fun CalendarScreen(
                         )
                         LegendItem(color = SleekPrimaryLight, textColor = SleekPrimaryDark, dotColor = SleekPrimary, label = "روزهای دوره قاعدگی (پریود) (🩸)")
                         Spacer(modifier = Modifier.height(8.dp))
-                        LegendItem(color = Color(0xFFE8F5E9), textColor = Color(0xFF2E7D32), dotColor = Color(0xFF10B981), label = "فاز فولیکولار و بهار بدن (🌱)")
+                        LegendItem(color = follicularBg, textColor = follicularText, dotColor = follicularText, label = "فاز فولیکولی (🌱)")
                         Spacer(modifier = Modifier.height(8.dp))
                         LegendItem(color = Indigo50, textColor = Indigo500, dotColor = Indigo500, label = "پنجره باروری و تخمک‌گذاری (🌸)")
                         Spacer(modifier = Modifier.height(8.dp))
                         LegendItem(color = Amber50, textColor = Amber500, dotColor = Amber500, label = "سندرم پیش از قاعدگی (PMS) (🌪️)")
                         Spacer(modifier = Modifier.height(8.dp))
-                        LegendItem(color = Color(0xFFF3E8FF), textColor = Color(0xFF7C3AED), dotColor = Color(0xFF7C3AED), label = "روزهای دارای علائم ثبت‌شده در Room (🟣)")
+                        LegendItem(color = symptomDot.copy(alpha = 0.15f), textColor = symptomDot, dotColor = symptomDot, label = "روزهای دارای علائم ثبت‌شده (🟣)")
                         Spacer(modifier = Modifier.height(8.dp))
-                        LegendItem(color = SleekBorder, textColor = SleekTextDark, dotColor = SleekTextDark, label = "امروز (تاریخ جاری بدنی)")
+                        LegendItem(color = SleekBorder, textColor = SleekTextDark, dotColor = SleekTextDark, label = "امروز")
                     }
                 }
                 
@@ -908,63 +912,64 @@ fun CalendarScreen(
 
     if (cycleToEditInCalendar != null) {
         val record = cycleToEditInCalendar!!
-        val parsedStart = runCatching { LocalDate.parse(record.startDate) }.getOrNull() ?: LocalDate.now()
-        val parsedEnd = if (record.endDate.isNotBlank()) {
-            runCatching { LocalDate.parse(record.endDate) }.getOrNull()
-        } else null
+        val parsedStart = PersianDates.parseOrNull(record.startDate) ?: LocalDate.now()
+        val parsedEnd = PersianDates.parseOrNull(record.endDate)
+        val editedFlow = logsByDate[record.startDate]?.periodFlow?.takeIf { it != "NONE" } ?: "MEDIUM"
 
         ProfessionalCycleEditDialog(
+            showCycleLength = false,
             initialStartDate = parsedStart,
             initialEndDate = parsedEnd,
-            initialCycleLength = averageCycleLength,
-            initialFlow = "MEDIUM",
+            initialCycleLength = cyclePrediction.averageCycleLength,
+            initialFlow = editedFlow,
             initialNotes = record.notes,
-            title = "ویرایش حرفه‌ای دوره قاعدگی 🩸",
+            isExistingCycle = true,
+            title = "ویرایش دوره قاعدگی 🩸",
             onDismissRequest = { cycleToEditInCalendar = null },
-            onSaveCycle = { newStart, newEnd, length, flow, notes ->
-                viewModel.updateFullCycleRecord(
-                    oldRecordId = record.id,
-                    oldStartDate = parsedStart,
-                    oldEndDate = parsedEnd,
-                    newStartDate = newStart,
-                    newEndDate = newEnd,
-                    cycleLength = length,
-                    flow = flow,
-                    notes = notes
-                )
+            onSaveCycle = { newStart, newEnd, _, flow, notes ->
+                val saved = viewModel.editPeriod(parsedStart, newStart, newEnd, flow, notes)
                 cycleToEditInCalendar = null
-                Toast.makeText(context, "تغییرات دوره با موفقیت در سیستم ثبت شد ✨", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, periodSavedMessage(saved), Toast.LENGTH_SHORT).show()
             },
             onDeleteCycle = {
-                viewModel.deleteFullCycleRecord(record)
+                viewModel.deletePeriod(parsedStart, parsedEnd ?: parsedStart)
                 cycleToEditInCalendar = null
-                Toast.makeText(context, "دوره انتخابی حذف گردید", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "دوره انتخابی حذف شد", Toast.LENGTH_SHORT).show()
             }
         )
     }
 
+    recordToDelete?.let { record ->
+        val start = PersianDates.parseOrNull(record.startDate)
+        val end = PersianDates.parseOrNull(record.endDate) ?: start
+        AlertDialog(
+            onDismissRequest = { recordToDelete = null },
+            title = { Text("حذف این دوره؟") },
+            text = { Text("روزهای خونریزی این دوره پاک می‌شوند و پیش‌بینی‌ها دوباره محاسبه می‌شود. علائم و یادداشت‌های روزانه باقی می‌مانند.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (start != null && end != null) viewModel.deletePeriod(start, end)
+                    recordToDelete = null
+                }) { Text("حذف", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { recordToDelete = null }) { Text("انصراف") } }
+        )
+    }
+
     if (showNewCycleDialog) {
-        val parsedLastPeriod = runCatching { LocalDate.parse(lastPeriodDateStr) }.getOrNull() ?: LocalDate.now()
+        val start = minOf(todayLocalDate, (selectedDate?.toLocalDate() ?: todayLocalDate))
         ProfessionalCycleEditDialog(
-            initialStartDate = parsedLastPeriod,
-            initialEndDate = parsedLastPeriod.plusDays(4),
-            initialCycleLength = averageCycleLength,
+            showCycleLength = false,
+            initialStartDate = start,
+            initialEndDate = minOf(start.plusDays(4), todayLocalDate),
+            initialCycleLength = cyclePrediction.averageCycleLength,
             title = "ثبت دوره جدید قاعدگی 🩸",
             onDismissRequest = { showNewCycleDialog = false },
-            onSaveCycle = { newStart, newEnd, length, flow, notes ->
-                viewModel.updateFullCycleRecord(
-                    oldRecordId = null,
-                    oldStartDate = null,
-                    oldEndDate = null,
-                    newStartDate = newStart,
-                    newEndDate = newEnd,
-                    cycleLength = length,
-                    flow = flow,
-                    notes = notes
-                )
+            onSaveCycle = { newStart, newEnd, _, flow, notes ->
+                val existing = periodRuns.firstOrNull { !it.end.isBefore(newStart) && !it.start.isAfter(newEnd) }
+                val saved = viewModel.editPeriod(existing?.start, newStart, newEnd, flow, notes)
                 showNewCycleDialog = false
-                val startJ = JalaliCalendar.gregorianToJalali(newStart).formatShort()
-                Toast.makeText(context, "دوره جدید با شروع $startJ با موفقیت ثبت شد ✨", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, periodSavedMessage(saved), Toast.LENGTH_LONG).show()
             }
         )
     }
