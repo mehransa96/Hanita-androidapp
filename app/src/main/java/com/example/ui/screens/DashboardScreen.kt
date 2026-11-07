@@ -341,7 +341,7 @@ fun DashboardScreen(
         "ai_tip" -> CardSheet("نکته هوشمند روز", { openSheet = null }) {
             AITipsCard(
                 info = cycleInfo,
-                averageCycleLength = averageCycleLength.toFloat(),
+                averageCycleLength = predictionInfo.calculatedAverage.toFloat(),
                 aiDailyTip = aiDailyTip,
                 isFetchingAiTip = isFetchingAiTip,
                 onFetchTip = { phase, day, avg -> viewModel.fetchAiDailyTip(phase, day, avg) },
