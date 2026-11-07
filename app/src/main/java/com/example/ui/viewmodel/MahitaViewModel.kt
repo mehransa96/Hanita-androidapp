@@ -569,7 +569,11 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
     private suspend fun savePeriodRangeNow(startDate: LocalDate, endDate: LocalDate, flow: String, notes: String) {
         run {
             val start = if (startDate.isAfter(endDate)) endDate else startDate
-            val end = if (startDate.isAfter(endDate)) startDate else endDate
+            val requestedEnd = if (startDate.isAfter(endDate)) startDate else endDate
+            // Future days are never stored as bleeding (they would later count as real data).
+            val today = LocalDate.now()
+            if (start.isAfter(today)) return
+            val end = if (requestedEnd.isAfter(today)) today else requestedEnd
 
             val recordId = "cycle_${start}"
             val record = com.example.data.model.CycleRecord(

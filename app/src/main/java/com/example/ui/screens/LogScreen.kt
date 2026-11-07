@@ -786,7 +786,7 @@ fun LogScreen(
         if (showCycleEditDialogInLog) {
             ProfessionalCycleEditDialog(
                 initialStartDate = selectedDate,
-                initialEndDate = selectedDate.plusDays(4),
+                initialEndDate = com.example.ui.components.earlierOf(selectedDate.plusDays(4), java.time.LocalDate.now()),
                 title = "ویرایش و ثبت دوره قاعدگی 🩸",
                 onDismissRequest = { showCycleEditDialogInLog = false },
                 onSaveCycle = { newStart, newEnd, length, flow, notes ->
