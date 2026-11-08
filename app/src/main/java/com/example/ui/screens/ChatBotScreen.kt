@@ -106,8 +106,11 @@ fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigat
             putExtra(RecognizerIntent.EXTRA_PROMPT, "سؤال خود را بگویید")
         }
         try {
+            // The recognizer opens on top of the app; it must not trigger the app lock on return.
+            com.example.security.AppLockSession.skipNextLock = true
             speechLauncher.launch(intent)
         } catch (e: android.content.ActivityNotFoundException) {
+            com.example.security.AppLockSession.skipNextLock = false
             android.widget.Toast.makeText(context, "تبدیل گفتار به متن روی این گوشی در دسترس نیست.", android.widget.Toast.LENGTH_SHORT).show()
         }
     }

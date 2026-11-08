@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 9,
-    "identityHash": "86dd8d8bece32cb2fd1b303527c97c0c",
+    "version": 10,
+    "identityHash": "663d5eec44d8eb3a2ec003bfa62ee765",
     "entities": [
       {
         "tableName": "daily_logs",
@@ -191,11 +191,69 @@
             "id"
           ]
         }
+      },
+      {
+        "tableName": "health_entries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `dateStr` TEXT NOT NULL, `type` TEXT NOT NULL, `value` TEXT NOT NULL, `num1` INTEGER, `num2` INTEGER, `notes` TEXT NOT NULL, `timestamp` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateStr",
+            "columnName": "dateStr",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "num1",
+            "columnName": "num1",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "num2",
+            "columnName": "num2",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '86dd8d8bece32cb2fd1b303527c97c0c')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '663d5eec44d8eb3a2ec003bfa62ee765')"
     ]
   }
 }

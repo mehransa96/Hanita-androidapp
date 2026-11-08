@@ -12,13 +12,16 @@ import com.example.data.dao.CycleRecordDao
 import com.example.data.model.CycleRecord
 import com.example.data.dao.PhysicalSymptomDao
 import com.example.data.model.PhysicalSymptomLog
+import com.example.data.dao.HealthEntryDao
+import com.example.data.model.HealthEntry
 
-@Database(entities = [DailyLog::class, CycleRecord::class, PhysicalSymptomLog::class], version = 9, exportSchema = true)
+@Database(entities = [DailyLog::class, CycleRecord::class, PhysicalSymptomLog::class, HealthEntry::class], version = 10, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun dailyLogDao(): DailyLogDao
     abstract fun cycleRecordDao(): CycleRecordDao
     abstract fun physicalSymptomDao(): PhysicalSymptomDao
+    abstract fun healthEntryDao(): HealthEntryDao
 
     companion object {
         @Volatile
@@ -74,11 +77,78 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private const val CREATE_HEALTH_ENTRIES = """
+            CREATE TABLE IF NOT EXISTS `health_entries` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `dateStr` TEXT NOT NULL,
+                `type` TEXT NOT NULL,
+                `value` TEXT NOT NULL,
+                `num1` INTEGER,
+                `num2` INTEGER,
+                `notes` TEXT NOT NULL,
+                `timestamp` INTEGER NOT NULL
+            )
+        """
+
+        /** Health tools (intimacy, tests, blood pressure, pill, breast exam) live in their own table. */
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE daily_logs ADD COLUMN painLevel INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE daily_logs ADD COLUMN sleepHours REAL")
-                db.execSQL("ALTER TABLE daily_logs ADD COLUMN steps INTEGER")
+                db.execSQL(CREATE_HEALTH_ENTRIES.trimIndent())
+            }
+        }
+
+        /**
+         * Pain level, sleep and steps on the daily log. Written defensively: a development build
+         * may already have these columns at version 9 (and no health_entries table), so each step
+         * only runs when it is still needed.
+         */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(CREATE_HEALTH_ENTRIES.trimIndent())
+                val existing = mutableSetOf<String>()
+                db.query("PRAGMA table_info(`daily_logs`)").use { c ->
+                    val nameIndex = c.getColumnIndex("name")
+                    while (c.moveToNext()) existing += c.getString(nameIndex)
+                }
+                if ("painLevel" !in existing) db.execSQL("ALTER TABLE daily_logs ADD COLUMN painLevel INTEGER NOT NULL DEFAULT 0")
+                if ("sleepHours" !in existing) db.execSQL("ALTER TABLE daily_logs ADD COLUMN sleepHours REAL")
+                if ("steps" !in existing) db.execSQL("ALTER TABLE daily_logs ADD COLUMN steps INTEGER")
+                // Version 1.2 kept sleep and steps as health entries; the daily log is their home now.
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO daily_logs (dateStr, periodFlow, symptoms, moods, notes, emoji, takenMeds, waterIntake, painLevel, updatedAt)
+                    SELECT DISTINCT dateStr, 'NONE', '', '', '', '', '', 0, 0, 0 FROM health_entries
+                    WHERE type IN ('SLEEP', 'STEPS') AND num1 IS NOT NULL
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    UPDATE daily_logs SET sleepHours = (
+                        SELECT h.num1 / 60.0 FROM health_entries h
+                        WHERE h.dateStr = daily_logs.dateStr AND h.type = 'SLEEP' AND h.num1 IS NOT NULL
+                        ORDER BY h.timestamp DESC LIMIT 1
+                    )
+                    WHERE sleepHours IS NULL AND dateStr IN (SELECT dateStr FROM health_entries WHERE type = 'SLEEP' AND num1 IS NOT NULL)
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    UPDATE daily_logs SET steps = (
+                        SELECT h.num1 FROM health_entries h
+                        WHERE h.dateStr = daily_logs.dateStr AND h.type = 'STEPS' AND h.num1 IS NOT NULL
+                        ORDER BY h.timestamp DESC LIMIT 1
+                    )
+                    WHERE steps IS NULL AND dateStr IN (SELECT dateStr FROM health_entries WHERE type = 'STEPS' AND num1 IS NOT NULL)
+                    """.trimIndent()
+                )
+            }
+        }
+
+        /** Closes the open database so its file can be deleted safely (full reset). */
+        fun closeAndForget() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
             }
         }
 
@@ -89,7 +159,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "hanita_database"
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 // Never wipe user health data on upgrade. Only the pre-release schema 1 may be rebuilt.
                 .fallbackToDestructiveMigrationFrom(true, 1)
                 .build()

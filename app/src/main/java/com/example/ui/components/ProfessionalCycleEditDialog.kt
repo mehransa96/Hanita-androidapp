@@ -667,3 +667,7 @@ fun ProfessionalCycleEditDialog(
         )
     }
 }
+
+/** LocalDate is Comparable<ChronoLocalDate>, so the stdlib minOf/maxOf do not apply to it. */
+internal fun earlierOf(a: LocalDate, b: LocalDate): LocalDate = if (a.isAfter(b)) b else a
+internal fun laterOf(a: LocalDate, b: LocalDate): LocalDate = if (a.isBefore(b)) b else a

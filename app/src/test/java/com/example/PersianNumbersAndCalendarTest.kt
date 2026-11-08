@@ -44,7 +44,7 @@ class PersianNumbersAndCalendarTest {
     @Test
     fun `medicine times are validated`() {
         assertEquals(LocalTime.of(21, 30), MedicineReminderHelper.parseTime("۲۱:۳۰"))
-        assertNull(MedicineReminderHelper.parseTime("9"))
+        assertEquals(LocalTime.of(9, 0), MedicineReminderHelper.parseTime("9"))
         assertNull(MedicineReminderHelper.parseTime("25:00"))
         val now = LocalDateTime.of(2026, 1, 1, 22, 0)
         assertEquals(LocalDateTime.of(2026, 1, 2, 21, 30), MedicineReminderHelper.nextOccurrence(LocalTime.of(21, 30), now))

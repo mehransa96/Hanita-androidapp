@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChildCare
 import androidx.compose.material.icons.filled.LocalDrink
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.DarkMode
@@ -43,6 +44,8 @@ import androidx.compose.material.icons.filled.Settings
 import com.example.ui.theme.ThemeProvider
 import com.example.ui.theme.ThemeMode
 import com.example.ui.components.MedicalReportDialog
+import com.example.utils.PersianDates
+import com.example.utils.PersianNumbers
 import com.example.ui.components.PartnerSyncDialog
 import com.example.ui.components.CyclePhaseGuideDialog
 import com.example.ui.components.PregnancyTrackerDialog
@@ -50,9 +53,6 @@ import com.example.ui.components.InteractivePeriodCalendarWidget
 import com.example.ui.components.HormoneLevelsChartCard
 import com.example.ui.components.SmartInsightsCard
 import com.example.utils.JalaliCalendar
-import com.example.utils.PersianDates
-import com.example.utils.PersianNumbers
-import androidx.compose.runtime.saveable.rememberSaveable
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -85,11 +85,44 @@ import com.example.ui.viewmodel.MahitaViewModel
 import com.example.ui.viewmodel.PredictionInfo
 
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.animation.core.*
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.PregnantWoman
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.TipsAndUpdates
+import androidx.compose.material.icons.filled.QueryStats
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.EventNote
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.runtime.saveable.rememberSaveable
+
+/** The five sections of the app, in bottom-bar order (rightmost first in RTL). */
+enum class HomeTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    TODAY("امروز", Icons.Filled.Home),
+    CYCLE("چرخه و تحلیل", Icons.Filled.Insights),
+    HEALTH("سلامت", Icons.Filled.HealthAndSafety),
+    WELLBEING("حال خوب", Icons.Filled.Spa),
+    PARTNER("همراه", Icons.Filled.Favorite)
+}
 
 @Composable
 fun DashboardScreen(
@@ -105,261 +138,221 @@ fun DashboardScreen(
     onNavigateToAvatarGenerator: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToCharts: () -> Unit,
-    onLogout: () -> Unit
+    onNavigateToTools: () -> Unit,
+    onNavigateToPrivacy: () -> Unit,
+    onLock: () -> Unit,
+    startTab: Int = 0
 ) {
     val cycleInfo by viewModel.cycleInfo.collectAsState()
     val userName by viewModel.userName.collectAsState()
     val userAvatar by viewModel.userAvatar.collectAsState()
+    val averageCycleLength by viewModel.averageCycleLength.collectAsState()
     val predictionInfo by viewModel.predictionInfo.collectAsState()
     val logs by viewModel.allLogs.collectAsState()
     val userWeight by viewModel.userWeight.collectAsState()
     val waterGlasses by viewModel.waterGlasses.collectAsState()
-    val lastPeriodStart by viewModel.lastPeriodStart.collectAsState()
-    val periodRuns by viewModel.periodRuns.collectAsState()
-    val completedCycles by viewModel.completedCycles.collectAsState()
+    val lastPeriodDate by viewModel.lastPeriodDate.collectAsState()
     val allPhysicalSymptoms by viewModel.allPhysicalSymptoms.collectAsState()
-    val today by viewModel.today.collectAsState()
-    val todayPhysicalSymptoms = remember(allPhysicalSymptoms, today) {
-        allPhysicalSymptoms.filter { it.dateStr == today.toString() }
+    val cycleRecords by viewModel.allCycleRecords.collectAsState()
+    val currentDate by viewModel.currentDate.collectAsState()
+    val isDarkNow = com.example.ui.theme.ThemeProvider.isDark
+    val completedCycles by viewModel.completedCycles.collectAsState()
+    val periodRuns by viewModel.periodRuns.collectAsState()
+    val todayDateStr = currentDate.toString()
+    val todayPhysicalSymptoms = remember(allPhysicalSymptoms, todayDateStr) {
+        allPhysicalSymptoms.filter { it.dateStr == todayDateStr }
     }
-    val aiTip by viewModel.aiTip.collectAsState()
+    val aiDailyTip by viewModel.aiDailyTip.collectAsState()
+    val isFetchingAiTip by viewModel.isFetchingAiTip.collectAsState()
+    val aiTipError by viewModel.aiTipError.collectAsState()
     val context = LocalContext.current
-    val isDark = ThemeProvider.isDark
 
-    var showSettingsDialog by rememberSaveable { mutableStateOf(false) }
-    var showMedicalReportDialog by rememberSaveable { mutableStateOf(false) }
-    var showPartnerSyncDialog by rememberSaveable { mutableStateOf(false) }
-    var showPhaseGuideDialog by rememberSaveable { mutableStateOf(false) }
-    var showPregnancyDialog by rememberSaveable { mutableStateOf(false) }
-    var showInteractivePeriodDialog by rememberSaveable { mutableStateOf(false) }
-    var showQuickCycleEditDialog by rememberSaveable { mutableStateOf(false) }
-    var showLogoutConfirm by rememberSaveable { mutableStateOf(false) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(startTab.coerceIn(0, HomeTab.values().lastIndex)) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
+    var showMedicalReportDialog by remember { mutableStateOf(false) }
+    var showPartnerSyncDialog by remember { mutableStateOf(false) }
+    var showPhaseGuideDialog by remember { mutableStateOf(false) }
+    var showPregnancyDialog by remember { mutableStateOf(false) }
+    var showInteractivePeriodDialog by remember { mutableStateOf(false) }
+    var showQuickCycleEditDialog by remember { mutableStateOf(false) }
+    // Which dashboard card is open in a full-screen sheet (null = none).
+    var openSheet by remember { mutableStateOf<String?>(null) }
 
-    // The period being edited is the last one really logged (not a date typed in the settings).
-    val lastRun = periodRuns.lastOrNull()
+    // Back from another tab returns to "today" instead of leaving the app.
+    BackHandler(enabled = selectedTab != HomeTab.TODAY.ordinal) { selectedTab = HomeTab.TODAY.ordinal }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-    ) { paddingValues ->
-        val scrollState = rememberScrollState()
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 20.dp)
-                .verticalScroll(scrollState),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
-            HeaderRow(
-                userName = userName,
-                userAvatar = userAvatar,
-                today = today,
-                onToggleThemeMode = { viewModel.toggleThemeMode(isDark) },
-                onOpenSettings = { showSettingsDialog = true },
-                onNavigateToReminders = onNavigateToReminders,
-                onNavigateToAvatarGenerator = onNavigateToAvatarGenerator,
-                onLogout = { showLogoutConfirm = true }
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (!cycleInfo.hasData) {
-                NoPeriodDataCard(onLogPeriod = { showQuickCycleEditDialog = true })
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            AnimatedVisibility(visible = cycleInfo.hasData && !cycleInfo.isPeriod && (cycleInfo.isLate || cycleInfo.daysUntilNextPeriod in 0..3)) {
-                Column {
-                    AlertBanner(cycleInfo, onLogPeriod = { showQuickCycleEditDialog = true })
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 12.dp)
-                    .size(240.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CycleVisualizer(
-                    info = cycleInfo,
-                    cycleLength = predictionInfo.calculatedAverage,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            PredictionsCard(cycleInfo, predictionInfo.calculatedAverage)
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            FeaturesGrid(onNavigateToLog, onNavigateToCalendar, onNavigateToHealth, onNavigateToEducation, onNavigateToMood, onNavigateToChat, onNavigateToMeditation, onNavigateToReminders, onNavigateToCharts)
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Quick period editor: always edits the last period that was really logged.
-            QuickPeriodEditCard(
-                lastPeriodStart = lastPeriodStart,
-                calculatedAverage = predictionInfo.calculatedAverage,
-                hasRealAverage = predictionInfo.hasEnoughData,
-                onClick = { showQuickCycleEditDialog = true }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Interactive Period Range Logger Card (Touch Start & End Dates)
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClickLabel = "باز کردن تقویم لمسی") { showInteractivePeriodDialog = true }
-                    .testTag("open_interactive_period_card"),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("🩸", fontSize = 22.sp)
-                        }
-                        Column {
-                            Text(
-                                text = "ثبت لمسی روزهای شروع و پایان قاعدگی",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "شروع و پایان را روی تقویم لمس کنید",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
+        bottomBar = {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
+                HomeTab.values().forEach { tab ->
+                    NavigationBarItem(
+                        selected = selectedTab == tab.ordinal,
+                        onClick = { selectedTab = tab.ordinal },
+                        icon = { Icon(tab.icon, contentDescription = null) },
+                        label = { Text(tab.label, fontSize = 10.5.sp, maxLines = 1) },
+                        modifier = Modifier.testTag("tab_${tab.name.lowercase()}")
                     )
                 }
             }
+        }
+    ) { paddingValues ->
+        AnimatedContent(
+            targetState = selectedTab,
+            transitionSpec = {
+                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)) togetherWith
+                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160))
+            },
+            label = "homeTab",
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp)
+        ) { tabIndex ->
+            when (HomeTab.values()[tabIndex]) {
+                HomeTab.TODAY -> TodayTab(
+                    userName = userName,
+                    userAvatar = userAvatar,
+                    cycleInfo = cycleInfo,
+                    predictionInfo = predictionInfo,
+                    waterGlasses = waterGlasses,
+                    todaySymptomCount = todayPhysicalSymptoms.size,
+                    lastPeriodDate = lastPeriodDate,
+                    averageCycleLength = averageCycleLength,
+                    onToggleThemeMode = { viewModel.toggleThemeMode(isDarkNow) },
+                    onOpenSettings = { showSettingsDialog = true },
+                    onNavigateToReminders = onNavigateToReminders,
+                    onNavigateToAvatarGenerator = onNavigateToAvatarGenerator,
+                    onLock = onLock,
+                    onLogPeriod = { showInteractivePeriodDialog = true },
+                    today = currentDate,
+                    onEditCycle = { showQuickCycleEditDialog = true },
+                    onLogSymptoms = onNavigateToLog,
+                    onOpenCalendar = onNavigateToCalendar,
+                    onIncrementWater = { viewModel.incrementWater() },
+                    onDecrementWater = { viewModel.decrementWater() },
+                    onLogMood = { viewModel.logQuickMood(it) }
+                )
+                HomeTab.CYCLE -> Column(Modifier.fillMaxSize()) {
+                    TabHeader("چرخه و تحلیل 📊", "تقویم، تاریخچه، پیش‌بینی‌ها و نمودارهای چرخه شما", { showSettingsDialog = true }, onLock)
+                    CycleSummaryStrip(cycleInfo, predictionInfo)
+                    Spacer(Modifier.height(10.dp))
+                    HubGrid(
+                        modifier = Modifier.fillMaxWidth().weight(1f).padding(bottom = 12.dp),
+                        items = listOf(
+                            HubItem("تقویم قاعدگی", "ماه به ماه، ثبت و ویرایش روزها", Icons.Filled.CalendarMonth, Color(0xFF6366F1), "hub_calendar", onNavigateToCalendar),
+                            HubItem("تاریخچه چرخه‌ها", "همه دوره‌های ثبت‌شده و ویرایش آن‌ها", Icons.Filled.History, Color(0xFFDB2777), "hub_history", onNavigateToHistory),
+                            HubItem("پیش‌بینی هوشمند", "پریود بعدی، دقت و نظم چرخه", Icons.Filled.QueryStats, Color(0xFF0EA5E9), "hub_prediction") { openSheet = "prediction" },
+                            HubItem("نمودار طول چرخه", "مقایسه طول چرخه‌های اخیر", Icons.Filled.Timeline, Color(0xFFF59E0B), "hub_cycle_chart") { openSheet = "cycle_chart" },
+                            HubItem("منحنی هورمون‌ها", "استروژن، پروژسترون و LH در چرخه", Icons.Filled.BarChart, Color(0xFFA855F7), "hub_hormones") { openSheet = "hormones" },
+                            HubItem("نمودار علائم", "روند علائم و هورمون‌ها در طول زمان", Icons.Filled.Insights, Color(0xFFE11D48), "hub_charts", onNavigateToCharts),
+                            HubItem("تحلیل هوشمند چرخه", "بینش‌های شخصی از داده‌های شما", Icons.Filled.Psychology, Color(0xFF10B981), "hub_insights") { openSheet = "insights" },
+                            HubItem("راهنمای فازهای چرخه", "هر فاز چه تغییری در بدن می‌دهد", Icons.AutoMirrored.Filled.MenuBook, Color(0xFF64748B), "hub_phase_guide") { showPhaseGuideDialog = true }
+                        )
+                    )
+                }
+                HomeTab.HEALTH -> Column(Modifier.fillMaxSize()) {
+                    TabHeader("سلامت و مراقبت 🩺", "ابزارهای سلامت، یادآورها، گزارش پزشک و بارداری", { showSettingsDialog = true }, onLock)
+                    Spacer(Modifier.height(6.dp))
+                    HubGrid(
+                        modifier = Modifier.fillMaxWidth().weight(1f).padding(bottom = 12.dp),
+                        items = listOf(
+                            HubItem("علائم جسمی امروز", if (todayPhysicalSymptoms.isEmpty()) "هنوز علامتی ثبت نشده" else "${todayPhysicalSymptoms.size} علامت ثبت شده", Icons.Filled.Healing, Color(0xFFE11D48), "hub_today_symptoms") { openSheet = "symptoms" },
+                            HubItem("ثبت سریع حال روزانه", "خلق، انرژی، خواب و درد در یک نگاه", Icons.Filled.EventNote, Color(0xFF8B5CF6), "hub_quick_log") { openSheet = "quick_log" },
+                            HubItem("ابزارهای سلامت", "قرص، تست‌ها، فشار خون، خودآزمایی، PDF پزشک", Icons.Filled.HealthAndSafety, Color(0xFFDB2777), "hub_tools", onNavigateToTools),
+                            HubItem("سلامت جسمی و وزن", "وزن، BMI و شاخص‌های بدن", Icons.Filled.MonitorWeight, Color(0xFFF59E0B), "hub_health", onNavigateToHealth),
+                            HubItem("یادآورها و داروها", "داروها، مکمل‌ها و هشدار دوره بعد", Icons.Filled.NotificationsActive, Color(0xFFEF4444), "hub_reminders", onNavigateToReminders),
+                            HubItem("گزارش پزشکی", "خلاصه آماده برای ویزیت پزشک", Icons.Filled.Description, Color(0xFF0EA5E9), "hub_medical_report") { showMedicalReportDialog = true },
+                            HubItem("ردیاب بارداری", "هفته بارداری و تاریخ تقریبی زایمان", Icons.Filled.PregnantWoman, Color(0xFFEC4899), "hub_pregnancy") { showPregnancyDialog = true },
+                            HubItem("حریم خصوصی و پشتیبان", "قفل برنامه، پشتیبان‌گیری و بازیابی", Icons.Filled.Lock, Color(0xFF7C3AED), "hub_privacy", onNavigateToPrivacy)
+                        )
+                    )
+                }
+                HomeTab.WELLBEING -> Column(Modifier.fillMaxSize()) {
+                    TabHeader("حال خوب 🌸", "موسیقی متناسب با دوره، مدیتیشن، مشاور و آموزش", { showSettingsDialog = true }, onLock)
+                    Spacer(Modifier.height(6.dp))
+                    HubGrid(
+                        modifier = Modifier.fillMaxWidth().weight(1f).padding(bottom = 12.dp),
+                        items = listOf(
+                            HubItem("موسیقی متناسب با دوره", "۱۶ قطعه اختصاصی برای ۴ فاز چرخه", Icons.Filled.MusicNote, Color(0xFFE11D48), "hub_cycle_music", onNavigateToMood),
+                            HubItem("مدیتیشن و آوای طبیعت", "تنفس هدایت‌شده، باران، جنگل و دریا", Icons.Filled.SelfImprovement, Color(0xFF10B981), "hub_meditation", onNavigateToMeditation),
+                            HubItem("بینش امروز", "پیشنهاد متناسب با فاز فعلی شما", Icons.Filled.Eco, Color(0xFF22C55E), "hub_daily_insight") { openSheet = "daily_insight" },
+                            HubItem("نکته هوشمند روز", "پیشنهاد شخصی با هوش مصنوعی", Icons.Filled.TipsAndUpdates, Color(0xFFF59E0B), "hub_ai_tip") { openSheet = "ai_tip" },
+                            HubItem("مشاور هوشمند", "پرسش و پاسخ درباره سلامت زنان", Icons.Filled.AutoAwesome, Color(0xFF3B82F6), "hub_chat", onNavigateToChat),
+                            HubItem("آموزش و دانستنی‌ها", "مقاله‌های کوتاه و قابل اعتماد", Icons.AutoMirrored.Filled.MenuBook, Color(0xFFA855F7), "hub_education", onNavigateToEducation),
+                            HubItem("آواتار من", "ساخت و تغییر تصویر پروفایل", Icons.Filled.Face, Color(0xFFEC4899), "hub_avatar", onNavigateToAvatarGenerator),
+                            HubItem("همدلی با همسر", "راهنمای حمایت در هر فاز", Icons.Filled.VolunteerActivism, Color(0xFFF43F5E), "hub_partner_guide") { showPartnerSyncDialog = true }
+                        )
+                    )
+                }
+                HomeTab.PARTNER -> Column(Modifier.fillMaxSize().padding(bottom = 12.dp)) {
+                    PartnerTab(
+                        userName = userName,
+                        cycleInfo = cycleInfo,
+                        predictionInfo = predictionInfo,
+                        onOpenSettings = { showSettingsDialog = true },
+                        onLock = onLock,
+                        today = currentDate
+                    )
+                }
+            }
+        }
+    }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Dynamic Daily Insight based on Cycle Phase
-            DailyInsightCard(cycleInfo)
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Smart AI Tips Widget (sends the phase only after consent)
-            AITipsCard(
-                info = cycleInfo,
+    when (openSheet) {
+        "prediction" -> CardSheet("پیش‌بینی هوشمند", { openSheet = null }) {
+            PredictionsCard(cycleInfo, predictionInfo.calculatedAverage)
+            PredictionNotificationCard(predictionInfo)
+        }
+        "cycle_chart" -> CardSheet("نمودار طول چرخه", { openSheet = null }) {
+            val recentCycles by viewModel.recentCycles.collectAsState()
+            CycleHistoryChart(cycles = recentCycles, averageCycleLength = predictionInfo.calculatedAverage, modifier = Modifier.fillMaxWidth())
+        }
+        "hormones" -> CardSheet("منحنی هورمون‌ها", { openSheet = null }) {
+            HormoneLevelsChartCard(
+                cycleInfo = cycleInfo,
                 averageCycleLength = predictionInfo.calculatedAverage,
-                tipState = aiTip,
-                onFetchTip = { phase, day, avg -> viewModel.fetchAiDailyTip(phase, day, avg) }
+                modifier = Modifier.fillMaxWidth()
             )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Quick Hydration and Daily Mood Widget
+        }
+        "insights" -> CardSheet("تحلیل هوشمند چرخه", { openSheet = null }) {
+            SmartInsightsCard(cycleInfo = cycleInfo, modifier = Modifier.fillMaxWidth())
+        }
+        "symptoms" -> CardSheet("علائم جسمی امروز", { openSheet = null }) {
+            DailyPhysicalSymptomsCard(
+                todaySymptoms = todayPhysicalSymptoms,
+                onNavigateToLog = {
+                    openSheet = null
+                    onNavigateToLog()
+                }
+            )
+        }
+        "quick_log" -> CardSheet("ثبت سریع حال روزانه", { openSheet = null }) {
+            com.example.ui.components.QuickSymptomWidget(
+                onSave = { mood, energy, sleep, pain ->
+                    viewModel.saveQuickLog(currentDate.toString(), mood, energy, sleep, pain)
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
             QuickHydrationAndMoodCard(
                 waterGlasses = waterGlasses,
                 onIncrementWater = { viewModel.incrementWater() },
                 onDecrementWater = { viewModel.decrementWater() },
                 onLogMood = { mood -> viewModel.logQuickMood(mood) }
             )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            DailyPhysicalSymptomsCard(
-                todaySymptoms = todayPhysicalSymptoms,
-                onNavigateToLog = onNavigateToLog
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            PredictionNotificationCard(predictionInfo)
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            CycleHistoryChart(cycles = completedCycles, modifier = Modifier.fillMaxWidth())
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Hormonal fluctuations across cycle phases (Vico Chart)
-            HormoneLevelsChartCard(
-                cycleInfo = cycleInfo,
-                averageCycleLength = predictionInfo.calculatedAverage,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            SmartInsightsCard(
-                cycleInfo = cycleInfo,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            com.example.ui.components.QuickSymptomWidget(
-                onSave = { mood, energy, sleep, pain ->
-                    viewModel.saveQuickLog(java.time.LocalDate.now().toString(), mood, energy, sleep, pain)
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Advanced Health & Partner Empathy Suite
-            AdvancedHealthSuiteCard(
-                onOpenMedicalReport = { showMedicalReportDialog = true },
-                onOpenPartnerSync = { showPartnerSyncDialog = true },
-                onOpenPhaseGuide = { showPhaseGuideDialog = true },
-                onOpenPregnancyTracker = { showPregnancyDialog = true }
-            )
-
-            Spacer(modifier = Modifier.height(28.dp))
         }
-    }
-
-    if (showLogoutConfirm) {
-        AlertDialog(
-            onDismissRequest = { showLogoutConfirm = false },
-            title = { Text("خروج از حساب؟") },
-            text = {
-                Text(
-                    "یادآورهای چرخه و داروها تا ورود دوباره متوقف می‌شوند. سوابق ثبت‌شده روی همین گوشی باقی می‌ماند.",
-                    lineHeight = 22.sp
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showLogoutConfirm = false
-                    onLogout()
-                }) { Text("خروج", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { showLogoutConfirm = false }) { Text("انصراف") } }
-        )
+        "daily_insight" -> CardSheet("بینش امروز", { openSheet = null }) {
+            DailyInsightCard(cycleInfo)
+        }
+        "ai_tip" -> CardSheet("نکته هوشمند روز", { openSheet = null }) {
+            val aiTip by viewModel.aiTip.collectAsState()
+            AITipsCard(
+                info = cycleInfo,
+                averageCycleLength = predictionInfo.calculatedAverage,
+                tipState = aiTip,
+                onFetchTip = { phase, day, avg -> viewModel.fetchAiDailyTip(phase, day, avg) }
+            )
+        }
     }
 
     SettingsDialog(
@@ -398,10 +391,12 @@ fun DashboardScreen(
     PregnancyTrackerDialog(
         show = showPregnancyDialog,
         onDismiss = { showPregnancyDialog = false },
-        lastPeriodStart = lastPeriodStart
+        lastPeriodStart = predictionInfo.lastPeriodStart,
+        cycleLength = predictionInfo.calculatedAverage
     )
 
     if (showInteractivePeriodDialog) {
+        val context = LocalContext.current
         AlertDialog(
             onDismissRequest = { showInteractivePeriodDialog = false },
             confirmButton = {},
@@ -425,7 +420,7 @@ fun DashboardScreen(
                         },
                         onClearPeriod = { start, end ->
                             viewModel.clearPeriodRange(start, end)
-                            Toast.makeText(context, "روزهای خونریزی این بازه پاک شد", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "بازه انتخابی پاک شد", Toast.LENGTH_SHORT).show()
                         }
                     )
                 }
@@ -436,11 +431,17 @@ fun DashboardScreen(
     }
 
     if (showQuickCycleEditDialog) {
-        val editStart = lastRun?.start ?: today.minusDays(1)
+        // Edit the period the forecast is really based on, with its real first and last day.
+        val today = java.time.LocalDate.now()
+        val lastRun = periodRuns.lastOrNull()
+        val editStart = lastRun?.start ?: today
+        val lastFlow = lastRun?.let { run -> logs.firstOrNull { it.dateStr == run.start.toString() } }
+            ?.periodFlow?.takeIf { it != "NONE" } ?: "MEDIUM"
         ProfessionalCycleEditDialog(
             showCycleLength = !predictionInfo.hasEnoughData,
             initialStartDate = editStart,
-            initialEndDate = lastRun?.end ?: minOf(editStart.plusDays(4), today),
+            initialEndDate = lastRun?.end ?: com.example.ui.components.earlierOf(editStart.plusDays(4), today),
+            initialFlow = lastFlow,
             initialCycleLength = predictionInfo.calculatedAverage,
             isExistingCycle = lastRun != null,
             title = if (lastRun != null) "ویرایش آخرین دوره قاعدگی 🩸" else "ثبت دوره قاعدگی 🩸",

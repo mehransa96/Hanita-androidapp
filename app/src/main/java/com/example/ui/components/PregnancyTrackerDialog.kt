@@ -47,29 +47,29 @@ data class WeekMilestone(
 fun PregnancyTrackerDialog(
     show: Boolean,
     onDismiss: () -> Unit,
-    lastPeriodStart: LocalDate?
+    lastPeriodStart: LocalDate?,
+    cycleLength: Int = 28
 ) {
     if (!show) return
 
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    // Gestational age is counted from the first day of the last logged period (Naegele's rule).
-    // Without a logged period nothing is invented: the weeks can only be browsed.
-    val hasLmp = lastPeriodStart != null
-    val daysSinceLmp = remember(lastPeriodStart) {
-        lastPeriodStart?.let { ChronoUnit.DAYS.between(it, LocalDate.now()).coerceAtLeast(0L) } ?: 0L
+    // Dating from the real last period and the user's own cycle length. Without a logged period
+    // (or with a very old one) nothing is guessed: the weeks can only be browsed.
+    val estimate = remember(lastPeriodStart, cycleLength) {
+        com.example.domain.PregnancyMath.estimate(lastPeriodStart, cycleLength, LocalDate.now())
     }
-
-    var currentWeek by remember(daysSinceLmp) {
-        mutableIntStateOf(((daysSinceLmp / 7).toInt() + 1).coerceIn(1, 40))
-    }
-
-    val estimatedDueDate = remember(lastPeriodStart) { lastPeriodStart?.plusDays(280) }
-    val dueJalaliStr = estimatedDueDate?.let { com.example.utils.PersianDates.long(it) } ?: "نامشخص"
-
-    val daysRemaining = remember(estimatedDueDate) {
-        estimatedDueDate?.let { ChronoUnit.DAYS.between(LocalDate.now(), it).coerceAtLeast(0L) }
+    val hasLmp = estimate.status == com.example.domain.PregnancyMath.Status.OK
+    var currentWeek by remember(estimate) { mutableIntStateOf(estimate.week) }
+    val dueJalaliStr = estimate.dueDate?.let { com.example.utils.PersianDates.long(it) } ?: "نامشخص"
+    val daysRemaining = estimate.daysUntilDue
+    val datingNote: String? = when (estimate.status) {
+        com.example.domain.PregnancyMath.Status.OK -> null
+        com.example.domain.PregnancyMath.Status.NO_LMP, com.example.domain.PregnancyMath.Status.FUTURE_LMP ->
+            "تاریخ آخرین پریود ثبت نشده است؛ برای محاسبه هفته بارداری و تاریخ زایمان، اولین روز آخرین پریود را در تقویم ثبت کنید. تا آن زمان می‌توانید هفته را با نوار زیر انتخاب کنید."
+        com.example.domain.PregnancyMath.Status.TOO_OLD ->
+            "آخرین پریود ثبت‌شده بیش از ۴۲ هفته پیش است و برای محاسبه بارداری فعلی معتبر نیست. هفته را با نوار زیر انتخاب کنید یا تاریخ را در تقویم اصلاح کنید."
     }
 
     // Trimester
@@ -167,6 +167,22 @@ fun PregnancyTrackerDialog(
                         .verticalScroll(scrollState),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    datingNote?.let { note ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text(
+                                note,
+                                modifier = Modifier.padding(12.dp),
+                                fontSize = 11.5.sp,
+                                lineHeight = 18.sp,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+
                     // Week Slider Selector
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -190,7 +206,7 @@ fun PregnancyTrackerDialog(
                                     color = Color(0xFF9F1239).forTheme()
                                 )
                                 Text(
-                                    text = daysRemaining?.let { "${com.example.utils.PersianNumbers.toPersianDigits(it.toInt())} روز تا زایمان" } ?: "",
+                                    text = daysRemaining?.let { "${com.example.utils.PersianNumbers.toPersianDigits(it.toInt())} روز تا زایمان" } ?: "تاریخ زایمان: نامشخص",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFE11D48)

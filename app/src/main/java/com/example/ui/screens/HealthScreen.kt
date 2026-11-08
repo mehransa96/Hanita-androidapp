@@ -60,7 +60,7 @@ fun HealthScreen(
             else -> {
                 viewModel.saveHealthToday(waterIntake, sleepHours.takeIf { it > 0f }, stepsValue)
                 weightValue?.let { viewModel.setWeight(it) }
-                android.widget.Toast.makeText(context, savedMessage(viewModel.isCloudSyncAvailable()), android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, "روی همین گوشی ذخیره شد.", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
     }

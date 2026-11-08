@@ -93,19 +93,27 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.animation.core.*
 
+/**
+ * Lengths of the user's last completed cycles, measured from one logged period start to the next.
+ * (This card used to draw invented values around the average with fixed month names.)
+ */
 @Composable
-fun CycleHistoryChart(cycles: List<com.example.domain.CyclePredictor.CompletedCycle>, modifier: Modifier = Modifier) {
-    // Real data only: the last six finished cycles the user logged.
-    val shown = remember(cycles) { cycles.takeLast(6) }
+fun CycleHistoryChart(
+    cycles: List<com.example.domain.CyclePredictor.CompletedCycle>,
+    averageCycleLength: Int? = null,
+    modifier: Modifier = Modifier
+) {
+    // Without an explicit figure, the average of the cycles shown.
+    val average = averageCycleLength ?: if (cycles.isEmpty()) 0 else Math.round(cycles.map { it.lengthDays }.average()).toInt()
+    val fa = { n: Int -> PersianNumbers.toPersianDigits(n) }
     val pColor = SleekPrimary
+    val warnColor = Color(0xFFF59E0B)
     val bColor = SleekBorder
-    val labelBg = MaterialTheme.colorScheme.surface
-    val labelColor = MaterialTheme.colorScheme.onSurface
 
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = SleekSurface),
-        border = BorderStroke(1.dp, bColor),
+        border = BorderStroke(1.dp, bColor.copy(alpha = 0.5f)),
         shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -115,7 +123,7 @@ fun CycleHistoryChart(cycles: List<com.example.domain.CyclePredictor.CompletedCy
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(Modifier.weight(1f)) {
                     Text(
                         text = "طول چرخه‌های اخیر شما",
                         style = MaterialTheme.typography.titleSmall,
@@ -123,130 +131,87 @@ fun CycleHistoryChart(cycles: List<com.example.domain.CyclePredictor.CompletedCy
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "فاصله شروع هر پریود تا پریود بعدی",
-                        fontSize = 12.sp,
-                        color = SleekTextLight
+                        text = "از روز اول هر پریود تا روز اول پریود بعدی",
+                        fontSize = 10.sp,
+                        color = SleekTextMedium
                     )
                 }
-                if (shown.isNotEmpty()) {
-                    val average = Math.round(shown.map { it.lengthDays }.average()).toInt()
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(SleekPrimaryLight)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "میانگین: ${PersianNumbers.toPersianDigits(average)} روز",
-                            fontSize = 12.sp,
-                            color = SleekPrimaryDark,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SleekPrimaryLight)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "میانگین: ${fa(average)} روز",
+                        fontSize = 12.sp,
+                        color = SleekPrimaryDark,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (shown.size < 2) {
+            if (cycles.isEmpty()) {
                 Text(
-                    text = if (shown.isEmpty())
-                        "پس از ثبت دست‌کم دو پریود، طول واقعی چرخه‌های شما اینجا نمایش داده می‌شود."
-                    else
-                        "چرخه ثبت‌شده: ${PersianNumbers.toPersianDigits(shown.first().lengthDays)} روز. با ثبت پریودهای بعدی، روند تغییرات نمایش داده می‌شود.",
-                    fontSize = 13.sp,
-                    lineHeight = 21.sp,
-                    color = SleekTextLight
+                    text = "برای رسم این نمودار دست‌کم دو پریود ثبت‌شده لازم است. با ثبت شروع هر پریود در تقویم، طول چرخه‌های شما اینجا نمایش داده می‌شود.",
+                    fontSize = 12.sp,
+                    lineHeight = 19.sp,
+                    color = SleekTextMedium
                 )
                 return@Column
             }
 
-            val values = shown.map { it.lengthDays }
-            val maxVal = (values.max() + 2).coerceAtLeast(30)
-            val minVal = (values.min() - 2).coerceAtMost(24)
-            val description = shown.joinToString("، ") { "${PersianDates.short(it.start)}: ${PersianNumbers.toPersianDigits(it.lengthDays)} روز" }
-
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-                    .semantics { contentDescription = "طول چرخه‌ها: $description" }
+            val maxLen = maxOf(cycles.maxOf { it.lengthDays }, average, 35)
+            Row(
+                modifier = Modifier.fillMaxWidth().height(170.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Bottom
             ) {
-                val chartHeight = maxHeight
-                Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 28.dp)) {
-                    val width = size.width
-                    val height = size.height
-                    for (i in 0..2) {
-                        val y = height * i / 2f
-                        drawLine(
-                            color = bColor,
-                            start = androidx.compose.ui.geometry.Offset(0f, y),
-                            end = androidx.compose.ui.geometry.Offset(width, y),
-                            strokeWidth = 1f,
-                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                cycles.forEach { cycle ->
+                    val barColor = if (cycle.isTypical) pColor else warnColor
+                    val month = com.example.utils.JalaliCalendar.gregorianToJalali(cycle.start).monthName
+                    Column(
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Bottom
+                    ) {
+                        Text(fa(cycle.lengthDays), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = barColor)
+                        Spacer(Modifier.height(2.dp))
+                        Box(
+                            Modifier
+                                .fillMaxWidth(0.7f)
+                                .fillMaxHeight((cycle.lengthDays.toFloat() / maxLen).coerceIn(0.05f, 0.82f))
+                                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                                .background(barColor.copy(alpha = 0.85f))
                         )
-                    }
-                    val stepX = width / (values.size - 1)
-                    val range = (maxVal - minVal).toFloat()
-                    // Chronological from right to left, matching the Persian reading direction.
-                    val points = values.mapIndexed { idx, length ->
-                        val ratio = ((length - minVal) / range).coerceIn(0f, 1f)
-                        androidx.compose.ui.geometry.Offset(width - idx * stepX, height - ratio * height)
-                    }
-                    val linePath = androidx.compose.ui.graphics.Path().apply {
-                        moveTo(points.first().x, points.first().y)
-                        for (i in 1 until points.size) {
-                            val prev = points[i - 1]
-                            val curr = points[i]
-                            val midX = (prev.x + curr.x) / 2
-                            cubicTo(midX, prev.y, midX, curr.y, curr.x, curr.y)
-                        }
-                    }
-                    val areaPath = androidx.compose.ui.graphics.Path().apply {
-                        addPath(linePath)
-                        lineTo(points.last().x, height)
-                        lineTo(points.first().x, height)
-                        close()
-                    }
-                    drawPath(areaPath, brush = Brush.verticalGradient(listOf(pColor.copy(alpha = 0.25f), Color.Transparent)))
-                    drawPath(linePath, color = pColor, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
-                    points.forEach { point ->
-                        drawCircle(color = pColor, radius = 4.dp.toPx(), center = point)
-                        drawCircle(color = labelBg, radius = 1.5.dp.toPx(), center = point)
-                    }
-                }
-                // Value labels above each point.
-                val innerHeight = chartHeight - 56.dp
-                Row(modifier = Modifier.fillMaxSize().padding(horizontal = 0.dp)) {
-                    values.forEach { length ->
-                        val ratio = ((length - minVal).toFloat() / (maxVal - minVal)).coerceIn(0f, 1f)
-                        Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
-                            Text(
-                                text = PersianNumbers.toPersianDigits(length),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = labelColor,
-                                modifier = Modifier
-                                    .padding(top = (innerHeight * (1f - ratio)) + 4.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(labelBg)
-                                    .padding(horizontal = 4.dp)
-                            )
-                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(month, fontSize = 10.sp, color = SleekTextMedium, maxLines = 1)
                     }
                 }
             }
-            Row(modifier = Modifier.fillMaxWidth()) {
-                shown.forEach { cycle ->
-                    Text(
-                        text = JalaliCalendar.gregorianToJalali(cycle.start).monthName,
-                        fontSize = 11.sp,
-                        color = SleekTextLight,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center,
-                        maxLines = 1
-                    )
-                }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            val typical = cycles.filter { it.isTypical }
+            val spread = if (typical.size >= 2) typical.maxOf { it.lengthDays } - typical.minOf { it.lengthDays } else 0
+            Text(
+                text = when {
+                    typical.size < 2 -> "با ثبت چرخه‌های بیشتر، نظم چرخه شما هم ارزیابی می‌شود."
+                    spread <= 7 -> "اختلاف کوتاه‌ترین و بلندترین چرخه ${fa(spread)} روز است؛ چرخه شما منظم به نظر می‌رسد."
+                    else -> "اختلاف چرخه‌ها ${fa(spread)} روز است؛ چرخه کمی نامنظم است. اگر این نوسان ادامه داشت با پزشک مشورت کنید."
+                },
+                fontSize = 11.sp,
+                lineHeight = 17.sp,
+                color = SleekTextMedium
+            )
+            if (cycles.any { !it.isTypical }) {
+                Text(
+                    text = "ستون نارنجی یعنی فاصله کمتر از ۲۱ یا بیشتر از ۴۵ روز؛ اگر پریودی را ثبت نکرده‌اید، آن را در تقویم اضافه کنید تا میانگین دقیق‌تر شود.",
+                    fontSize = 10.5.sp,
+                    lineHeight = 16.sp,
+                    color = warnColor
+                )
             }
         }
     }

@@ -44,7 +44,7 @@ class ScreensScreenshotTest {
     private fun viewModelWithData(): MahitaViewModel {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val vm = MahitaViewModel(app)
-        vm.login("مریم", 29, null)
+        vm.register("مریم", 29, null)
         val today = LocalDate.now()
         // Three past periods (two complete cycles) and today's log.
         vm.savePeriodRange(today.minusDays(66), today.minusDays(62), "MEDIUM", "")
@@ -76,14 +76,55 @@ class ScreensScreenshotTest {
 
     private val noop: () -> Unit = {}
 
-    @Test fun login() = shoot("01_login", false) { LoginScreen(onLoginSuccess = { _, _, _ -> }) }
-
-    @Test fun dashboardLight() = shoot("02_dashboard", false) { vm ->
-        DashboardScreen(vm, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop)
+    @Test fun login() = shoot("01_login", false) {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        LoginScreen(
+            lockManager = com.example.security.AppLockManager(app),
+            restoreViewModel = com.example.ui.viewmodel.HealthToolsViewModel(app),
+            onRestored = {},
+            onRegistered = { _, _, _ -> }
+        )
     }
 
+    // The home tabs fill exactly one screen, so they are rendered at a real phone size.
+    @Config(qualifiers = "w411dp-h891dp-mdpi")
+    @Test fun dashboardLight() = shoot("02_dashboard", false) { vm ->
+        DashboardScreen(vm, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop)
+    }
+
+    @Config(qualifiers = "w411dp-h891dp-mdpi")
     @Test fun dashboardDark() = shoot("02_dashboard", true) { vm ->
-        DashboardScreen(vm, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop)
+        DashboardScreen(vm, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop)
+    }
+
+    @Config(qualifiers = "w411dp-h891dp-mdpi")
+    @Test fun homeCycleTab() = shoot("02b_home_cycle", false) { vm ->
+        DashboardScreen(vm, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, startTab = 1)
+    }
+
+    @Config(qualifiers = "w411dp-h891dp-mdpi")
+    @Test fun homeHealthTab() = shoot("02c_home_health", false) { vm ->
+        DashboardScreen(vm, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, startTab = 2)
+    }
+
+    @Config(qualifiers = "w411dp-h891dp-mdpi")
+    @Test fun homeWellbeingTab() = shoot("02d_home_wellbeing", false) { vm ->
+        DashboardScreen(vm, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, startTab = 3)
+    }
+
+    @Config(qualifiers = "w411dp-h891dp-mdpi")
+    @Test fun homePartnerTab() = shoot("02e_home_partner", true) { vm ->
+        DashboardScreen(vm, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, startTab = 4)
+    }
+
+    @Test fun healthTools() = shoot("10_health_tools", false) {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        com.example.ui.screens.HealthToolsScreen(com.example.ui.viewmodel.HealthToolsViewModel(app), noop)
+    }
+
+    @Test fun privacy() = shoot("11_privacy", false) {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        com.example.ui.screens.PrivacySecurityScreen(com.example.ui.viewmodel.HealthToolsViewModel(app), noop, noop, noop)
     }
 
     @Test fun log() = shoot("03_log", false) { vm -> LogScreen(vm, noop) }

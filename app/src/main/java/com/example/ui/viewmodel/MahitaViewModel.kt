@@ -17,7 +17,6 @@ import com.example.utils.AiReminderText
 import com.example.utils.AvatarStore
 import com.example.utils.CycleNotificationHelper
 import com.example.utils.CycleNotificationReceiver
-import com.example.utils.FirestoreManager
 import com.example.utils.MedicineReminderHelper
 import com.example.utils.MedicineReminderReceiver
 import com.example.utils.PersianDates
@@ -52,12 +51,11 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
     private val repository = LogRepository(database.dailyLogDao(), database.physicalSymptomDao())
     private val cycleRecordDao = database.cycleRecordDao()
     private val prefsManager = UserPreferencesManager.get(application)
-    private val firestoreManager = FirestoreManager(database.dailyLogDao(), database.cycleRecordDao())
     private val analysisAdapter = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
         .adapter(CycleAnalysisResult::class.java)
 
-    /** True when the user is signed in with Firebase and cloud backup is possible. */
-    fun isCloudSyncAvailable(): Boolean = firestoreManager.isCloudAvailable()
+    /** Accounts and data are local to the phone; there is no cloud copy (see Privacy & backup). */
+    fun isCloudSyncAvailable(): Boolean = false
 
     // ---- Today --------------------------------------------------------------------------------
     /** Emits the current date and changes at midnight, so "today" never goes stale on screen. */
@@ -67,6 +65,9 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
             delay(60_000)
         }
     }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.Eagerly, LocalDate.now())
+
+    /** Same as [today]; the name used by the home tabs. */
+    val currentDate: StateFlow<LocalDate> get() = today
 
     // ---- AI data-sharing consent -------------------------------------------------------------
     val aiConsentGiven: StateFlow<Boolean> = prefsManager.aiConsentGiven
@@ -100,12 +101,6 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
     fun revokeAiConsent() = prefsManager.setAiConsentGiven(false)
 
     // ---- Profile and settings ----------------------------------------------------------------
-    private val _isSyncing = MutableStateFlow(false)
-    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
-
-    private val _syncStatusMessage = MutableStateFlow<String?>(null)
-    val syncStatusMessage: StateFlow<String?> = _syncStatusMessage.asStateFlow()
-
     val userName: StateFlow<String> = prefsManager.userName
     val userWeight: StateFlow<String> = prefsManager.userWeight
     val userAvatar: StateFlow<String> = prefsManager.userAvatar
@@ -182,6 +177,10 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
     val lastPeriodStart: StateFlow<LocalDate?> = cyclePrediction.map { it.lastPeriodStart }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /** [lastPeriodStart] as "YYYY-MM-DD" (empty before the first period is logged). */
+    val lastPeriodDate: StateFlow<String> = lastPeriodStart.map { it?.toString() ?: "" }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
     /** Every logged period (first..last bleeding day), oldest first. */
     val periodRuns: StateFlow<List<CyclePredictor.PeriodRun>> = combine(bleedingDays, today) { days, day ->
         CyclePredictor.periodRuns(days.filter { !it.isAfter(day) })
@@ -191,6 +190,11 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
     val completedCycles: StateFlow<List<CyclePredictor.CompletedCycle>> = combine(bleedingDays, today) { days, day ->
         CyclePredictor.completedCycles(days, day)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** The last completed cycles shown by the cycle-length chart. */
+    val recentCycles: StateFlow<List<CyclePredictor.CompletedCycle>> = completedCycles
+        .map { it.takeLast(CyclePredictor.MAX_CYCLES_FOR_AVERAGE) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val predictionInfo: StateFlow<PredictionInfo> = cyclePrediction.map { p ->
         PredictionInfo(
@@ -235,6 +239,12 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
         ReminderPlanner.plan(p, s.copy(time = time), java.time.LocalDateTime.now())
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ReminderPlanner.Plan.EMPTY)
 
+    /** A newer automatic copy that holds data while the database is empty (e.g. it was damaged). */
+    data class RecoveryOffer(val snapshot: com.example.tools.LocalSnapshots.Snapshot, val label: String, val records: Int)
+
+    private val _recoveryOffer = MutableStateFlow<RecoveryOffer?>(null)
+    val recoveryOffer: StateFlow<RecoveryOffer?> = _recoveryOffer.asStateFlow()
+
     init {
         // Keep every reminder in sync with the real data and the user's settings.
         viewModelScope.launch {
@@ -262,6 +272,10 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
                 .distinctUntilChanged()
                 .collect { (p, settings) ->
                     ReminderScheduler.schedule(getApplication(), p, settings)
+                    // Breast-exam and partner reminders follow the cycle; the home-screen widget shows it too.
+                    com.example.tools.WellnessReminders.scheduleAll(getApplication(), p.lastPeriodStart, p.averageCycleLength)
+                    com.example.tools.PartnerReminders.schedule(getApplication(), p.lastPeriodStart, p.averageCycleLength)
+                    com.example.tools.CycleWidgetProvider.requestUpdate(getApplication())
                 }
         }
 
@@ -282,14 +296,50 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
             bleedingDays.debounce(300).collect { reconcileCycleRecords(it) }
         }
 
-        // Automatic cloud sync only for a user signed in with Firebase (never by display name).
-        viewModelScope.launch {
-            isLoggedIn.collect { loggedIn ->
-                if (loggedIn && firestoreManager.isCloudAvailable()) {
-                    syncWithCloud()
+        checkForLostData()
+    }
+
+    // ---- Data-loss protection ----------------------------------------------------------------
+    private fun checkForLostData() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                if (!prefsManager.isLoggedIn.value) return@launch
+                val hasData = database.dailyLogDao().getAllLogsList().isNotEmpty() ||
+                    cycleRecordDao.getAllCycleRecordsList().isNotEmpty()
+                if (hasData) return@launch
+                val app = getApplication<Application>()
+                // The fullest copy first (newest among equals); it must still be readable on this phone.
+                val candidates = com.example.tools.LocalSnapshots.list(app)
+                    .filter { it.records > 0 }
+                    .sortedWith(compareByDescending<com.example.tools.LocalSnapshots.Snapshot> { it.records }.thenByDescending { it.createdAt })
+                for (snap in candidates) {
+                    val root = com.example.tools.LocalSnapshots.read(snap) ?: continue
+                    val count = com.example.tools.LocalSnapshots.recordCount(root)
+                    if (count > 0) {
+                        _recoveryOffer.value = RecoveryOffer(snap, com.example.tools.LocalSnapshots.formatDate(snap), count)
+                        return@launch
+                    }
                 }
+            } catch (e: Exception) {
+                android.util.Log.w("MahitaViewModel", "Lost-data check failed: ${e.javaClass.simpleName}")
             }
         }
+    }
+
+    fun acceptRecovery() {
+        val offer = _recoveryOffer.value ?: return
+        _recoveryOffer.value = null
+        viewModelScope.launch {
+            try {
+                com.example.tools.LocalSnapshots.restore(getApplication(), offer.snapshot)
+            } catch (e: Exception) {
+                android.util.Log.w("MahitaViewModel", "Recovery failed: ${e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    fun dismissRecovery() {
+        _recoveryOffer.value = null
     }
 
     private val recordsMutex = Mutex()
@@ -334,29 +384,23 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
             if (date != null && !date.isAfter(LocalDate.now())) {
                 markPeriodStartInternal(date)
             }
-            if (firestoreManager.isCloudAvailable()) syncWithCloud()
         }
     }
 
+    /** Creates the local account on this phone (first launch). */
+    fun register(name: String, cycleLength: Int = 28, lastPeriodDateStr: String? = null) =
+        login(name, cycleLength, lastPeriodDateStr?.takeIf { it.isNotBlank() })
+
+    fun setUserName(name: String) = prefsManager.setUserName(name)
+
     fun logout() {
         prefsManager.logout()
-        firestoreManager.signOut()
         val app = getApplication<Application>()
         CycleNotificationHelper.cancelAll(app)
         PhaseReminderHelper.cancelAllPhaseReminders(app)
         MedicineReminderHelper.scheduleReminders(app, emptyList())
         _chatMessages.value = listOf(ChatMessage.welcome())
         _aiTip.value = AiTipState.Idle
-    }
-
-    /** Removes the user's copy in the cloud (local data on this phone is kept). */
-    fun deleteCloudData() {
-        viewModelScope.launch {
-            _isSyncing.value = true
-            val ok = firestoreManager.deleteAllCloudData()
-            _syncStatusMessage.value = if (ok) "نسخه ابری اطلاعات شما حذف شد." else "حذف نسخه ابری انجام نشد. لطفاً دوباره تلاش کنید."
-            _isSyncing.value = false
-        }
     }
 
     fun setNotificationEnabled(enabled: Boolean) = prefsManager.setNotificationEnabled(enabled)
@@ -388,7 +432,6 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
     fun setAverageCycleLength(length: Int) {
         if (length in CyclePredictor.MIN_CYCLE_LENGTH..CyclePredictor.MAX_CYCLE_LENGTH) {
             prefsManager.setAverageCycleLength(length)
-            viewModelScope.launch { firestoreManager.uploadProfile(length, null) }
         }
     }
 
@@ -408,7 +451,6 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
         prefsManager.setUserWeight(text)
         viewModelScope.launch {
             updateToday { it.copy(weight = weightKg) }
-            firestoreManager.uploadProfile(averageCycleLength.value, text)
         }
     }
 
@@ -432,7 +474,6 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
         if (existing == null || existing.periodFlow == "NONE") {
             val log = (existing ?: emptyLog(dateStr)).copy(periodFlow = "MEDIUM")
             repository.insertLog(log)
-            firestoreManager.uploadLog(log)
         }
     }
 
@@ -464,7 +505,6 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
             val existing = repository.getLogByDate(dateStr)
             val updated = (existing ?: emptyLog(dateStr)).copy(periodFlow = flow)
             repository.insertLog(updated)
-            firestoreManager.uploadLog(updated)
             curr = curr.plusDays(1)
         }
         // Written after the days, so the record reconciliation keeps these notes.
@@ -485,7 +525,6 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
             if (existing != null && existing.periodFlow != "NONE") {
                 val updated = existing.copy(periodFlow = "NONE")
                 repository.insertLog(updated)
-                firestoreManager.uploadLog(updated)
             }
             curr = curr.plusDays(1)
         }
@@ -567,7 +606,6 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
                 )
             }
             repository.insertLog(log)
-            firestoreManager.uploadLog(log)
         }
     }
 
@@ -578,7 +616,6 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
             val existing = repository.getLogByDate(dateStr) ?: return@launch
             val cleared = existing.copy(periodFlow = "NONE", symptoms = "", moods = "", notes = "", emoji = "", painLevel = 0)
             repository.insertLog(cleared)
-            firestoreManager.uploadLog(cleared)
         }
     }
 
@@ -640,7 +677,6 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
                 emoji = if (mood.isNotBlank()) emojiForMood(mood) else existing.emoji
             )
             repository.insertLog(log)
-            firestoreManager.uploadLog(log)
         }
     }
 
@@ -684,36 +720,15 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
 
     fun removeCustomMoodSymptom(symptom: String) = prefsManager.removeCustomMoodSymptom(symptom)
 
-    // ---- Cloud ---------------------------------------------------------------------------------
-    fun syncWithCloud() {
-        if (_isSyncing.value) return
-        if (!firestoreManager.isCloudAvailable()) {
-            _syncStatusMessage.value = "برای پشتیبان‌گیری ابری باید با حساب گوگل وارد شده باشید. اطلاعات شما فعلاً فقط روی همین گوشی ذخیره است."
-            return
-        }
-        viewModelScope.launch {
-            _isSyncing.value = true
-            _syncStatusMessage.value = "در حال همگام‌سازی امن..."
-            try {
-                val result = firestoreManager.syncAll()
-                _syncStatusMessage.value = when {
-                    !result.success -> "خطا در همگام‌سازی. اتصال اینترنت را بررسی کنید."
-                    result.downloaded == 0 && result.uploaded == 0 -> "داده‌ها از قبل همگام هستند."
-                    else -> "همگام‌سازی ابری با موفقیت انجام شد ✨"
-                }
-            } finally {
-                _isSyncing.value = false
-            }
-        }
-    }
-
-    fun clearSyncStatusMessage() {
-        _syncStatusMessage.value = null
-    }
-
     // ---- AI: daily tip -------------------------------------------------------------------------
     private val _aiTip = MutableStateFlow<AiTipState>(AiTipState.Idle)
     val aiTip: StateFlow<AiTipState> = _aiTip.asStateFlow()
+    val aiDailyTip: StateFlow<String?> = _aiTip.map { (it as? AiTipState.Success)?.text }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val isFetchingAiTip: StateFlow<Boolean> = _aiTip.map { it is AiTipState.Loading }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val aiTipError: StateFlow<String?> = _aiTip.map { (it as? AiTipState.Error)?.message }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** The phase, cycle day and length are shared only after the user's explicit consent. */
     fun fetchAiDailyTip(phaseTitle: String, currentDay: Int, avgCycleLength: Int) {
