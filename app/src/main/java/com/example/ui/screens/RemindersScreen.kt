@@ -105,11 +105,14 @@ fun RemindersScreen(
     fun openNotificationSettings() {
         try {
             com.example.security.AppLockSession.skipNextLock = true
-            context.startActivity(
+            // The notification settings page exists from Android 8; older phones open the app info page.
+            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                     .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
+            } else {
+                Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null))
+            }
+            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: Exception) {
             com.example.security.AppLockSession.skipNextLock = false
         }
