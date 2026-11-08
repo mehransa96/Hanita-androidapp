@@ -1,16 +1,12 @@
 package com.example.ui.screens
 
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.ui.semantics.Role
-import com.example.utils.PersianNumbers
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -28,6 +24,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -44,33 +41,48 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
 import com.example.utils.JalaliCalendar
-import com.example.utils.JalaliDate
 import java.time.LocalDate
 
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.GoogleAuthProvider
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.ApiException
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.example.data.preferences.UserPreferencesManager
+import com.example.security.AppLockManager
+import com.example.security.AppLockSession
+import com.example.ui.components.BackupPasswordDialog
+import com.example.ui.components.RecoveryCodeShownDialog
+import com.example.ui.viewmodel.HealthToolsViewModel
 
+/**
+ * First-launch sign-up. The account is created only on this phone: no Google account, no server,
+ * no internet needed. Everything the user enters afterwards stays in the app's private storage.
+ */
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun LoginScreen(
-    onLoginSuccess: (String, Int, String) -> Unit
+    lockManager: AppLockManager,
+    restoreViewModel: HealthToolsViewModel,
+    onRestored: () -> Unit,
+    /** name, average cycle length, first day of the last period (null = "I don't remember"). */
+    onRegistered: (String, Int, String?) -> Unit
 ) {
-    // Saveable: rotating the phone or a process restart must not reset the onboarding.
     var step by rememberSaveable { mutableIntStateOf(1) }
     var name by rememberSaveable { mutableStateOf("") }
-
+    var periodDateUnknown by rememberSaveable { mutableStateOf(false) }
+    
     val todayJalali = remember { JalaliCalendar.gregorianToJalali(LocalDate.now()) }
     var selectedYear by rememberSaveable { mutableIntStateOf(todayJalali.year) }
     var selectedMonth by rememberSaveable { mutableIntStateOf(todayJalali.month) }
     var selectedDay by rememberSaveable { mutableIntStateOf(todayJalali.day) }
     var averageCycleLength by rememberSaveable { mutableFloatStateOf(28f) }
-    var dontRemember by rememberSaveable { mutableStateOf(false) }
+
+    fun finish() {
+        val lastPeriod = if (periodDateUnknown) null
+        else JalaliCalendar.jalaliToGregorian(selectedYear, selectedMonth, selectedDay).toString()
+        onRegistered(UserPreferencesManager.sanitizeName(name), averageCycleLength.toInt(), lastPeriod)
+    }
     
     var isVisible by remember { mutableStateOf(false) }
 
@@ -189,7 +201,7 @@ fun LoginScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    for (i in 1..3) {
+                    for (i in 1..4) {
                         val active = step == i
                         Box(
                             modifier = Modifier
@@ -216,7 +228,9 @@ fun LoginScreen(
                     when (currentStep) {
                         1 -> StepWelcome(
                             name = name,
-                            onNameChange = { name = it.take(30) },
+                            onNameChange = { name = it.take(UserPreferencesManager.MAX_NAME_LENGTH) },
+                            restoreViewModel = restoreViewModel,
+                            onRestored = onRestored,
                             onNext = { step = 2 }
                         )
                         2 -> StepPeriodDate(
@@ -226,20 +240,26 @@ fun LoginScreen(
                             onYearChange = { selectedYear = it },
                             onMonthChange = { selectedMonth = it },
                             onDayChange = { selectedDay = it },
-                            dontRemember = dontRemember,
-                            onDontRememberChange = { dontRemember = it },
                             onBack = { step = 1 },
-                            onNext = { step = 3 }
+                            onUnknown = {
+                                periodDateUnknown = true
+                                step = 3
+                            },
+                            onNext = {
+                                periodDateUnknown = false
+                                step = 3
+                            }
                         )
                         3 -> StepCycleLength(
                             averageCycleLength = averageCycleLength,
                             onCycleLengthChange = { averageCycleLength = it },
                             onBack = { step = 2 },
-                            onSubmit = {
-                                val selectedLocalDate = JalaliCalendar.jalaliToGregorian(selectedYear, selectedMonth, selectedDay)
-                                // Without a real date nothing is logged: predictions start once a period is recorded.
-                                onLoginSuccess(name.trim(), averageCycleLength.toInt(), if (dontRemember) "" else selectedLocalDate.toString())
-                            }
+                            onSubmit = { step = 4 }
+                        )
+                        4 -> StepSecurity(
+                            lockManager = lockManager,
+                            onBack = { step = 3 },
+                            onFinish = { finish() }
                         )
                     }
                 }
@@ -252,34 +272,23 @@ fun LoginScreen(
 fun StepWelcome(
     name: String,
     onNameChange: (String) -> Unit,
+    restoreViewModel: HealthToolsViewModel,
+    onRestored: () -> Unit,
     onNext: () -> Unit
 ) {
-    val context = LocalContext.current
-    val auth = remember { runCatching { FirebaseAuth.getInstance() }.getOrNull() }
-    var isSigningIn by rememberSaveable { mutableStateOf(false) }
-
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(ApiException::class.java)!!
-            val credential = GoogleAuthProvider.getCredential(account.idToken, null)
-            if (auth == null) isSigningIn = false
-            auth?.signInWithCredential(credential)?.addOnCompleteListener {
-                isSigningIn = false
-                if (it.isSuccessful) {
-                    // Only the first name is kept locally; the account is identified by its Firebase uid.
-                    onNameChange(account.givenName ?: account.displayName ?: "کاربر عزیز")
-                    onNext()
-                } else {
-                    android.widget.Toast.makeText(context, "ورود با گوگل انجام نشد. دوباره تلاش کنید.", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }
-        } catch (e: Exception) {
-            // Cancelled by the user or Play services unavailable: stay on this step.
-            isSigningIn = false
+    var confirmRestore by remember { mutableStateOf<android.net.Uri?>(null) }
+    val busy by restoreViewModel.busy.collectAsState()
+    val message by restoreViewModel.message.collectAsState()
+    val passwordRequest by restoreViewModel.passwordRequest.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(message) {
+        message?.let {
+            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show()
+            restoreViewModel.clearMessage()
         }
+    }
+    val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) confirmRestore = uri
     }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -320,75 +329,28 @@ fun StepWelcome(
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "خوش آمدی!",
+            text = "خوش آمدی! ثبت‌نام کن",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Bold
         )
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         Text(
-            text = "برای شخصی‌سازی پیش‌بینی‌ها، لطفاً با حساب کاربری خود وارد شوید یا نام خود را بنویسید:",
+            text = "حساب کاربری تو فقط روی همین گوشی ساخته می‌شود. نیازی به ایمیل، شماره تلفن یا اینترنت نیست و همه اطلاعاتت فقط روی گوشی خودت می‌ماند.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 12.dp)
         )
-        
+
         Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = {
-                // default_web_client_id is generated from google-services.json; absent in offline builds,
-                // so it cannot be referenced as R.string (the build would fail without Firebase).
-                @android.annotation.SuppressLint("DiscouragedApi")
-                val clientIdRes = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
-                val auth = runCatching { FirebaseAuth.getInstance() }.getOrNull()
-                if (clientIdRes == 0 || auth == null) {
-                    android.widget.Toast.makeText(
-                        context,
-                        "ورود با گوگل در این نسخه فعال نیست. با وارد کردن نام ادامه دهید؛ اطلاعات فقط روی گوشی شما می‌ماند.",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                        .requestIdToken(context.getString(clientIdRes))
-                        .requestEmail()
-                        .build()
-                    val googleSignInClient = GoogleSignIn.getClient(context, gso)
-                    isSigningIn = true
-                    launcher.launch(googleSignInClient.signInIntent)
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        ) {
-            if (isSigningIn) {
-                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-            } else {
-                Text("ورود با حساب گوگل (با پشتیبان ابری)", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "یا",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
             value = name,
             onValueChange = onNameChange,
-            label = { Text("نام شما (اطلاعات فقط روی همین گوشی می‌ماند)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+            label = { Text("نام یا نام مستعار شما", color = MaterialTheme.colorScheme.onSurfaceVariant) },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("username_input"),
@@ -404,7 +366,7 @@ fun StepWelcome(
             singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Button(
             onClick = onNext,
@@ -417,10 +379,158 @@ fun StepWelcome(
                 containerColor = MaterialTheme.colorScheme.primary,
                 disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
             ),
-            enabled = name.isNotBlank()
+            enabled = UserPreferencesManager.sanitizeName(name).isNotBlank() && !busy
         ) {
             Text("مرحله بعدی", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        TextButton(
+            enabled = !busy,
+            onClick = {
+                AppLockSession.skipNextLock = true
+                restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain", "*/*"))
+            }
+        ) {
+            Text("قبلاً از هانیتا استفاده می‌کردم: بازیابی از فایل پشتیبان", fontSize = 13.sp, textAlign = TextAlign.Center)
+        }
+        if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    }
+
+    confirmRestore?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { confirmRestore = null },
+            title = { Text("بازیابی از فایل پشتیبان") },
+            text = { Text("همه سوابق و تنظیمات فایل پشتیبان روی این گوشی بازیابی می‌شود و برنامه دوباره باز می‌شود.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRestore = null
+                    restoreViewModel.restoreBackup(uri, null, onRestored)
+                }) { Text("بازیابی") }
+            },
+            dismissButton = { TextButton(onClick = { confirmRestore = null }) { Text("انصراف") } }
+        )
+    }
+    passwordRequest?.let { req ->
+        BackupPasswordDialog(
+            forExport = false,
+            errorText = if (req.wrongPassword) "رمز اشتباه است یا فایل آسیب دیده است." else null,
+            onDismiss = { restoreViewModel.cancelPasswordRequest() },
+            onConfirm = { password -> restoreViewModel.restoreBackup(req.uri, password, onRestored) }
+        )
+    }
+}
+
+/**
+ * Last sign-up step: an optional PIN that locks the app. A recovery code is shown right away so a
+ * forgotten PIN never means losing the data.
+ */
+@Composable
+fun StepSecurity(
+    lockManager: AppLockManager,
+    onBack: () -> Unit,
+    onFinish: () -> Unit
+) {
+    var pin by remember { mutableStateOf("") }
+    var pinRepeat by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var recoveryCode by remember { mutableStateOf<String?>(null) }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = "امنیت اطلاعات تو",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "اطلاعاتت فقط در حافظه خصوصی برنامه روی همین گوشی ذخیره می‌شود و هر روز یک نسخه رمزنگاری‌شده خودکار هم از آن نگه داشته می‌شود. با به‌روزرسانی برنامه چیزی پاک نمی‌شود.\n\nبرای اینکه کسی بدون اجازه وارد برنامه نشود، یک رمز ۴ تا ۶ رقمی بگذار (اختیاری).",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        OutlinedTextField(
+            value = pin,
+            onValueChange = { pin = AppLockManager.normalizeDigits(it).take(6); error = null },
+            label = { Text("رمز ورود (اختیاری)") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = pinRepeat,
+            onValueChange = { pinRepeat = AppLockManager.normalizeDigits(it).take(6); error = null },
+            label = { Text("تکرار رمز") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+        error?.let {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(54.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
+            ) {
+                Text("بازگشت", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+            Button(
+                onClick = {
+                    if (pin.isEmpty() && pinRepeat.isEmpty()) {
+                        onFinish()
+                        return@Button
+                    }
+                    error = when {
+                        !AppLockManager.isValidPin(pin) -> "رمز باید ۴ تا ۶ رقم باشد."
+                        pin != pinRepeat -> "دو رمز یکسان نیستند."
+                        else -> null
+                    }
+                    if (error == null) {
+                        lockManager.setPin(pin)
+                        recoveryCode = lockManager.createRecoveryCode()
+                    }
+                },
+                modifier = Modifier
+                    .weight(1.5f)
+                    .height(54.dp)
+                    .testTag("onboarding_finish_button"),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text(
+                    if (pin.isEmpty() && pinRepeat.isEmpty()) "شروع بدون رمز" else "ذخیره رمز و شروع",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+        }
+    }
+
+    recoveryCode?.let { code ->
+        RecoveryCodeShownDialog(code = code, onDone = {
+            recoveryCode = null
+            onFinish()
+        })
     }
 }
 
@@ -432,9 +542,8 @@ fun StepPeriodDate(
     onYearChange: (Int) -> Unit,
     onMonthChange: (Int) -> Unit,
     onDayChange: (Int) -> Unit,
-    dontRemember: Boolean,
-    onDontRememberChange: (Boolean) -> Unit,
     onBack: () -> Unit,
+    onUnknown: () -> Unit,
     onNext: () -> Unit
 ) {
     val months = listOf(
@@ -442,20 +551,28 @@ fun StepPeriodDate(
         "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
     )
 
-    // Days of the selected Jalali month (same leap rule as the rest of the app).
-    val maxDays = JalaliDate(selectedYear, selectedMonth, 1).lengthOfMonth
-    val currentJalaliYear = remember { JalaliCalendar.gregorianToJalali(LocalDate.now()).year }
+    // Calculate maximum days in current solar hijri selection
+    // Same leap-year rule as the rest of the app (the old local formula disagreed in some years).
+    val maxDays = remember(selectedYear, selectedMonth) {
+        when {
+            selectedMonth <= 6 -> 31
+            selectedMonth <= 11 -> 30
+            // Esfand: count the real days between 1 Esfand and 1 Farvardin of the next year.
+            else -> runCatching {
+                java.time.temporal.ChronoUnit.DAYS.between(
+                    JalaliCalendar.jalaliToGregorian(selectedYear, 12, 1),
+                    JalaliCalendar.jalaliToGregorian(selectedYear + 1, 1, 1)
+                ).toInt().coerceIn(29, 30)
+            }.getOrDefault(29)
+        }
+    }
+
+    val maxYear = remember { JalaliCalendar.gregorianToJalali(LocalDate.now()).year }
 
     // The first day of the last period cannot be in the future (it would never count as data).
     val isFutureDate = remember(selectedYear, selectedMonth, selectedDay) {
         runCatching {
             JalaliCalendar.jalaliToGregorian(selectedYear, selectedMonth, selectedDay).isAfter(LocalDate.now())
-        }.getOrDefault(false)
-    }
-    // A "last period" more than a year ago cannot anchor a useful prediction.
-    val isTooOld = remember(selectedYear, selectedMonth, selectedDay) {
-        runCatching {
-            JalaliCalendar.jalaliToGregorian(selectedYear, selectedMonth, selectedDay).isBefore(LocalDate.now().minusYears(1))
         }.getOrDefault(false)
     }
 
@@ -563,8 +680,8 @@ fun StepPeriodDate(
                 Spacer(modifier = Modifier.height(6.dp))
                 RollerControls(
                     value = selectedYear,
-                    onIncrement = { if (selectedYear < currentJalaliYear) onYearChange(selectedYear + 1) },
-                    onDecrement = { if (selectedYear > currentJalaliYear - 1) onYearChange(selectedYear - 1) }
+                    onIncrement = { if (selectedYear < maxYear) onYearChange(selectedYear + 1) },
+                    onDecrement = { if (selectedYear > maxYear - 2) onYearChange(selectedYear - 1) }
                 )
             }
         }
@@ -577,32 +694,14 @@ fun StepPeriodDate(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = when {
-                    dontRemember -> "بدون تاریخ ادامه می‌دهید؛ با ثبت اولین پریود، پیش‌بینی‌ها شروع می‌شود."
-                    isFutureDate -> "تاریخ شروع آخرین پریود نمی‌تواند در آینده باشد."
-                    isTooOld -> "این تاریخ بیش از یک سال پیش است؛ اگر دقیق یادتان نیست گزینه زیر را بزنید."
-                    else -> "تاریخ انتخابی شما: ${PersianNumbers.toPersianDigits(selectedDay)} ${months[selectedMonth - 1]} ${PersianNumbers.toPersianDigits(selectedYear)}"
-                },
+                text = if (isFutureDate) "تاریخ شروع آخرین پریود نمی‌تواند در آینده باشد."
+                else "تاریخ انتخابی شما: ${com.example.utils.PersianNumbers.toPersianDigits(selectedDay)} ${months[selectedMonth - 1]} ${com.example.utils.PersianNumbers.toPersianDigits(selectedYear)}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (!dontRemember && (isFutureDate || isTooOld)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                color = if (isFutureDate) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(12.dp)
             )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .toggleable(value = dontRemember, role = Role.Checkbox, onValueChange = onDontRememberChange)
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(checked = dontRemember, onCheckedChange = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("دقیق یادم نیست؛ بعداً ثبت می‌کنم", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
         }
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -625,7 +724,7 @@ fun StepPeriodDate(
 
             Button(
                 onClick = onNext,
-                enabled = dontRemember || (!isFutureDate && !isTooOld),
+                enabled = !isFutureDate,
                 modifier = Modifier
                     .weight(1.5f)
                     .height(54.dp),
@@ -634,6 +733,11 @@ fun StepPeriodDate(
             ) {
                 Text("مرحله بعدی", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
             }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        TextButton(onClick = onUnknown) {
+            Text("تاریخ دقیقش یادم نیست؛ بعداً در تقویم ثبت می‌کنم", fontSize = 13.sp, textAlign = TextAlign.Center)
         }
     }
 }
@@ -674,7 +778,7 @@ fun StepCycleLength(
                 drawCircle(color = trackCenterColor, radius = size.width * 0.15f, center = center)
             }
             Text(
-                PersianNumbers.toPersianDigits(averageCycleLength.toInt()),
+                com.example.utils.PersianNumbers.toPersianDigits(averageCycleLength.toInt()),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
@@ -703,7 +807,7 @@ fun StepCycleLength(
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = "${PersianNumbers.toPersianDigits(averageCycleLength.toInt())} روز",
+            text = "${com.example.utils.PersianNumbers.toPersianDigits(averageCycleLength.toInt())} روز",
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Black
@@ -745,11 +849,11 @@ fun StepCycleLength(
                 modifier = Modifier
                     .weight(1.5f)
                     .height(54.dp)
-                    .testTag("onboarding_finish_button"),
+                    .testTag("cycle_length_next_button"),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("شروع برنامه", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                Text("مرحله بعدی", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
             }
         }
     }
@@ -774,7 +878,7 @@ fun RollerControls(
                 Icon(Icons.Filled.ChevronRight, contentDescription = "کاهش", tint = MaterialTheme.colorScheme.onSurface)
             }
             Text(
-                text = PersianNumbers.toPersianDigits(value),
+                text = com.example.utils.PersianNumbers.toPersianDigits(value),
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp,

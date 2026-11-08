@@ -59,6 +59,7 @@ import com.example.ui.viewmodel.MahitaViewModel
 import com.example.utils.JalaliCalendar
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import com.example.domain.CyclePredictor
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
@@ -85,30 +86,48 @@ fun RemindersScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var hasNotificationPermission by remember {
-        mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
-            } else {
-                true
-            }
-        )
+    // "Allowed" means notifications really reach the user: on Android 12 and older there is no
+    // runtime permission, but notifications can still be switched off in the system settings.
+    fun notificationsAllowed(): Boolean =
+        androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled() &&
+            (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+    var hasNotificationPermission by remember { mutableStateOf(notificationsAllowed()) }
+    // Re-check when the user comes back from the system settings.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) hasNotificationPermission = notificationsAllowed()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    fun openNotificationSettings() {
+        try {
+            com.example.security.AppLockSession.skipNextLock = true
+            context.startActivity(
+                Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+            com.example.security.AppLockSession.skipNextLock = false
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        hasNotificationPermission = isGranted
-        if (isGranted) {
+        hasNotificationPermission = notificationsAllowed()
+        if (isGranted && hasNotificationPermission) {
             coroutineScope.launch {
                 snackbarHostState.showSnackbar("مجوز اعلان‌های سیستم با موفقیت فعال شد ✅")
             }
         } else {
+            // After "don't ask again" Android answers at once without a dialog: open the settings page.
+            openNotificationSettings()
             coroutineScope.launch {
-                snackbarHostState.showSnackbar("دسترسی اعلان‌ها داده نشد؛ لطفاً از تنظیمات برنامه آن را تایید کنید ⚠️")
+                snackbarHostState.showSnackbar("اعلان‌ها را از تنظیمات گوشی برای هانیتا روشن کنید ⚠️")
             }
         }
     }
@@ -149,10 +168,10 @@ fun RemindersScreen(
         reminder?.let { "اعلان بعدی: ${PersianDates.long(it.fireAt.toLocalDate())} ساعت ${PersianNumbers.formatTime(it.fireAt.hour, it.fireAt.minute)}" }
             ?: "فعلاً اعلانی زمان‌بندی نشده است (ابتدا پریود را ثبت کنید)."
 
-    val notificationsAllowed = hasNotificationPermission &&
-        androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+    // Re-checked on every return to this screen (see notificationsAllowed()).
+    val notificationsEnabledNow = hasNotificationPermission
     fun runTest(send: () -> Unit) {
-        if (!notificationsAllowed) {
+        if (!notificationsEnabledNow) {
             coroutineScope.launch { snackbarHostState.showSnackbar("اعلان‌های هانیتا خاموش است؛ ابتدا مجوز اعلان را فعال کنید.") }
         } else {
             send()
@@ -247,8 +266,12 @@ fun RemindersScreen(
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Button(
                                     onClick = {
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        val needsRuntimePermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                                        if (needsRuntimePermission) {
                                             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        } else {
+                                            openNotificationSettings()
                                         }
                                     },
                                     modifier = Modifier.fillMaxWidth(),
@@ -1241,10 +1264,13 @@ fun RemindersScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (editMedName.isNotBlank()) {
+                        val normalizedEditTime = com.example.domain.TimeText.normalize(editMedTime)
+                        if (normalizedEditTime == null) {
+                            coroutineScope.launch { snackbarHostState.showSnackbar("ساعت مصرف معتبر نیست؛ مثلاً ۰۹:۰۰ یا ۲۱:۳۰ وارد کنید.") }
+                        } else if (editMedName.isNotBlank()) {
                             val updatedItem = medItem.copy(
                                 name = editMedName.trim().take(40),
-                                time = editMedTime,
+                                time = normalizedEditTime,
                                 dosage = editMedDosage.trim(),
                                 type = editMedType
                             )

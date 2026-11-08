@@ -24,15 +24,9 @@ object MedicineReminderHelper {
     private const val KEY_IDS = "scheduled_ids"
     private const val KEY_LEGACY_CLEARED = "legacy_repeating_cleared"
 
-    /** "HH:mm" (any digits) to a time, or null when malformed. */
-    fun parseTime(text: String): LocalTime? {
-        val parts = PersianNumbers.normalize(text).split(":")
-        if (parts.size != 2) return null
-        val hour = parts[0].toIntOrNull() ?: return null
-        val minute = parts[1].toIntOrNull() ?: return null
-        if (hour !in 0..23 || minute !in 0..59) return null
-        return LocalTime.of(hour, minute)
-    }
+    /** A typed or stored time ("21:30", "۲۱:۳۰", "9", "0930") to a time, or null when malformed. */
+    fun parseTime(text: String): LocalTime? =
+        com.example.domain.TimeText.parse(text)?.let { (hour, minute) -> LocalTime.of(hour, minute) }
 
     fun formatTime(time: LocalTime): String = "%02d:%02d".format(java.util.Locale.US, time.hour, time.minute)
 

@@ -12,14 +12,17 @@ interface CycleRecordDao {
     @Query("SELECT * FROM cycle_records ORDER BY startDate DESC")
     fun getAllCycleRecords(): Flow<List<CycleRecord>>
 
+    @Query("SELECT * FROM cycle_records")
+    suspend fun getAllCycleRecordsList(): List<CycleRecord>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCycleRecords(records: List<CycleRecord>)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCycleRecord(cycleRecord: CycleRecord)
 
     @Query("SELECT * FROM cycle_records WHERE id = :id LIMIT 1")
     suspend fun getCycleRecordById(id: String): CycleRecord?
-
-    @Query("SELECT * FROM cycle_records")
-    suspend fun getAllCycleRecordsList(): List<CycleRecord>
 
     @Query("DELETE FROM cycle_records WHERE id = :id")
     suspend fun deleteCycleRecord(id: String)
