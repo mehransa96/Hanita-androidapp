@@ -147,10 +147,33 @@ data class JalaliDate(val year: Int, val month: Int, val day: Int) : Comparable<
     }
 
     fun formatShort(): String {
-        return "$day $monthName"
+        return "${PersianNumbers.toPersianDigits(day)} $monthName"
     }
-    
+
     fun formatLong(): String {
-        return "$day $monthName $year"
+        return "${PersianNumbers.toPersianDigits(day)} $monthName ${PersianNumbers.toPersianDigits(year)}"
     }
+}
+
+/** Jalali dates formatted for display, with Persian digits. */
+object PersianDates {
+    /** "۱۶ آبان" */
+    fun short(date: java.time.LocalDate): String {
+        val j = JalaliCalendar.gregorianToJalali(date)
+        return "${PersianNumbers.toPersianDigits(j.day)} ${j.monthName}"
+    }
+
+    /** "۱۶ آبان ۱۴۰۵" */
+    fun long(date: java.time.LocalDate): String {
+        val j = JalaliCalendar.gregorianToJalali(date)
+        return "${PersianNumbers.toPersianDigits(j.day)} ${j.monthName} ${PersianNumbers.toPersianDigits(j.year)}"
+    }
+
+    /** "۱۴۰۵/۰۸/۱۶" */
+    fun numeric(date: java.time.LocalDate): String {
+        val j = JalaliCalendar.gregorianToJalali(date)
+        return PersianNumbers.toPersianDigits("%d/%02d/%02d".format(java.util.Locale.US, j.year, j.month, j.day))
+    }
+
+    fun parseOrNull(iso: String): java.time.LocalDate? = runCatching { java.time.LocalDate.parse(iso) }.getOrNull()
 }

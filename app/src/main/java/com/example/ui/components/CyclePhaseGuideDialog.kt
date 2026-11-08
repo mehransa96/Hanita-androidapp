@@ -183,7 +183,7 @@ fun CyclePhaseGuideDialog(
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = p.title.replace("فاز ", ""),
-                                    fontSize = 10.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -242,8 +242,8 @@ fun CyclePhaseGuideDialog(
                     DetailSectionCard(
                         icon = Icons.Filled.Eco,
                         iconColor = Color(0xFF10B981),
-                        title = "دانه درمانی هورمونی (Seed Cycling)",
-                        content = currentPhase.seedCycling
+                        title = "دانه درمانی (Seed Cycling) — روش سنتی",
+                        content = currentPhase.seedCycling + "\n\nاین روش سنتی است و شواهد علمی محکمی برای اثر آن بر هورمون‌ها وجود ندارد؛ مصرف این دانه‌ها برای اغلب افراد بی‌خطر و مغذی است."
                     )
 
                     // Nutrition

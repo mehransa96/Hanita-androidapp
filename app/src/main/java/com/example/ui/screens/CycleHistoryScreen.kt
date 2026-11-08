@@ -43,11 +43,13 @@ fun CycleHistoryScreen(
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val records by viewModel.allCycleRecords.collectAsState()
-    val avgCycleLength by viewModel.averageCycleLength.collectAsState()
 
     // Dialog state for editing an existing record or creating a new one
     var recordToEdit by remember { mutableStateOf<CycleRecord?>(null) }
+    var recordToDelete by remember { mutableStateOf<CycleRecord?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    val prediction by viewModel.cyclePrediction.collectAsState()
+    val periodRuns by viewModel.periodRuns.collectAsState()
 
     // Sort records descending by start date
     val sortedRecords = remember(records) {
@@ -92,21 +94,6 @@ fun CycleHistoryScreen(
                         modifier = Modifier.testTag("history_back_button")
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "بازگشت")
-                    }
-                },
-                actions = {
-                    FilledTonalButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            showCreateDialog = true
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("ثبت دوره جدید", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -165,7 +152,7 @@ fun CycleHistoryScreen(
                             Text("شاخص‌های میانگین چرخه‌های شما", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                         Text(
-                            text = "$totalRecords دوره ثبت‌شده",
+                            text = "${com.example.utils.PersianNumbers.toPersianDigits(totalRecords)} دوره ثبت‌شده",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -181,19 +168,25 @@ fun CycleHistoryScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("میانگین طول چرخه", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text("$avgCycleLength روز", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text("${com.example.utils.PersianNumbers.toPersianDigits(prediction.averageCycleLength)} روز" + if (prediction.hasEnoughData) "" else "*", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         }
                         Box(modifier = Modifier.width(1.dp).height(30.dp).background(MaterialTheme.colorScheme.outlineVariant))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("میانگین خونریزی", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text("$averagePeriodDays روز", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SleekPrimary)
+                            Text("${com.example.utils.PersianNumbers.toPersianDigits(averagePeriodDays)} روز", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SleekPrimary)
                         }
                         Box(modifier = Modifier.width(1.dp).height(30.dp).background(MaterialTheme.colorScheme.outlineVariant))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("وضعیت نظم چرخه", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text(if (totalRecords >= 2) "منظم و فعال ✨" else "در حال یادگیری", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                            // Computed from the real cycles: at least three are needed to judge regularity.
+                            val (regularity, regularityColor) = when {
+                                prediction.cyclesUsed < 3 -> "داده کافی نیست" to MaterialTheme.colorScheme.onSurfaceVariant
+                                prediction.isIrregular -> "نامنظم" to Color(0xFFD97706)
+                                else -> "منظم" to Color(0xFF059669)
+                            }
+                            Text(regularity, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = regularityColor)
                         }
                     }
                 }
@@ -283,7 +276,7 @@ fun CycleHistoryScreen(
                             },
                             onDelete = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                viewModel.deleteFullCycleRecord(record)
+                                recordToDelete = record
                             }
                         )
                     }
@@ -296,57 +289,62 @@ fun CycleHistoryScreen(
     if (recordToEdit != null) {
         val curr = recordToEdit!!
         val parsedStart = runCatching { LocalDate.parse(curr.startDate) }.getOrNull() ?: LocalDate.now()
-        val parsedEnd = runCatching { LocalDate.parse(curr.endDate) }.getOrNull() ?: parsedStart.plusDays(4)
+        val parsedEnd = runCatching { LocalDate.parse(curr.endDate) }.getOrNull() ?: parsedStart
 
         ProfessionalCycleEditDialog(
             initialStartDate = parsedStart,
             initialEndDate = parsedEnd,
-            initialCycleLength = avgCycleLength,
+            initialCycleLength = prediction.averageCycleLength,
             initialNotes = curr.notes,
             isExistingCycle = true,
-            title = "ویرایش دوره قاعدگی 🩸✏️",
+            showCycleLength = false,
+            title = "ویرایش دوره قاعدگی 🩸",
             onDismissRequest = { recordToEdit = null },
-            onSaveCycle = { newStart, newEnd, length, flow, notes ->
-                viewModel.updateFullCycleRecord(
-                    oldRecordId = curr.id,
-                    oldStartDate = parsedStart,
-                    oldEndDate = parsedEnd,
-                    newStartDate = newStart,
-                    newEndDate = newEnd,
-                    cycleLength = length,
-                    flow = flow,
-                    notes = notes
-                )
+            onSaveCycle = { newStart, newEnd, _, flow, notes ->
+                val saved = viewModel.editPeriod(parsedStart, newStart, newEnd, flow, notes)
                 recordToEdit = null
+                android.widget.Toast.makeText(context, periodSavedMessage(saved), android.widget.Toast.LENGTH_SHORT).show()
             },
             onDeleteCycle = {
-                viewModel.deleteFullCycleRecord(curr)
+                viewModel.deletePeriod(parsedStart, parsedEnd)
                 recordToEdit = null
             }
         )
     }
 
+    recordToDelete?.let { record ->
+        AlertDialog(
+            onDismissRequest = { recordToDelete = null },
+            title = { Text("حذف این دوره؟") },
+            text = { Text("روزهای خونریزی این دوره پاک می‌شوند و پیش‌بینی‌ها دوباره محاسبه می‌شود. علائم و یادداشت‌های روزانه باقی می‌مانند.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val start = runCatching { LocalDate.parse(record.startDate) }.getOrNull()
+                    val end = runCatching { LocalDate.parse(record.endDate) }.getOrNull() ?: start
+                    if (start != null && end != null) viewModel.deletePeriod(start, end)
+                    recordToDelete = null
+                }) { Text("حذف", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { recordToDelete = null }) { Text("انصراف") } }
+        )
+    }
+
     // Modal Dialog to Create a New / Past Cycle
     if (showCreateDialog) {
+        val today = LocalDate.now()
         ProfessionalCycleEditDialog(
-            initialStartDate = LocalDate.now().minusDays(5),
-            initialEndDate = LocalDate.now(),
-            initialCycleLength = avgCycleLength,
+            initialStartDate = today.minusDays(4),
+            initialEndDate = today,
+            initialCycleLength = prediction.averageCycleLength,
             isExistingCycle = false,
+            showCycleLength = false,
             title = "ثبت دوره قاعدگی جدید 🩸",
             onDismissRequest = { showCreateDialog = false },
-            onSaveCycle = { newStart, newEnd, length, flow, notes ->
-                viewModel.updateFullCycleRecord(
-                    oldRecordId = null,
-                    oldStartDate = null,
-                    oldEndDate = null,
-                    newStartDate = newStart,
-                    newEndDate = newEnd,
-                    cycleLength = length,
-                    flow = flow,
-                    notes = notes
-                )
+            onSaveCycle = { newStart, newEnd, _, flow, notes ->
+                val overlapping = periodRuns.firstOrNull { !it.end.isBefore(newStart) && !it.start.isAfter(newEnd) }
+                val saved = viewModel.editPeriod(overlapping?.start, newStart, newEnd, flow, notes)
                 showCreateDialog = false
+                android.widget.Toast.makeText(context, periodSavedMessage(saved), android.widget.Toast.LENGTH_SHORT).show()
             }
         )
     }
@@ -399,7 +397,7 @@ fun DetailedCycleRecordCard(
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = "دوره شماره $cycleNumber",
+                            text = "دوره شماره ${com.example.utils.PersianNumbers.toPersianDigits(cycleNumber)}",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = SleekPrimaryDark,
@@ -413,8 +411,8 @@ fun DetailedCycleRecordCard(
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                text = "طول چرخه: $cycleIntervalDays روز",
-                                fontSize = 10.sp,
+                                text = "طول چرخه: ${com.example.utils.PersianNumbers.toPersianDigits(cycleIntervalDays ?: 0)} روز",
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.secondary,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
@@ -471,8 +469,8 @@ fun DetailedCycleRecordCard(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "معادل میلادی: ${record.startDate} الی ${record.endDate}",
-                        fontSize = 10.sp,
+                        text = "معادل میلادی: ${com.example.utils.ltrIsolate(record.startDate)} الی ${com.example.utils.ltrIsolate(record.endDate)}",
+                        fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -482,7 +480,7 @@ fun DetailedCycleRecordCard(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
-                        text = "$durationDays روز خونریزی 🩸",
+                        text = "${com.example.utils.PersianNumbers.toPersianDigits(durationDays)} روز خونریزی 🩸",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = SleekPrimary,

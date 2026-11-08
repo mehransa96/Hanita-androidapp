@@ -36,6 +36,13 @@
 ```bash
 ./gradlew testDebugUnitTest
 ```
-منطق پیش‌بینی در `domain/CyclePredictor.kt` است و تست‌های آن در `app/src/test/java/com/example/CyclePredictorTest.kt` قرار دارند.
+منطق پیش‌بینی در `domain/CyclePredictor.kt` و زمان‌بندی همه یادآورها در `domain/ReminderPlanner.kt` است؛ تست‌های آن‌ها در `app/src/test/java/com/example/` قرار دارند.
+
+رندر همه صفحه‌ها (روشن و تاریک) بدون گوشی:
+```bash
+./gradlew testDebugUnitTest -Pscreenshots -Proborazzi.test.record=true --tests com.example.ScreensScreenshotTest
+```
+
+گزارش کامل ممیزی و اصلاحات: [`docs/AUDIT_REPORT.md`](docs/AUDIT_REPORT.md)
 
 > هانیتا ابزار آگاهی از سلامت است و جایگزین نظر پزشک یا روش پیشگیری از بارداری نیست.

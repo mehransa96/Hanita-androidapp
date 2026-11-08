@@ -268,7 +268,7 @@ fun InteractivePeriodCalendarWidget(
                             onClick = {
                                 currentMonth = JalaliDate(todayJalali.year, todayJalali.month, 1)
                             },
-                            label = { Text("برو به امروز", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                            label = { Text("برو به امروز", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                             colors = SuggestionChipDefaults.suggestionChipColors(
                                 containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                                 labelColor = MaterialTheme.colorScheme.primary
@@ -365,6 +365,7 @@ fun InteractivePeriodCalendarWidget(
                                 DayCellItem(
                                     date = date,
                                     dayNum = dayNum,
+                                    isFuture = date.toLocalDate().isAfter(todayLocalDate),
                                     isToday = isToday,
                                     isStart = isStart,
                                     isEnd = isEnd,
@@ -439,15 +440,15 @@ fun InteractivePeriodCalendarWidget(
                                 .clickable {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     val startLocal = selectedStartJalali!!.toLocalDate()
-                                    val newEndLocal = startLocal.plusDays((days - 1).toLong())
+                                    val newEndLocal = minOf(startLocal.plusDays((days - 1).toLong()), todayLocalDate)
                                     selectedEndJalali = JalaliCalendar.gregorianToJalali(newEndLocal)
                                 }
                                 .padding(vertical = 7.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "$days روز",
-                                fontSize = 11.sp,
+                                text = "${com.example.utils.PersianNumbers.toPersianDigits(days)} روز",
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isPresetActive) Color.White else MaterialTheme.colorScheme.primary
                             )
@@ -663,6 +664,7 @@ fun InteractivePeriodCalendarWidget(
 private fun DayCellItem(
     date: JalaliDate,
     dayNum: Int,
+    isFuture: Boolean,
     isToday: Boolean,
     isStart: Boolean,
     isEnd: Boolean,
@@ -681,10 +683,12 @@ private fun DayCellItem(
     }
 
     val cellTextColor = when {
-        isEndpoint -> Color.White
+        isEndpoint -> MaterialTheme.colorScheme.onPrimary
         isInRange -> MaterialTheme.colorScheme.primary
         isPastRecorded -> MaterialTheme.colorScheme.secondary
         isToday -> MaterialTheme.colorScheme.primary
+        // Bleeding cannot be logged ahead of time.
+        isFuture -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
         else -> MaterialTheme.colorScheme.onSurface
     }
 
@@ -703,7 +707,7 @@ private fun DayCellItem(
                 else RoundedCornerShape(10.dp)
             )
             .background(cellBgColor)
-            .clickable(onClick = onDateClick)
+            .clickable(enabled = !isFuture, onClickLabel = "انتخاب ${date.formatLong()}", onClick = onDateClick)
             .testTag("day_cell_${date.year}_${date.month}_${date.day}"),
         contentAlignment = Alignment.Center
     ) {
@@ -712,7 +716,7 @@ private fun DayCellItem(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "$dayNum",
+                text = com.example.utils.PersianNumbers.toPersianDigits(dayNum),
                 fontSize = 13.5.sp,
                 fontWeight = if (isEndpoint || isToday || isPastRecorded || isInRange) FontWeight.Bold else FontWeight.Normal,
                 color = cellTextColor
@@ -724,9 +728,9 @@ private fun DayCellItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isStart) {
-                    Text("شروع", fontSize = 7.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                    Text("شروع", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
                 } else if (isEnd) {
-                    Text("پایان", fontSize = 7.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                    Text("پایان", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
                 } else if (isPastRecorded) {
                     Box(
                         modifier = Modifier

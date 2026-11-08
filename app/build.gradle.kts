@@ -83,7 +83,7 @@ ksp {
 }
 
 dependencies {
-  coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+  coreLibraryDesugaring(libs.desugar.jdk.libs)
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
   implementation(libs.androidx.activity.compose)
@@ -133,4 +133,10 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
+}
+
+// UI screenshots (Robolectric native graphics) need their own JVM, so they only run on request:
+//   ./gradlew testDebugUnitTest -Pscreenshots -Proborazzi.test.record=true --tests com.example.ScreensScreenshotTest
+tasks.withType<Test>().configureEach {
+  if (!project.hasProperty("screenshots")) exclude("**/ScreensScreenshotTest*")
 }

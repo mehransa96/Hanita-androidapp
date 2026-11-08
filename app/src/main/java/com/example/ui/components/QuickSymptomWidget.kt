@@ -46,7 +46,7 @@ fun QuickSymptomWidget(
     if (isSaved) {
         Card(
             modifier = modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFECFDF5)), // Emerald 50
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF10B981).copy(alpha = 0.10f)), // Emerald 50
             border = BorderStroke(1.dp, Color(0xFFA7F3D0)), // Emerald 200
             shape = RoundedCornerShape(24.dp)
         ) {
@@ -188,7 +188,7 @@ private fun QuickSelectorRow(
                         Text(emoji, fontSize = 16.sp)
                         Text(
                             text, 
-                            fontSize = 9.sp, 
+                            fontSize = 11.sp, 
                             color = if (isSelected) iconTint else Color.Gray,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             textAlign = TextAlign.Center

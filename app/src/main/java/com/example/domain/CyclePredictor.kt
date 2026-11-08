@@ -239,6 +239,42 @@ object CyclePredictor {
         )
     }
 
+    /** One period: the first and the last logged bleeding day. */
+    data class PeriodRun(val start: LocalDate, val end: LocalDate) {
+        val lengthDays: Int get() = ChronoUnit.DAYS.between(start, end).toInt() + 1
+        fun contains(date: LocalDate) = !date.isBefore(start) && !date.isAfter(end)
+    }
+
+    /** A finished cycle: from the start of one period to the start of the next one. */
+    data class CompletedCycle(val start: LocalDate, val lengthDays: Int, val periodDays: Int)
+
+    /** Groups bleeding days into periods (same gap rule as [periodStarts]). */
+    fun periodRuns(bleedingDays: Collection<LocalDate>): List<PeriodRun> {
+        val sorted = bleedingDays.distinct().sorted()
+        if (sorted.isEmpty()) return emptyList()
+        val runs = mutableListOf<PeriodRun>()
+        var runStart = sorted.first()
+        var prev = sorted.first()
+        for (i in 1 until sorted.size) {
+            val day = sorted[i]
+            if (ChronoUnit.DAYS.between(prev, day) > NEW_PERIOD_GAP_DAYS) {
+                runs.add(PeriodRun(runStart, prev))
+                runStart = day
+            }
+            prev = day
+        }
+        runs.add(PeriodRun(runStart, prev))
+        return runs
+    }
+
+    /** Real, finished cycles in chronological order (the current, open cycle is not included). */
+    fun completedCycles(bleedingDays: Collection<LocalDate>, today: LocalDate = LocalDate.now()): List<CompletedCycle> {
+        val runs = periodRuns(bleedingDays.filter { !it.isAfter(today) })
+        return runs.zipWithNext { a, b ->
+            CompletedCycle(a.start, ChronoUnit.DAYS.between(a.start, b.start).toInt(), a.lengthDays)
+        }
+    }
+
     /** First occurrence of [cycleDay] (1-based) that is strictly after [today]. */
     fun nextOccurrenceOfCycleDay(lastPeriodStart: LocalDate, cycleLength: Int, cycleDay: Int, today: LocalDate): LocalDate {
         val length = clampCycleLength(cycleLength).toLong()

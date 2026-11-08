@@ -418,7 +418,20 @@ val SunsetPeachDarkColorScheme = darkColorScheme(
 /**
  * Returns the appropriate ColorScheme for the given palette code and dark mode flag.
  */
-fun getApplicationColorScheme(paletteCode: String, isDark: Boolean): ColorScheme {
+fun getApplicationColorScheme(paletteCode: String, isDark: Boolean): ColorScheme =
+    withReadableOutlines(basePalette(paletteCode, isDark))
+
+/**
+ * Several palettes used outlines that were almost the colour of the surface (contrast ~1.1:1), so
+ * text-field borders and card edges disappeared. Outlines are derived from the palette instead:
+ * `outline` reaches ~3:1 (WCAG non-text contrast), `outlineVariant` stays a subtle divider.
+ */
+private fun withReadableOutlines(scheme: ColorScheme): ColorScheme = scheme.copy(
+    outline = androidx.compose.ui.graphics.lerp(scheme.surface, scheme.onSurfaceVariant, 0.62f),
+    outlineVariant = androidx.compose.ui.graphics.lerp(scheme.surface, scheme.onSurfaceVariant, 0.32f)
+)
+
+private fun basePalette(paletteCode: String, isDark: Boolean): ColorScheme {
     return if (isDark) {
         when (paletteCode) {
             "SWEET_CANDY" -> SweetCandyDarkColorScheme
@@ -478,13 +491,9 @@ fun MyApplicationTheme(
             override fun setPalette(palette: String) {
                 onThemeChanged?.invoke(palette)
             }
+            // Always flips what is on screen (cycling through "system" looked like a broken button).
             override fun toggleMode() {
-                val next = when (parsedMode) {
-                    ThemeMode.LIGHT -> ThemeMode.DARK
-                    ThemeMode.DARK -> ThemeMode.SYSTEM
-                    ThemeMode.SYSTEM -> ThemeMode.LIGHT
-                }
-                onThemeModeChanged?.invoke(next.code)
+                onThemeModeChanged?.invoke(if (isDark) ThemeMode.LIGHT.code else ThemeMode.DARK.code)
             }
         }
     }
@@ -510,8 +519,8 @@ fun MyApplicationTheme(
             }
             if (context is Activity) {
                 val window = context.window
-                window.statusBarColor = colorScheme.background.toArgb()
-                window.navigationBarColor = colorScheme.background.toArgb()
+                // Edge-to-edge: the bars are transparent and the app background shows through,
+                // so only the icon colour has to follow the theme.
                 val insetsController = androidx.core.view.WindowCompat.getInsetsController(window, view)
                 insetsController.isAppearanceLightStatusBars = !isDark
                 insetsController.isAppearanceLightNavigationBars = !isDark
@@ -523,9 +532,10 @@ fun MyApplicationTheme(
         LocalThemeController provides themeController,
         LocalThemeState provides themeState
     ) {
+        val typography = remember(fontCode) { getTypographyForFont(fontCode) }
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = getTypographyForFont(fontCode),
+            typography = typography,
             content = content
         )
     }

@@ -46,7 +46,7 @@ fun SmartInsightsCard(
                 "فاز باروری و تخمک‌گذاری",
                 Icons.Default.Lightbulb,
                 "سطح استروژن در اوج است! شما در بالاترین سطح انرژی و جذابیت هستید. زمان مناسبی برای ورزش‌های سنگین، کارهای چالشی و تعاملات اجتماعی است.",
-                Color(0xFFFEF3C7), // Amber 100
+                Color(0xFFD97706).copy(alpha = 0.15f), // Amber 100
                 Color(0xFFD97706)  // Amber 600
             )
         }
@@ -55,7 +55,7 @@ fun SmartInsightsCard(
                 "مدیریت علائم PMS",
                 Icons.Default.LocalDrink,
                 "به دلیل افت پروژسترون، ممکن است احساس خستگی یا حساسیت داشته باشید. مصرف آب کافی، شکلات تلخ و مکمل منیزیم می‌تواند نوسانات خلقی و نفخ را کاهش دهد.",
-                Color(0xFFF3E8FF), // Purple 100
+                Color(0xFF9333EA).copy(alpha = 0.15f), // Purple 100
                 Color(0xFF9333EA)  // Purple 600
             )
         }
@@ -73,7 +73,7 @@ fun SmartInsightsCard(
                 "فاز لوتئال",
                 Icons.Default.Spa,
                 "پروژسترون در حال افزایش است و ممکن است اشتهای شما بیشتر شود. خواب منظم، ورزش ملایم مثل پیاده‌روی و یوگا، و غذاهای سرشار از فیبر و منیزیم به حفظ تعادل کمک می‌کند.",
-                Color(0xFFEDE9FE), // Violet 100
+                Color(0xFF7C3AED).copy(alpha = 0.15f), // Violet 100
                 Color(0xFF7C3AED)  // Violet 600
             )
         }
@@ -82,7 +82,7 @@ fun SmartInsightsCard(
                 "فاز فولیکولی",
                 Icons.Default.Lightbulb,
                 "بدن در حال بازسازی است. انرژی شما به تدریج افزایش می‌یابد. تغذیه سالم با پروتئین کافی و سبزیجات به بهبود خلق و خو کمک می‌کند.",
-                Color(0xFFE0F2FE), // Sky 100
+                Color(0xFF0284C7).copy(alpha = 0.15f), // Sky 100
                 Color(0xFF0284C7)  // Sky 600
             )
         }

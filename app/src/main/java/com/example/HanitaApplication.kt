@@ -3,6 +3,7 @@ package com.example
 import android.app.Application
 import android.content.Context
 import android.util.Log
+import androidx.core.content.edit
 import com.example.ai.HanitaAi
 import com.example.utils.RescheduleWorker
 import com.google.firebase.FirebaseApp
@@ -41,9 +42,9 @@ class HanitaApplication : Application() {
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
                 val trace = throwable.stackTrace.take(25).joinToString("\n") { "  at $it" }
-                getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE).edit()
-                    .putString(KEY_LAST_CRASH, "${throwable.javaClass.name}\n$trace")
-                    .commit()
+                getSharedPreferences(CRASH_PREFS, Context.MODE_PRIVATE).edit(commit = true) {
+                    putString(KEY_LAST_CRASH, "${throwable.javaClass.name}\n$trace")
+                }
             } catch (_: Exception) {
             }
             original?.uncaughtException(thread, throwable)

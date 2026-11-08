@@ -34,7 +34,6 @@ import com.patrykandpatrick.vico.compose.chart.line.lineSpec
 import com.patrykandpatrick.vico.core.entry.FloatEntry
 import com.patrykandpatrick.vico.core.entry.entryModelOf
 import kotlin.math.exp
-import kotlin.math.max
 
 // Hormone representation metadata
 enum class HormoneType(
@@ -62,7 +61,7 @@ enum class HormoneType(
         descFa = "پس از تخمک‌گذاری توسط جسم زرد ترشح می‌شود تا رحم را برای لانه‌گزینی آماده کند. اثر آرام‌بخشی دارد ولی افت ناگهانی آن در انتهای چرخه عامل اصلی علائم PMS است."
     ),
     LH(
-        faName = "هورمون LH",
+        faName = "LH",
         enName = "Luteinizing Hormone",
         color = Color(0xFFF59E0B), // Amber / Orange
         roleFa = "محرک آزادسازی تخمک بالغ (تخمک‌گذاری)",
@@ -70,7 +69,7 @@ enum class HormoneType(
         descFa = "جهش ناگهانی و کوتاه LH به عنوان کلید اصلی رهاسازی تخمک عمل می‌کند و کیت‌های تخمک‌گذاری خانگی نیز افزایش همین هورمون را اندازه‌گیری می‌کنند."
     ),
     FSH(
-        faName = "هورمون FSH",
+        faName = "FSH",
         enName = "Follicle-Stimulating Hormone",
         color = Color(0xFF10B981), // Emerald / Green
         roleFa = "تحریک رشد فولیکول‌های تخمدان در اوایل چرخه",
@@ -89,8 +88,8 @@ fun HormoneLevelsChartCard(
     averageCycleLength: Int = 28,
     modifier: Modifier = Modifier
 ) {
-    val totalDays = remember(averageCycleLength) { averageCycleLength.coerceIn(21, 40) }
-    val ovulationDay = remember(totalDays) { max(totalDays - 14, 10) }
+    val totalDays = remember(averageCycleLength) { averageCycleLength.coerceIn(21, 45) }
+    val ovulationDay = remember(totalDays) { com.example.domain.CyclePredictor.ovulationDay(totalDays) }
 
     // Selected hormone filters: All 4 enabled by default, user can toggle each
     var selectedHormones by remember {
@@ -213,7 +212,7 @@ fun HormoneLevelsChartCard(
                         modifier = Modifier
                             .size(42.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFFCE7F3)), // Rose 100
+                            .background(Color(0xFFEC4899).copy(alpha = 0.15f)), // Rose 100
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -237,19 +236,19 @@ fun HormoneLevelsChartCard(
                             )
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = Color(0xFFEDE9FE)
+                                color = MaterialTheme.colorScheme.surfaceVariant
                             ) {
                                 Text(
-                                    text = "Vico Chart",
-                                    fontSize = 9.sp,
+                                    text = "الگوی تقریبی",
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF6D28D9),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
                         Text(
-                            text = "نوسانات استروژن، پروژسترون، LH و FSH در فازهای بدن",
+                            text = "الگوی عمومی تغییر استروژن، پروژسترون، LH و FSH در طول چرخه (نه اندازه‌گیری بدن شما)",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -274,7 +273,7 @@ fun HormoneLevelsChartCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "وضعیت کنونی شما: روز $currentCycleDay از چرخه",
+                        text = "وضعیت کنونی شما: روز ${com.example.utils.PersianNumbers.toPersianDigits(currentCycleDay)} از چرخه",
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
                         color = SleekPrimaryDark
@@ -339,7 +338,7 @@ fun HormoneLevelsChartCard(
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = hormone.faName,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                 color = if (isSelected) hormone.color else MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
@@ -352,18 +351,27 @@ fun HormoneLevelsChartCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Phase indicator bar along the horizontal axis
-            Row(
+            // Day ranges follow the same rules as the prediction engine.
+            val legend = listOf(
+                Triple("🩸 قاعدگی", "۱-۵", Color(0xFFEF4444)),
+                Triple("🌱 فولیکولی", "۶-${com.example.utils.PersianNumbers.toPersianDigits(ovulationDay - 2)}", Color(0xFF3B82F6)),
+                Triple("✨ تخمک‌گذاری", "${com.example.utils.PersianNumbers.toPersianDigits(ovulationDay - 1)}-${com.example.utils.PersianNumbers.toPersianDigits(ovulationDay + 1)}", Color(0xFFF59E0B)),
+                Triple("🌙 لوتئال", "${com.example.utils.PersianNumbers.toPersianDigits(ovulationDay + 2)}-${com.example.utils.PersianNumbers.toPersianDigits(totalDays)}", Color(0xFF8B5CF6))
+            )
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFF1F5F9))
-                    .padding(vertical = 4.dp, horizontal = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(vertical = 4.dp, horizontal = 6.dp)
             ) {
-                Text("🩸 قاعدگی (۱-۵)", fontSize = 9.sp, color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
-                Text("🌱 فولیکولی (۶-۱۲)", fontSize = 9.sp, color = Color(0xFF3B82F6), fontWeight = FontWeight.Bold)
-                Text("✨ تخمک‌گذاری (${ovulationDay-1}-${ovulationDay+1})", fontSize = 9.sp, color = Color(0xFFF59E0B), fontWeight = FontWeight.Bold)
-                Text("🌙 لوتئال (${ovulationDay+2}-$totalDays)", fontSize = 9.sp, color = Color(0xFF8B5CF6), fontWeight = FontWeight.Bold)
+                legend.chunked(2).forEach { row ->
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        row.forEach { (label, days, color) ->
+                            Text("$label (روز $days)", fontSize = 11.sp, color = color, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -375,28 +383,28 @@ fun HormoneLevelsChartCard(
                     .height(230.dp)
             ) {
                 if (linesList.isNotEmpty()) {
-                    Chart(
-                        chart = lineChart(
-                            lines = linesList
-                        ),
-                        model = chartModel,
-                        startAxis = rememberStartAxis(
-                            valueFormatter = { value, _ -> "${value.toInt()}%" },
-                            title = "غلظت نسبی"
-                        ),
-                        bottomAxis = rememberBottomAxis(
-                            valueFormatter = { value, _ ->
-                                val v = value.toInt()
-                                if (v == 1 || v == ovulationDay || v == totalDays || v % 7 == 0) {
-                                    "$v"
-                                } else {
-                                    ""
-                                }
-                            },
-                            title = "روز چرخه"
-                        ),
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    // Charts read left-to-right (day 1 on the left), like the axis numbers.
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr) {
+                        Chart(
+                            // The whole cycle fits the card (no hidden horizontal scroll).
+                            chartScrollSpec = com.patrykandpatrick.vico.compose.chart.scroll.rememberChartScrollSpec(isScrollEnabled = false),
+                            chart = lineChart(
+                                lines = linesList
+                            ),
+                            model = chartModel,
+                            startAxis = rememberStartAxis(
+                                valueFormatter = { value, _ -> "${value.toInt()}%" },
+                                title = "غلظت نسبی"
+                            ),
+                            bottomAxis = rememberBottomAxis(
+                                // Days 7, 14, 21, 28: one label per week with room to draw it (edge labels were cut to "…").
+                                itemPlacer = remember { com.patrykandpatrick.vico.core.axis.AxisItemPlacer.Horizontal.default(spacing = 7, offset = 6) },
+                                valueFormatter = { value, _ -> value.toInt().toString() },
+                                title = "روز چرخه"
+                            ),
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
 

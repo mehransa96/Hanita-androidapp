@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import com.example.ui.theme.forTheme
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
@@ -83,6 +84,28 @@ fun PartnerSyncDialog(
             ),
             "سلام عشق من 🌸 این روزها در فاز PMS هستم و هورمون‌ها بدنم رو کمی حساس‌تر و خسته‌تر کردن. اگر گاهی بی‌حوصله‌ام بدون از ته دلم دوستت دارم و همراهی صبورانه‌ت برام یک دنیا ارزش داره ❤️"
         )
+        cycleInfo.isLate -> Quintuple(
+            "تأخیر در قاعدگی",
+            "🌷",
+            "نیاز به آرامش، اطمینان‌خاطر و همراهی بدون فشار",
+            listOf(
+                "نگرانی‌ها را با آرامش بشنو و قضاوت نکن؛ تأخیر می‌تواند دلایل ساده‌ای مثل استرس داشته باشد.",
+                "اگر خودش بخواهد، در تهیه تست بارداری یا رفتن پیش پزشک همراهش باش.",
+                "کارهای روزمره را سبک‌تر کن تا استراحت بیشتری داشته باشد."
+            ),
+            "سلام عزیزم 🌷 پریودم چند روزی دیر کرده و کمی فکرم مشغوله. بودنت کنارم آرومم می‌کنه ❤️"
+        )
+        cycleInfo.phase == com.example.domain.CyclePredictor.Phase.LUTEAL -> Quintuple(
+            "فاز لوتئال (Luteal)",
+            "🌙",
+            "انرژی رو به کاهش، نیاز به خواب و آرامش بیشتر",
+            listOf(
+                "برای استراحت و خواب کافی‌اش فضا بساز.",
+                "غذای گرم و سبک یا یک پیاده‌روی آرام با هم را پیشنهاد کن.",
+                "برنامه‌های شلوغ و پرفشار را کمتر کنید."
+            ),
+            "سلام عزیزم 🌙 این روزها کمی کم‌انرژی‌ترم و آرامش بیشتری لازم دارم. ممنون که کنارمی 💕"
+        )
         else -> Quintuple(
             "فاز فولیکولار (Follicular)",
             "🌱",
@@ -137,7 +160,7 @@ fun PartnerSyncDialog(
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
-                                .background(Color(0xFFFFF1F2), CircleShape),
+                                .background(Color(0xFFE11D48).copy(alpha = 0.10f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(phaseEmoji, fontSize = 22.sp)
@@ -173,9 +196,9 @@ fun PartnerSyncDialog(
                     // Current Status Card
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1F2)),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE11D48).copy(alpha = 0.10f)),
                         shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, Color(0xFFFECDD3))
+                        border = BorderStroke(1.dp, Color(0xFFE11D48).copy(alpha = 0.25f))
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
@@ -187,7 +210,7 @@ fun PartnerSyncDialog(
                             Text(
                                 text = phaseTone,
                                 fontSize = 11.5.sp,
-                                color = Color(0xFF9F1239),
+                                color = Color(0xFF9F1239).forTheme(),
                                 fontWeight = FontWeight.Medium
                             )
                         }

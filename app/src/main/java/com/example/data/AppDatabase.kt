@@ -13,7 +13,7 @@ import com.example.data.model.CycleRecord
 import com.example.data.dao.PhysicalSymptomDao
 import com.example.data.model.PhysicalSymptomLog
 
-@Database(entities = [DailyLog::class, CycleRecord::class, PhysicalSymptomLog::class], version = 8, exportSchema = true)
+@Database(entities = [DailyLog::class, CycleRecord::class, PhysicalSymptomLog::class], version = 9, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun dailyLogDao(): DailyLogDao
@@ -74,6 +74,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE daily_logs ADD COLUMN painLevel INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE daily_logs ADD COLUMN sleepHours REAL")
+                db.execSQL("ALTER TABLE daily_logs ADD COLUMN steps INTEGER")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -81,7 +89,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "hanita_database"
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 // Never wipe user health data on upgrade. Only the pre-release schema 1 may be rebuilt.
                 .fallbackToDestructiveMigrationFrom(true, 1)
                 .build()
