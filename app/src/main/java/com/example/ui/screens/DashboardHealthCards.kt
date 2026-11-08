@@ -150,7 +150,7 @@ fun AdvancedHealthSuiteCard(
             SuiteActionButton(
                 icon = Icons.Filled.MedicalServices,
                 iconColor = Color(0xFF0284C7),
-                iconBgColor = Color(0xFFE0F2FE),
+                iconBgColor = Color(0xFF0284C7).copy(alpha = 0.15f),
                 title = "پرونده سلامت و گزارش پزشک 🩺",
                 subtitle = "گزارش بالینی آماده اشتراک و ارسال به متخصص زنان",
                 onClick = onOpenMedicalReport
@@ -160,7 +160,7 @@ fun AdvancedHealthSuiteCard(
             SuiteActionButton(
                 icon = Icons.Filled.VolunteerActivism,
                 iconColor = Color(0xFFE11D48),
-                iconBgColor = Color(0xFFFFE4E6),
+                iconBgColor = Color(0xFFE11D48).copy(alpha = 0.15f),
                 title = "حالت همراه و همدلی با همسر 💕",
                 subtitle = "اشتراک آگاهانه وضعیت هورمونی و پیام‌های پرمهر",
                 onClick = onOpenPartnerSync
@@ -170,7 +170,7 @@ fun AdvancedHealthSuiteCard(
             SuiteActionButton(
                 icon = Icons.Filled.Eco,
                 iconColor = Color(0xFF059669),
-                iconBgColor = Color(0xFFD1FAE5),
+                iconBgColor = Color(0xFF059669).copy(alpha = 0.15f),
                 title = "راهنمای فازهای چهارگانه و تغذیه 🥗",
                 subtitle = "دانه درمانی (Seed Cycling) و ورزش متناسب با هورمون‌ها",
                 onClick = onOpenPhaseGuide
@@ -180,7 +180,7 @@ fun AdvancedHealthSuiteCard(
             SuiteActionButton(
                 icon = Icons.Filled.ChildCare,
                 iconColor = Color(0xFF9333EA),
-                iconBgColor = Color(0xFFF3E8FF),
+                iconBgColor = Color(0xFF9333EA).copy(alpha = 0.15f),
                 title = "دستیار بارداری و رشد هفته‌به‌هفته جنین 👶",
                 subtitle = "اندازه میوه، نمو جنین، نکات مادرانه و شمارنده لگد",
                 onClick = onOpenPregnancyTracker

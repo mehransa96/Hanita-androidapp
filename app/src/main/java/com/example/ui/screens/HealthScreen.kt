@@ -190,7 +190,7 @@ fun WaterTrackerCard(waterIntake: Int, onWaterChange: (Int) -> Unit) {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .background(Color(0xFFE0F2FE), CircleShape),
+                        .background(Color(0xFF0284C7).copy(alpha = 0.15f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Filled.LocalDrink, contentDescription = "آب", tint = Color(0xFF0284C7))
@@ -273,7 +273,7 @@ fun SleepTrackerCard(sleepHours: Float, onSleepChange: (Float) -> Unit) {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .background(Color(0xFFEDE9FE), CircleShape),
+                        .background(Color(0xFF7C3AED).copy(alpha = 0.15f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Filled.Bedtime, contentDescription = "خواب", tint = Color(0xFF7C3AED))
@@ -340,7 +340,7 @@ fun WeightCard(
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .background(Color(0xFFFEF3C7), CircleShape),
+                    .background(Color(0xFFD97706).copy(alpha = 0.15f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Filled.MonitorWeight, contentDescription = "وزن", tint = Color(0xFFD97706))
@@ -389,7 +389,7 @@ fun StepsCard(steps: String, onStepsChange: (String) -> Unit, modifier: Modifier
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .background(Color(0xFFDCFCE7), CircleShape),
+                    .background(Color(0xFF16A34A).copy(alpha = 0.15f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.AutoMirrored.Filled.DirectionsRun, contentDescription = "قدم‌ها", tint = Color(0xFF16A34A))

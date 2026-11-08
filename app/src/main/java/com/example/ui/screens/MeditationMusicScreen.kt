@@ -582,12 +582,12 @@ fun MeditationMusicScreen(
                             ) {
                                 Text(
                                     text = String.format(java.util.Locale.US, "%02d:%02d", currentProgressSec / 60, currentProgressSec % 60),
-                                    fontSize = 10.sp,
+                                    fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
                                 Text(
                                     text = String.format(java.util.Locale.US, "%02d:%02d", track.durationSec / 60, track.durationSec % 60),
-                                    fontSize = 10.sp,
+                                    fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
                             }

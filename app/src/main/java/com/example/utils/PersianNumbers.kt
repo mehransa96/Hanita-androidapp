@@ -66,3 +66,9 @@ object PersianNumbers {
     private val DECIMAL = Regex("""\d{1,4}(\.\d{1,3})?""")
     private val INTEGER = Regex("""\d{1,6}""")
 }
+
+/**
+ * A Gregorian ISO date ("2026-10-30") inside right-to-left text is reordered by the bidi
+ * algorithm and reads backwards. Wrapping it in a left-to-right isolate keeps it intact.
+ */
+fun ltrIsolate(text: String): String = "\u2066$text\u2069"

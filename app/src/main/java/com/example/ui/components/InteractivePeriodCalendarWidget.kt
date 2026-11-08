@@ -268,7 +268,7 @@ fun InteractivePeriodCalendarWidget(
                             onClick = {
                                 currentMonth = JalaliDate(todayJalali.year, todayJalali.month, 1)
                             },
-                            label = { Text("برو به امروز", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                            label = { Text("برو به امروز", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                             colors = SuggestionChipDefaults.suggestionChipColors(
                                 containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                                 labelColor = MaterialTheme.colorScheme.primary
@@ -728,9 +728,9 @@ private fun DayCellItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isStart) {
-                    Text("شروع", fontSize = 7.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                    Text("شروع", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
                 } else if (isEnd) {
-                    Text("پایان", fontSize = 7.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                    Text("پایان", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
                 } else if (isPastRecorded) {
                     Box(
                         modifier = Modifier

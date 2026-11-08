@@ -136,19 +136,24 @@ fun ChartCard(title: String, data: Map<String, Float>, labels: List<String>) {
                     labels.getOrNull(value.toInt())?.let { if (it.length > 9) it.take(8) + "…" else it } ?: ""
                 }
                 
-                Chart(
-                    chart = columnChart(),
-                    model = chartEntryModel,
-                    startAxis = rememberStartAxis(
-                        valueFormatter = { value, _ -> value.toInt().toString() }
-                    ),
-                    bottomAxis = rememberBottomAxis(
-                        valueFormatter = bottomAxisValueFormatter
-                    ),
-                    modifier = Modifier
-                        .height(220.dp)
-                        .clearAndSetSemantics { }
-                )
+                // Charts read left-to-right (day 1 on the left), like the axis numbers.
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr) {
+                    Chart(
+                        // The whole cycle fits the card (no hidden horizontal scroll).
+                        chartScrollSpec = com.patrykandpatrick.vico.compose.chart.scroll.rememberChartScrollSpec(isScrollEnabled = false),
+                        chart = columnChart(),
+                        model = chartEntryModel,
+                        startAxis = rememberStartAxis(
+                            valueFormatter = { value, _ -> value.toInt().toString() }
+                        ),
+                        bottomAxis = rememberBottomAxis(
+                            valueFormatter = bottomAxisValueFormatter
+                        ),
+                        modifier = Modifier
+                            .height(220.dp)
+                            .clearAndSetSemantics { }
+                    )
+                }
                 Spacer(modifier = Modifier.height(12.dp))
                 // The same numbers as text (readable by screen readers and for long labels).
                 labels.forEachIndexed { i, label ->

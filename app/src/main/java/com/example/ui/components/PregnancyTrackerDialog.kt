@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import com.example.ui.theme.forTheme
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.*
@@ -132,7 +133,7 @@ fun PregnancyTrackerDialog(
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
-                                .background(Color(0xFFFFF1F2), CircleShape),
+                                .background(Color(0xFFE11D48).copy(alpha = 0.10f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Text("🤰", fontSize = 22.sp)
@@ -169,9 +170,9 @@ fun PregnancyTrackerDialog(
                     // Week Slider Selector
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1F2)),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE11D48).copy(alpha = 0.10f)),
                         shape = RoundedCornerShape(18.dp),
-                        border = BorderStroke(1.dp, Color(0xFFFECDD3))
+                        border = BorderStroke(1.dp, Color(0xFFE11D48).copy(alpha = 0.25f))
                     ) {
                         Column(
                             modifier = Modifier.padding(14.dp),
@@ -186,7 +187,7 @@ fun PregnancyTrackerDialog(
                                     text = "هفته ${com.example.utils.PersianNumbers.toPersianDigits(currentWeek)} از ۴۰",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
-                                    color = Color(0xFF9F1239)
+                                    color = Color(0xFF9F1239).forTheme()
                                 )
                                 Text(
                                     text = daysRemaining?.let { "${com.example.utils.PersianNumbers.toPersianDigits(it.toInt())} روز تا زایمان" } ?: "",
@@ -204,7 +205,7 @@ fun PregnancyTrackerDialog(
                                 colors = SliderDefaults.colors(
                                     thumbColor = Color(0xFFE11D48),
                                     activeTrackColor = Color(0xFFE11D48),
-                                    inactiveTrackColor = Color(0xFFFECDD3)
+                                    inactiveTrackColor = Color(0xFFE11D48).copy(alpha = 0.25f)
                                 )
                             )
 
@@ -213,15 +214,15 @@ fun PregnancyTrackerDialog(
                                 else "پریودی ثبت نشده است؛ برای محاسبه سن بارداری ابتدا اولین روز آخرین پریود را ثبت کنید. فعلاً می‌توانید هفته‌ها را مرور کنید.",
                                 fontSize = 12.sp,
                                 lineHeight = 19.sp,
-                                color = Color(0xFF9F1239)
+                                color = Color(0xFF9F1239).forTheme()
                             )
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("هفته ۱", fontSize = 10.sp, color = Color(0xFF9F1239))
-                                Text("تاریخ تقریبی تولد: $dueJalaliStr", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9F1239))
-                                Text("هفته ۴۰", fontSize = 10.sp, color = Color(0xFF9F1239))
+                                Text("هفته ۱", fontSize = 11.sp, color = Color(0xFF9F1239).forTheme())
+                                Text("تاریخ تقریبی تولد: $dueJalaliStr", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9F1239).forTheme())
+                                Text("هفته ۴۰", fontSize = 11.sp, color = Color(0xFF9F1239).forTheme())
                             }
                         }
                     }
@@ -246,7 +247,7 @@ fun PregnancyTrackerDialog(
                                     .size(72.dp)
                                     .background(
                                         Brush.radialGradient(
-                                            listOf(Color(0xFFFFE4E6), Color(0xFFFFF1F2))
+                                            listOf(Color(0xFFE11D48).copy(alpha = 0.15f), Color(0xFFE11D48).copy(alpha = 0.10f))
                                         ),
                                         CircleShape
                                     ),
@@ -309,20 +310,20 @@ fun PregnancyTrackerDialog(
                     // Mom Health Tip
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF22C55E).copy(alpha = 0.10f)),
                         shape = RoundedCornerShape(16.dp),
                         border = BorderStroke(1.dp, Color(0xFFBBF7D0))
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Icon(Icons.Filled.Spa, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(18.dp))
-                                Text("توصیه سلامت مامان زیبا:", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color(0xFF166534))
+                                Text("توصیه سلامت مامان زیبا:", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color(0xFF166534).forTheme())
                             }
                             Text(
                                 text = currentMilestone.momTip,
                                 fontSize = 12.sp,
                                 lineHeight = 19.sp,
-                                color = Color(0xFF14532D)
+                                color = Color(0xFF14532D).forTheme()
                             )
                         }
                     }
@@ -330,7 +331,7 @@ fun PregnancyTrackerDialog(
                     // Interactive Baby Kick Counter
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFAF5FF)),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFA855F7).copy(alpha = 0.10f)),
                         shape = RoundedCornerShape(18.dp),
                         border = BorderStroke(1.dp, Color(0xFFE9D5FF))
                     ) {
@@ -346,7 +347,7 @@ fun PregnancyTrackerDialog(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text("👣", fontSize = 16.sp)
-                                    Text("شمارنده لگد و حرکات جنین", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF6B21A8))
+                                    Text("شمارنده لگد و حرکات جنین", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF6B21A8).forTheme())
                                 }
                                 if (kickCount > 0) {
                                     TextButton(onClick = { kickCount = 0 }) {
@@ -360,7 +361,7 @@ fun PregnancyTrackerDialog(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 Text(
-                                    text = "$kickCount",
+                                    text = com.example.utils.PersianNumbers.toPersianDigits(kickCount),
                                     fontSize = 32.sp,
                                     fontWeight = FontWeight.Black,
                                     color = Color(0xFF7E22CE)
@@ -368,7 +369,7 @@ fun PregnancyTrackerDialog(
                                 Button(
                                     onClick = {
                                         kickCount++
-                                        Toast.makeText(context, "لگد شماره $kickCount ثبت شد 💕", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "لگد شماره ${com.example.utils.PersianNumbers.toPersianDigits(kickCount)} ثبت شد 💕", Toast.LENGTH_SHORT).show()
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9333EA)),
                                     shape = RoundedCornerShape(12.dp)
@@ -380,8 +381,8 @@ fun PregnancyTrackerDialog(
                             }
                             Text(
                                 text = "حداقل ۱۰ حرکت در طول ۲ ساعت نشانه سلامت و شادابی جنین است.",
-                                fontSize = 10.5.sp,
-                                color = Color(0xFF581C87),
+                                fontSize = 11.sp,
+                                color = Color(0xFF581C87).forTheme(),
                                 textAlign = TextAlign.Center
                             )
                         }

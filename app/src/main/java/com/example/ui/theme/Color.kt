@@ -93,3 +93,11 @@ val Amber50: Color
 val Amber500: Color
     @Composable get() = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) NightAmber500 else LightAmber500
 
+
+/**
+ * Hard-coded dark accent text (e.g. rose-800 on a rose tint) is unreadable on dark surfaces.
+ * In dark mode the shade is lifted towards white so it keeps its hue and stays legible.
+ */
+@Composable
+fun Color.forTheme(): Color =
+    if (ThemeProvider.isDark) androidx.compose.ui.graphics.lerp(this, Color.White, 0.65f) else this

@@ -190,17 +190,17 @@ fun ProfessionalCycleEditDialog(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("طول خونریزی", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("طول خونریزی", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Text("${com.example.utils.PersianNumbers.toPersianDigits(periodDurationDays)} روز", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SleekPrimary)
                                 }
                                 Box(modifier = Modifier.width(1.dp).height(24.dp).background(MaterialTheme.colorScheme.outlineVariant))
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("طول چرخه", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("طول چرخه", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Text("${com.example.utils.PersianNumbers.toPersianDigits(cycleLength)} روز", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
                                 }
                                 Box(modifier = Modifier.width(1.dp).height(24.dp).background(MaterialTheme.colorScheme.outlineVariant))
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("تخمک‌گذاری", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("تخمک‌گذاری", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Text(ovulationJalali.formatShort(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
                                 }
                             }
@@ -256,8 +256,8 @@ fun ProfessionalCycleEditDialog(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "معادل میلادی: $startDate",
-                                            fontSize = 10.sp,
+                                            text = "معادل میلادی: ${com.example.utils.ltrIsolate(startDate.toString())}",
+                                            fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
@@ -322,8 +322,8 @@ fun ProfessionalCycleEditDialog(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "معادل میلادی: $endDate ($periodDurationDays روز پریود)",
-                                            fontSize = 10.sp,
+                                            text = "معادل میلادی: ${com.example.utils.ltrIsolate(endDate.toString())} (${com.example.utils.PersianNumbers.toPersianDigits(periodDurationDays)} روز پریود)",
+                                            fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
@@ -371,7 +371,7 @@ fun ProfessionalCycleEditDialog(
                                         }
                                 ) {
                                     Text(
-                                        text = "$days روز",
+                                        text = "${com.example.utils.PersianNumbers.toPersianDigits(days)} روز",
                                         fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
@@ -396,7 +396,7 @@ fun ProfessionalCycleEditDialog(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "$cycleLength روز",
+                                text = "${com.example.utils.PersianNumbers.toPersianDigits(cycleLength)} روز",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -471,7 +471,7 @@ fun ProfessionalCycleEditDialog(
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                     modifier = Modifier.height(30.dp)
                                 ) {
-                                    Text("$preset روز", fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                    Text("${com.example.utils.PersianNumbers.toPersianDigits(preset)} روز", fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                 }
                             }
                         }

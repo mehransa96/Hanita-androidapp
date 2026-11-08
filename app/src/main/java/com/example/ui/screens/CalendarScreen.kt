@@ -318,7 +318,7 @@ fun CalendarScreen(
                                             if (record.notes.isNotBlank()) {
                                                 Text(
                                                     text = record.notes,
-                                                    fontSize = 10.5.sp,
+                                                    fontSize = 11.sp,
                                                     color = SleekTextLight,
                                                     maxLines = 1
                                                 )
@@ -419,7 +419,7 @@ fun CalendarScreen(
                                     ) {
                                         Text(
                                             text = "امروز",
-                                            fontSize = 10.sp,
+                                            fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = SleekPrimary,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -812,7 +812,7 @@ fun CalendarScreen(
                                     )
                                     Text(
                                         text = recommendation,
-                                        fontSize = 10.5.sp,
+                                        fontSize = 11.sp,
                                         color = SleekTextLight,
                                         lineHeight = 16.sp,
                                         modifier = Modifier.weight(1f)

@@ -181,7 +181,7 @@ fun VisualDailySymptomLogger(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "معادل میلادی: $localDateStr",
+                        text = "معادل میلادی: ${com.example.utils.ltrIsolate(localDateStr)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -355,7 +355,7 @@ fun VisualDailySymptomLogger(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "${activeSymptoms.size} مورد ثبت شده",
+                    text = "${com.example.utils.PersianNumbers.toPersianDigits(activeSymptoms.size)} مورد ثبت شده",
                     fontSize = 11.sp,
                     color = if (activeSymptoms.isNotEmpty()) SleekPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Bold
@@ -414,7 +414,7 @@ fun VisualDailySymptomLogger(
                     Surface(
                         color = if (isChecked) {
                             when (severity) {
-                                "MILD" -> Color(0xFFE8F5E9)
+                                "MILD" -> Color(0xFF10B981).copy(alpha = 0.12f)
                                 "MODERATE" -> Amber50
                                 "SEVERE" -> SleekPrimaryLight
                                 else -> MaterialTheme.colorScheme.surfaceVariant
@@ -511,7 +511,7 @@ fun VisualDailySymptomLogger(
                                         ) {
                                             Text(
                                                 text = sevLabel,
-                                                fontSize = 10.sp,
+                                                fontSize = 11.sp,
                                                 fontWeight = if (isSevSelected) FontWeight.Bold else FontWeight.Normal,
                                                 color = if (isSevSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -564,7 +564,7 @@ fun VisualDailySymptomLogger(
                         Text(text = emoji, fontSize = 22.sp)
                         Text(
                             text = label,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -654,7 +654,7 @@ fun VisualDailySymptomLogger(
                 exit = fadeOut() + shrinkVertically()
             ) {
                 Surface(
-                    color = Color(0xFFE8F5E9),
+                    color = Color(0xFF10B981).copy(alpha = 0.12f),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()

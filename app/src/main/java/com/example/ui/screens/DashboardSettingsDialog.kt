@@ -469,7 +469,7 @@ fun SettingsDialog(
                                     Column {
                                         Text(
                                             text = "شروع آخرین پریود ثبت‌شده:",
-                                            fontSize = 10.5.sp,
+                                            fontSize = 11.sp,
                                             color = SleekTextMedium
                                         )
                                         Text(
@@ -486,7 +486,7 @@ fun SettingsDialog(
                                 ) {
                                     Text(
                                         text = "ثبت شروع جدید",
-                                        fontSize = 10.5.sp,
+                                        fontSize = 11.sp,
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -595,7 +595,7 @@ fun SettingsDialog(
                                 ) {
                                     Text(
                                         text = label,
-                                        fontSize = 10.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (selected) Color.White else SleekPrimaryDark
                                     )

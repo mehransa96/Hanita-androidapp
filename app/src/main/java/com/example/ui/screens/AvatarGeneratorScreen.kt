@@ -92,7 +92,7 @@ fun FantasyAvatarCanvas(avatarId: String, modifier: Modifier = Modifier) {
             avatarId.contains("nature") || avatarId == "preset3" -> listOf(Color(0xFF00BFA5), Color(0xFF00E676), Color(0xFFB9F6CA))
             avatarId.contains("watercolor") || avatarId == "preset4" -> listOf(Color(0xFF00B0FF), Color(0xFF00E5FF), Color(0xFFF1F8FF))
             avatarId.contains("cyber") || avatarId == "preset5" -> listOf(Color(0xFFFF007F), Color(0xFF00F3FF), Color(0xFFFFFFFF))
-            else -> listOf(Color(0xFFFFF1F2), Color(0xFFFFE4E6), Color(0xFFFECDD3)) // Rose gold soft pastel
+            else -> listOf(Color(0xFFE11D48).copy(alpha = 0.10f), Color(0xFFE11D48).copy(alpha = 0.15f), Color(0xFFE11D48).copy(alpha = 0.25f)) // Rose gold soft pastel
         }
 
         // Draw radial background

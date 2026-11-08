@@ -55,7 +55,7 @@ fun getTypographyForFont(fontCode: String): Typography {
         bodySmall = style.copy(fontSize = 11.sp, lineHeight = 17.sp, letterSpacing = 0.4.sp, fontWeight = FontWeight.Light),
         labelLarge = style.copy(fontSize = 13.sp, lineHeight = 18.sp, letterSpacing = 0.2.sp, fontWeight = FontWeight.Bold),
         labelMedium = style.copy(fontSize = 11.sp, lineHeight = 16.sp, letterSpacing = 0.3.sp, fontWeight = FontWeight.Bold),
-        labelSmall = style.copy(fontSize = 10.sp, lineHeight = 14.sp, letterSpacing = 0.4.sp, fontWeight = FontWeight.Bold)
+        labelSmall = style.copy(fontSize = 11.sp, lineHeight = 14.sp, letterSpacing = 0.4.sp, fontWeight = FontWeight.Bold)
     )
 }
 

@@ -391,7 +391,7 @@ fun MedicalReportDialog(
                     // Doctor Note
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF59E0B).copy(alpha = 0.10f)),
                         shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(1.dp, Color(0xFFFDE68A))
                     ) {
@@ -408,8 +408,8 @@ fun MedicalReportDialog(
                             )
                             Text(
                                 text = "این گزارش به عنوان ابزار کمکی جهت پایش و خودآگاهی طراحی شده و جایگزین تشخیص قطعی پزشکی نیست. ارائه این خلاصه به پزشک متخصص، به بررسی دقیق‌تر پرونده کمک شایانی خواهد نمود.",
-                                fontSize = 10.5.sp,
-                                color = Color(0xFF92400E),
+                                fontSize = 11.sp,
+                                color = Color(0xFF92400E).forTheme(),
                                 lineHeight = 16.sp
                             )
                         }
@@ -473,7 +473,7 @@ fun ClinicalMetricCard(
             Spacer(modifier = Modifier.height(4.dp))
             Text(text = value, fontSize = 14.sp, fontWeight = FontWeight.Black, color = accentColor)
             Spacer(modifier = Modifier.height(2.dp))
-            Text(text = subtitle, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+            Text(text = subtitle, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
         }
     }
 }

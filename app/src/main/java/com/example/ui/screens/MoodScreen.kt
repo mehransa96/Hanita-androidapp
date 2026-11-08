@@ -661,12 +661,12 @@ fun MoodScreen(
                             ) {
                                 Text(
                                     text = formattedCurrent,
-                                    fontSize = 10.sp,
+                                    fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                                 Text(
                                     text = formattedTotal,
-                                    fontSize = 10.sp,
+                                    fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                             }

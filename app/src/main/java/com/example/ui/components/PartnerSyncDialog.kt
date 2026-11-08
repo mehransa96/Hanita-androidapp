@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import com.example.ui.theme.forTheme
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
@@ -159,7 +160,7 @@ fun PartnerSyncDialog(
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
-                                .background(Color(0xFFFFF1F2), CircleShape),
+                                .background(Color(0xFFE11D48).copy(alpha = 0.10f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(phaseEmoji, fontSize = 22.sp)
@@ -195,9 +196,9 @@ fun PartnerSyncDialog(
                     // Current Status Card
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1F2)),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE11D48).copy(alpha = 0.10f)),
                         shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, Color(0xFFFECDD3))
+                        border = BorderStroke(1.dp, Color(0xFFE11D48).copy(alpha = 0.25f))
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
@@ -209,7 +210,7 @@ fun PartnerSyncDialog(
                             Text(
                                 text = phaseTone,
                                 fontSize = 11.5.sp,
-                                color = Color(0xFF9F1239),
+                                color = Color(0xFF9F1239).forTheme(),
                                 fontWeight = FontWeight.Medium
                             )
                         }

@@ -187,7 +187,7 @@ fun RemindersScreen(
                 title = {
                     Column {
                         Text("یادآورها و هشدار دارویی 🔔", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("مدیریت هوشمند زمان مصرف مکمل‌ها و شروع دوره", style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.6f))
+                        Text("مدیریت هوشمند زمان مصرف مکمل‌ها و شروع دوره", style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp), color = MaterialTheme.colorScheme.onBackground.copy(alpha=0.6f))
                     }
                 },
                 navigationIcon = {
@@ -395,7 +395,7 @@ fun RemindersScreen(
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
                                             text = "🌸 یادآور شروع قاعدگی\nقاعدگی بعدی شما ($nextPeriodJalali) پیش‌بینی می‌شود. لوازم بهداشتی را همراه داشته باشید و با شروع خونریزی آن را ثبت کنید.",
-                                            fontSize = 10.5.sp,
+                                            fontSize = 11.sp,
                                             lineHeight = 16.sp,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
                                         )
@@ -527,7 +527,7 @@ fun RemindersScreen(
                                         val label = when (day) {
                                             0 -> "روز تخمک‌گذاری"
                                             1 -> "۱ روز قبل"
-                                            2 -> "۲ روز قبل (شروع پنجره)"
+                                            2 -> "۲ روز قبل"
                                             else -> "$day روز قبل"
                                         }
                                         Box(
@@ -541,7 +541,7 @@ fun RemindersScreen(
                                         ) {
                                             Text(
                                                 text = label,
-                                                fontSize = 10.5.sp,
+                                                fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (selected) Color.White else MaterialTheme.colorScheme.onBackground
                                             )
@@ -564,7 +564,7 @@ fun RemindersScreen(
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
                                             text = "🌸 یادآور تخمک‌گذاری و پنجره باروری\nروز تخمینی تخمک‌گذاری $ovulationJalali است. این تخمین است و جایگزین روش پیشگیری از بارداری نیست.",
-                                            fontSize = 10.5.sp,
+                                            fontSize = 11.sp,
                                             lineHeight = 16.sp,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
                                         )
@@ -702,7 +702,7 @@ fun RemindersScreen(
                                     Text("پیش‌بینی و یادآور هوشمند هوش مصنوعی 🧠✨", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     Text(
                                         text = "شخصی‌سازی هشدارها بر اساس تحلیل الگوهای اختصاصی بدن شما",
-                                        fontSize = 10.sp,
+                                        fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                                     )
                                 }
@@ -801,7 +801,7 @@ fun RemindersScreen(
                         ) {
                             Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("افزودن داروی جدید", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("افزودن دارو", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
                     }
                 }
@@ -823,7 +823,7 @@ fun RemindersScreen(
                             ) {
                                 Icon(Icons.Filled.HourglassEmpty, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(40.dp))
                                 Text("یادآوری دارویی فعال یافت نشد.", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("جهت جلوگیری از فراموشی مصرف داروها، مکمل‌های آهن و تسکین‌دهنده‌های قاعدگی، یکی ایجاد کنید.", fontSize = 10.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.8f))
+                                Text("جهت جلوگیری از فراموشی مصرف داروها، مکمل‌های آهن و تسکین‌دهنده‌های قاعدگی، یکی ایجاد کنید.", fontSize = 11.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.8f))
                             }
                         }
                     }
@@ -838,11 +838,11 @@ fun RemindersScreen(
                         }
                         
                         val iconBg = when (item.type) {
-                            "pill" -> Color(0xFFFEE2E2)
-                            "capsule" -> Color(0xFFEFF6FF)
-                            "drop" -> Color(0xFFECFDF5)
-                            "tea" -> Color(0xFFFEF3C7)
-                            else -> Color(0xFFF5F3FF)
+                            "pill" -> Color(0xFFEF4444).copy(alpha = 0.15f)
+                            "capsule" -> Color(0xFF3B82F6).copy(alpha = 0.15f)
+                            "drop" -> Color(0xFF10B981).copy(alpha = 0.10f)
+                            "tea" -> Color(0xFFD97706).copy(alpha = 0.15f)
+                            else -> Color(0xFF8B5CF6).copy(alpha = 0.15f)
                         }
 
                         val iconColor = when (item.type) {
@@ -884,20 +884,25 @@ fun RemindersScreen(
                                 Spacer(modifier = Modifier.width(14.dp))
                                 
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    // Name and dose on separate lines: side by side the dose chip was squeezed to one
+                                    // letter per line next to the controls, making the card very tall.
+                                    Text(
+                                        text = item.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        maxLines = 2,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        color = if (item.isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                    )
+                                    if (item.dosage.isNotBlank()) {
                                         Text(
-                                            text = item.name,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
-                                            color = if (item.isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                            text = PersianNumbers.toPersianDigits(item.dosage),
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                            color = MaterialTheme.colorScheme.secondary,
+                                            fontWeight = FontWeight.Bold
                                         )
-                                        Box(
-                                            modifier = Modifier
-                                                .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f), RoundedCornerShape(6.dp))
-                                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(item.dosage, fontSize = 9.sp, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold)
-                                        }
                                     }
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Row(
@@ -907,7 +912,7 @@ fun RemindersScreen(
                                         Icon(Icons.Filled.AccessTime, contentDescription = null, modifier = Modifier.size(10.dp), tint = MaterialTheme.colorScheme.primary)
                                         Text(
                                             text = "هر روز ساعت ${PersianNumbers.toPersianDigits(item.time)}",
-                                            fontSize = 11.sp,
+                                            fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                         )
                                     }

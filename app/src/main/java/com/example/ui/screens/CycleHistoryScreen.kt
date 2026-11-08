@@ -96,21 +96,6 @@ fun CycleHistoryScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "بازگشت")
                     }
                 },
-                actions = {
-                    FilledTonalButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            showCreateDialog = true
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("ثبت دوره جدید", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
@@ -427,7 +412,7 @@ fun DetailedCycleRecordCard(
                         ) {
                             Text(
                                 text = "طول چرخه: ${com.example.utils.PersianNumbers.toPersianDigits(cycleIntervalDays ?: 0)} روز",
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.secondary,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
@@ -484,8 +469,8 @@ fun DetailedCycleRecordCard(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "معادل میلادی: ${record.startDate} الی ${record.endDate}",
-                        fontSize = 10.sp,
+                        text = "معادل میلادی: ${com.example.utils.ltrIsolate(record.startDate)} الی ${com.example.utils.ltrIsolate(record.endDate)}",
+                        fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
