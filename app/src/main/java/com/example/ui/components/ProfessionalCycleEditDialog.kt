@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import com.example.ui.theme.forTheme
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -201,7 +202,7 @@ fun ProfessionalCycleEditDialog(
                                 Box(modifier = Modifier.width(1.dp).height(24.dp).background(MaterialTheme.colorScheme.outlineVariant))
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text("تخمک‌گذاری", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text(ovulationJalali.formatShort(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                    Text(ovulationJalali.formatShort(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857).forTheme())
                                 }
                             }
                             Spacer(modifier = Modifier.height(8.dp))
@@ -256,7 +257,7 @@ fun ProfessionalCycleEditDialog(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "معادل میلادی: ${com.example.utils.ltrIsolate(startDate.toString())}",
+                                            text = "معادل میلادی: ${com.example.utils.ltrIsolate(com.example.utils.PersianNumbers.toPersianDigits(startDate.toString()))}",
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -322,7 +323,7 @@ fun ProfessionalCycleEditDialog(
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "معادل میلادی: ${com.example.utils.ltrIsolate(endDate.toString())} (${com.example.utils.PersianNumbers.toPersianDigits(periodDurationDays)} روز پریود)",
+                                            text = "معادل میلادی: ${com.example.utils.ltrIsolate(com.example.utils.PersianNumbers.toPersianDigits(endDate.toString()))} (${com.example.utils.PersianNumbers.toPersianDigits(periodDurationDays)} روز پریود)",
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -339,7 +340,7 @@ fun ProfessionalCycleEditDialog(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         Icon(Icons.Default.Edit, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(13.dp))
-                                        Text("ویرایش تاریخ", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                        Text("ویرایش تاریخ", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857).forTheme())
                                     }
                                 }
                             }

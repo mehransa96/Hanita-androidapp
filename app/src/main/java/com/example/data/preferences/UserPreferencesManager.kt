@@ -89,7 +89,7 @@ class UserPreferencesManager private constructor(context: Context, @Suppress("UN
     private val _averageCycleLength = MutableStateFlow(prefs.getInt("average_cycle_length", 28))
     val averageCycleLength: StateFlow<Int> = _averageCycleLength.asStateFlow()
 
-    private val _appTheme = MutableStateFlow(prefs.getString("app_theme", "COSMIC_BLOSSOM") ?: "COSMIC_BLOSSOM")
+    private val _appTheme = MutableStateFlow(prefs.getString("app_theme", com.example.ui.theme.DEFAULT_THEME) ?: com.example.ui.theme.DEFAULT_THEME)
     val appTheme: StateFlow<String> = _appTheme.asStateFlow()
 
     private val _themeMode = MutableStateFlow(prefs.getString("theme_mode", "SYSTEM") ?: "SYSTEM")
@@ -189,7 +189,7 @@ class UserPreferencesManager private constructor(context: Context, @Suppress("UN
         _notificationHour.value = prefs.getInt("notification_hour", 9)
         _notificationMinute.value = prefs.getInt("notification_minute", 0)
         _averageCycleLength.value = prefs.getInt("average_cycle_length", 28)
-        _appTheme.value = prefs.getString("app_theme", "COSMIC_BLOSSOM") ?: "COSMIC_BLOSSOM"
+        _appTheme.value = prefs.getString("app_theme", com.example.ui.theme.DEFAULT_THEME) ?: com.example.ui.theme.DEFAULT_THEME
         _themeMode.value = prefs.getString("theme_mode", "SYSTEM") ?: "SYSTEM"
         _appFont.value = prefs.getString("app_font", "CLASSIC") ?: "CLASSIC"
         _medicationReminders.value = getMedicationRemindersFromPrefs()

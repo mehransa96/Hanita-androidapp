@@ -303,7 +303,8 @@ fun RemindersScreen(
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    modifier = Modifier.weight(1f)
+                                    // Keeps a gap so a long title never touches the switch.
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
                                 ) {
                                     Box(
                                         modifier = Modifier
@@ -462,7 +463,8 @@ fun RemindersScreen(
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    modifier = Modifier.weight(1f)
+                                    // Keeps a gap so a long title never touches the switch.
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
                                 ) {
                                     Box(
                                         modifier = Modifier

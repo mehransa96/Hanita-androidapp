@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.ui.theme.forTheme
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.Close
@@ -1004,19 +1005,19 @@ fun FeaturedSymptomCard(
                             SeveritySelectorChip(
                                 label = "خفیف",
                                 isSelected = severity == "MILD",
-                                color = Color(0xFF10B981),
+                                color = Color(0xFF047857),
                                 onClick = { onSeverityChange("MILD") }
                             )
                             SeveritySelectorChip(
                                 label = "متوسط",
                                 isSelected = severity == "MODERATE",
-                                color = Color(0xFFF59E0B),
+                                color = Color(0xFFB45309),
                                 onClick = { onSeverityChange("MODERATE") }
                             )
                             SeveritySelectorChip(
                                 label = "شدید",
                                 isSelected = severity == "SEVERE",
-                                color = Color(0xFFEF4444),
+                                color = Color(0xFFB91C1C),
                                 onClick = { onSeverityChange("SEVERE") }
                             )
                         }
@@ -1046,7 +1047,7 @@ fun SeveritySelectorChip(
             text = label,
             fontSize = 12.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) Color.White else color
+            color = if (isSelected) Color.White else color.forTheme()
         )
     }
 }

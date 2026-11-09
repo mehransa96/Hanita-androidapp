@@ -34,7 +34,7 @@ enum class ThemeMode(
 
 data class ThemeState(
     val mode: ThemeMode = ThemeMode.SYSTEM,
-    val palette: String = "COSMIC_BLOSSOM",
+    val palette: String = DEFAULT_THEME,
     val fontCode: String = "CLASSIC",
     val isDarkEffective: Boolean = true
 )
@@ -52,7 +52,7 @@ val LocalThemeController = staticCompositionLocalOf<ThemeController> {
     object : ThemeController {
         override val isDark: Boolean = true
         override val currentMode: ThemeMode = ThemeMode.SYSTEM
-        override val currentPalette: String = "COSMIC_BLOSSOM"
+        override val currentPalette: String = DEFAULT_THEME
         override fun setMode(mode: ThemeMode) {}
         override fun setPalette(palette: String) {}
         override fun toggleMode() {}
