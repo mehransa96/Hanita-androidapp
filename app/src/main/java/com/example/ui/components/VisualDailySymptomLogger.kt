@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import com.example.ui.theme.forTheme
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -181,7 +182,7 @@ fun VisualDailySymptomLogger(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "معادل میلادی: ${com.example.utils.ltrIsolate(localDateStr)}",
+                        text = "معادل میلادی: ${com.example.utils.ltrIsolate(com.example.utils.PersianNumbers.toPersianDigits(localDateStr))}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -278,7 +279,7 @@ fun VisualDailySymptomLogger(
                             },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Text("✨ پاکی", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                            Text("✨ پاکی", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857).forTheme())
                         }
                     }
                 }

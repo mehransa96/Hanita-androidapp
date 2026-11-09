@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.ui.theme.forTheme
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -220,7 +221,7 @@ fun WaterTrackerCard(waterIntake: Int, onWaterChange: (Int) -> Unit) {
                 }
                 
                 Text(
-                    text = "${com.example.utils.PersianNumbers.toPersianDigits(waterIntake)} / ۸",
+                    text = "${com.example.utils.PersianNumbers.toPersianDigits(waterIntake)} از ۸",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Black,
                     color = MaterialTheme.colorScheme.primary
@@ -290,17 +291,17 @@ fun SleepTrackerCard(sleepHours: Float, onSleepChange: (Float) -> Unit) {
                         style = MaterialTheme.typography.bodySmall,
                         color = when {
                             sleepHours <= 0f -> MaterialTheme.colorScheme.onSurfaceVariant
-                            sleepHours >= 7f -> Color(0xFF059669)
-                            else -> Color(0xFFD97706)
+                            sleepHours >= 7f -> Color(0xFF047857).forTheme()
+                            else -> Color(0xFFB45309).forTheme()
                         }
                     )
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = "${com.example.utils.PersianNumbers.formatDecimal(sleepHours)} ساعت",
+                    text = if (sleepHours <= 0f) "—" else "${com.example.utils.PersianNumbers.formatDecimal(sleepHours)} ساعت",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black,
-                    color = Color(0xFF7C3AED)
+                    color = Color(0xFF7C3AED).forTheme()
                 )
             }
             
@@ -368,9 +369,9 @@ fun WeightCard(
                     .fillMaxWidth()
                     .heightIn(min = 40.dp),
                 shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706))
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
             ) {
-                Text("ذخیره", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("ذخیره", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onTertiary)
             }
         }
     }

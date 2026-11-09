@@ -22,7 +22,8 @@ val LightError = Color(0xFFFF4C4C)
 val LightIndigo50 = Color(0xFFEEF2FF)
 val LightIndigo500 = Color(0xFF6366F1)
 val LightAmber50 = Color(0xFFFFFBEB)
-val LightAmber500 = Color(0xFFF59E0B)
+// Amber 700: amber 500 (#F59E0B) was only 2.1:1 on white, too faint for text.
+val LightAmber500 = Color(0xFFB45309)
 
 // Dark Theme Colors
 val NightBackground = Color(0xFF0D0B1A) // deep cosmic navy

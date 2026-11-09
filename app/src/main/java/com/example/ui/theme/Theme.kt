@@ -24,6 +24,69 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 
 // ==========================================
+// 0. Peony Blossom (شکوفه صدتومانی) — default
+// Peony rose with orchid violet and a warm coral accent on a blush-cream base.
+// Every text/background pair below meets WCAG AA (4.5:1) for body text.
+// ==========================================
+val PeonyBlossomLightColorScheme = lightColorScheme(
+    primary = Color(0xFFC2185B),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFFDDE8),
+    onPrimaryContainer = Color(0xFF65002A),
+    inversePrimary = Color(0xFFFFB0C8),
+    secondary = Color(0xFF7E4FA8),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFF2E3FF),
+    onSecondaryContainer = Color(0xFF3A1060),
+    tertiary = Color(0xFFB4532F),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFE3D6),
+    onTertiaryContainer = Color(0xFF5A1C05),
+    background = Color(0xFFFFF7F5),
+    onBackground = Color(0xFF2B1620),
+    surface = Color.White,
+    onSurface = Color(0xFF2B1A22),
+    surfaceVariant = Color(0xFFFCEEF2),
+    onSurfaceVariant = Color(0xFF6A5560),
+    surfaceTint = Color(0xFFC2185B),
+    outline = Color(0xFFB59AA6),
+    outlineVariant = Color(0xFFEBD7DF),
+    error = Color(0xFFBA1A3A),
+    onError = Color.White,
+    errorContainer = Color(0xFFFFDADF),
+    onErrorContainer = Color(0xFF410010)
+)
+
+val PeonyBlossomDarkColorScheme = darkColorScheme(
+    primary = Color(0xFFFF8FB5),
+    onPrimary = Color(0xFF55002A),
+    primaryContainer = Color(0xFF7A1A44),
+    onPrimaryContainer = Color(0xFFFFD9E4),
+    inversePrimary = Color(0xFFC2185B),
+    secondary = Color(0xFFD7B4FA),
+    onSecondary = Color(0xFF3A1060),
+    secondaryContainer = Color(0xFF55307A),
+    onSecondaryContainer = Color(0xFFF2E3FF),
+    tertiary = Color(0xFFFFB59A),
+    onTertiary = Color(0xFF5A1C05),
+    tertiaryContainer = Color(0xFF7A3218),
+    onTertiaryContainer = Color(0xFFFFE3D6),
+    background = Color(0xFF1A1016),
+    onBackground = Color(0xFFF6E5EC),
+    surface = Color(0xFF23161D),
+    onSurface = Color(0xFFF0DEE6),
+    surfaceVariant = Color(0xFF33232C),
+    onSurfaceVariant = Color(0xFFD3BCC7),
+    surfaceTint = Color(0xFFFF8FB5),
+    outline = Color(0xFF9C8490),
+    outlineVariant = Color(0xFF4A3540),
+    error = Color(0xFFFFB3BE),
+    onError = Color(0xFF680020),
+    errorContainer = Color(0xFF920030),
+    onErrorContainer = Color(0xFFFFDADF)
+)
+
+// ==========================================
 // 1. Cosmic Blossom (شکوفه کیهانی)
 // ==========================================
 val CosmicBlossomDarkColorScheme = darkColorScheme(
@@ -431,6 +494,9 @@ private fun withReadableOutlines(scheme: ColorScheme): ColorScheme = scheme.copy
     outlineVariant = androidx.compose.ui.graphics.lerp(scheme.surface, scheme.onSurfaceVariant, 0.32f)
 )
 
+/** The palette used until the user picks another one in the settings. */
+const val DEFAULT_THEME = "PEONY_BLOSSOM"
+
 private fun basePalette(paletteCode: String, isDark: Boolean): ColorScheme {
     return if (isDark) {
         when (paletteCode) {
@@ -441,7 +507,8 @@ private fun basePalette(paletteCode: String, isDark: Boolean): ColorScheme {
             "EMERALD_ZEN" -> EmeraldZenDarkColorScheme
             "MIDNIGHT_AMETHYST" -> MidnightAmethystDarkColorScheme
             "SUNSET_PEACH" -> SunsetPeachDarkColorScheme
-            else -> CosmicBlossomDarkColorScheme
+            "COSMIC_BLOSSOM" -> CosmicBlossomDarkColorScheme
+            else -> PeonyBlossomDarkColorScheme
         }
     } else {
         when (paletteCode) {
@@ -452,7 +519,8 @@ private fun basePalette(paletteCode: String, isDark: Boolean): ColorScheme {
             "EMERALD_ZEN" -> EmeraldZenLightColorScheme
             "MIDNIGHT_AMETHYST" -> MidnightAmethystLightColorScheme
             "SUNSET_PEACH" -> SunsetPeachLightColorScheme
-            else -> CosmicBlossomLightColorScheme
+            "COSMIC_BLOSSOM" -> CosmicBlossomLightColorScheme
+            else -> PeonyBlossomLightColorScheme
         }
     }
 }
@@ -462,7 +530,7 @@ private fun basePalette(paletteCode: String, isDark: Boolean): ColorScheme {
  */
 @Composable
 fun MyApplicationTheme(
-    themeCode: String = "COSMIC_BLOSSOM",
+    themeCode: String = DEFAULT_THEME,
     themeMode: String = "SYSTEM",
     fontCode: String = "CLASSIC",
     onThemeChanged: ((String) -> Unit)? = null,

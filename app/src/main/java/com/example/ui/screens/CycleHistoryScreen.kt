@@ -469,7 +469,7 @@ fun DetailedCycleRecordCard(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "معادل میلادی: ${com.example.utils.ltrIsolate(record.startDate)} الی ${com.example.utils.ltrIsolate(record.endDate)}",
+                        text = "معادل میلادی: ${com.example.utils.ltrIsolate(com.example.utils.PersianNumbers.toPersianDigits(record.startDate))} الی ${com.example.utils.ltrIsolate(com.example.utils.PersianNumbers.toPersianDigits(record.endDate))}",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

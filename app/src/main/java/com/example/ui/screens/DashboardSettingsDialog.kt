@@ -217,6 +217,7 @@ fun SettingsDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val themes = listOf(
+                        Triple("PEONY_BLOSSOM", "شکوفه صدتومانی 🌸", listOf(Color(0xFFC2185B), Color(0xFF7E4FA8), Color(0xFFE8826A))),
                         Triple("COSMIC_BLOSSOM", "شکوفه کیهانی ✨", listOf(Color(0xFFE879A0), Color(0xFFB59DFF))),
                         Triple("SWEET_CANDY", "آبنبات شیرین ☀️", listOf(Color(0xFFEC4899), Color(0xFF14B8A6))),
                         Triple("MINT_ORCHID", "ارکیده نعنایی 🌿", listOf(Color(0xFF2DD4BF), Color(0xFFF472B6))),
@@ -270,6 +271,8 @@ fun SettingsDialog(
                                     }
                                 }
                             }
+                            // An odd last item keeps half the width like the others.
+                            if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
                         }
                     }
                 }

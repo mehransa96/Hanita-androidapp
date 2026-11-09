@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar">
+        <!-- No white/black flash before the first frame: start on the theme's background. -->
+        <item name="android:windowBackground">@color/hanita_window_background</item>
+    </style>
 </resources>

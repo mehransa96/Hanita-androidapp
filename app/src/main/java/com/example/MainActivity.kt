@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
 
             if (crashStackTrace != null) {
                 // Beautiful Recovery and Crash Diagnosis Screen in Farsi
-                MyApplicationTheme(themeCode = "COSMIC_BLOSSOM", themeMode = "DARK", fontCode = "CLASSIC") {
+                MyApplicationTheme(themeCode = com.example.ui.theme.DEFAULT_THEME, themeMode = "DARK", fontCode = "CLASSIC") {
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                         Surface(
                             modifier = Modifier.fillMaxSize(),

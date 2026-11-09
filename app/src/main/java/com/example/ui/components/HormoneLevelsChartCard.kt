@@ -393,13 +393,13 @@ fun HormoneLevelsChartCard(
                             ),
                             model = chartModel,
                             startAxis = rememberStartAxis(
-                                valueFormatter = { value, _ -> "${value.toInt()}%" },
+                                valueFormatter = { value, _ -> com.example.utils.PersianNumbers.toPersianDigits(value.toInt()) + "٪" },
                                 title = "غلظت نسبی"
                             ),
                             bottomAxis = rememberBottomAxis(
                                 // Days 7, 14, 21, 28: one label per week with room to draw it (edge labels were cut to "…").
                                 itemPlacer = remember { com.patrykandpatrick.vico.core.axis.AxisItemPlacer.Horizontal.default(spacing = 7, offset = 6) },
-                                valueFormatter = { value, _ -> value.toInt().toString() },
+                                valueFormatter = { value, _ -> com.example.utils.PersianNumbers.toPersianDigits(value.toInt()) },
                                 title = "روز چرخه"
                             ),
                             modifier = Modifier.fillMaxSize()
