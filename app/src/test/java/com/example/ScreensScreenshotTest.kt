@@ -117,6 +117,23 @@ class ScreensScreenshotTest {
         DashboardScreen(vm, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, startTab = 4)
     }
 
+    // Smallest common phone (360x640) with a large system font: the home tabs must stay readable
+    // (they switch to scrolling instead of clipping).
+    @Config(qualifiers = "w360dp-h640dp-mdpi", fontScale = 1.3f)
+    @Test fun dashboardCompactLargeFont() = shoot("02f_dashboard_compact", false) { vm ->
+        DashboardScreen(vm, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop)
+    }
+
+    @Config(qualifiers = "w360dp-h640dp-mdpi", fontScale = 1.3f)
+    @Test fun homeHealthCompactLargeFont() = shoot("02g_home_health_compact", false) { vm ->
+        DashboardScreen(vm, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, startTab = 2)
+    }
+
+    @Config(qualifiers = "w360dp-h740dp-mdpi")
+    @Test fun dashboardSmallPhone() = shoot("02h_dashboard_360", true) { vm ->
+        DashboardScreen(vm, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop, noop)
+    }
+
     @Test fun healthTools() = shoot("10_health_tools", false) {
         val app = ApplicationProvider.getApplicationContext<Application>()
         com.example.ui.screens.HealthToolsScreen(com.example.ui.viewmodel.HealthToolsViewModel(app), noop)

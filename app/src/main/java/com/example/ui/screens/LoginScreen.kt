@@ -152,8 +152,10 @@ fun LoginScreen(
 
         Card(
             modifier = Modifier
+                // Status/navigation bars and the keyboard never cover the form (edge-to-edge).
+                .safeDrawingPadding()
                 .fillMaxWidth()
-                .padding(24.dp)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
                 .alpha(alphaAnimation)
                 .border(
                     BorderStroke(
@@ -175,7 +177,7 @@ fun LoginScreen(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(28.dp)
+                    .padding(horizontal = 20.dp, vertical = 24.dp)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -874,7 +876,7 @@ fun RollerControls(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
         ) {
-            IconButton(onClick = onDecrement, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onDecrement, modifier = Modifier.size(44.dp)) {
                 Icon(Icons.Filled.ChevronRight, contentDescription = "کاهش", tint = MaterialTheme.colorScheme.onSurface)
             }
             Text(
@@ -885,7 +887,7 @@ fun RollerControls(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.width(36.dp)
             )
-            IconButton(onClick = onIncrement, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onIncrement, modifier = Modifier.size(44.dp)) {
                 Icon(Icons.Filled.ChevronLeft, contentDescription = "افزایش", tint = MaterialTheme.colorScheme.onSurface)
             }
         }
@@ -907,7 +909,7 @@ fun RollerTextControls(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
         ) {
-            IconButton(onClick = onDecrement, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onDecrement, modifier = Modifier.size(44.dp)) {
                 Icon(Icons.Filled.ChevronRight, contentDescription = "کاهش", tint = MaterialTheme.colorScheme.onSurface)
             }
             Text(
@@ -918,7 +920,7 @@ fun RollerTextControls(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(onClick = onIncrement, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onIncrement, modifier = Modifier.size(44.dp)) {
                 Icon(Icons.Filled.ChevronLeft, contentDescription = "افزایش", tint = MaterialTheme.colorScheme.onSurface)
             }
         }

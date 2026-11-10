@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -230,7 +232,7 @@ fun ProfessionalDatePickerDialog(
                             ),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable {
+                                .selectable(selected = isSelected, role = Role.RadioButton) {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     selectedDate = presetDate
                                     val j = JalaliCalendar.gregorianToJalali(presetDate)
@@ -291,7 +293,7 @@ fun ProfessionalDatePickerDialog(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable { isYearPickerOpen = !isYearPickerOpen }
+                            .clickable(role = Role.Button) { isYearPickerOpen = !isYearPickerOpen }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text(
@@ -353,7 +355,7 @@ fun ProfessionalDatePickerDialog(
                                     color = if (isCur) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .clickable {
+                                        .selectable(selected = isCur, role = Role.RadioButton) {
                                             viewingYear = yr
                                             isYearPickerOpen = false
                                         }
@@ -441,7 +443,7 @@ fun ProfessionalDatePickerDialog(
                                                     else -> Color.Transparent
                                                 }
                                             )
-                                            .clickable(enabled = isEnabled) {
+                                            .selectable(selected = isSelected, enabled = isEnabled, role = Role.RadioButton) {
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 selectedJalali = currentSlotJalali
                                                 selectedDate = currentSlotLocal

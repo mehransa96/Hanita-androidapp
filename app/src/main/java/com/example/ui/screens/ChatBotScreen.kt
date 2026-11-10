@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.semantics.Role
 import com.example.ui.viewmodel.ChatMessage
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -233,7 +234,7 @@ fun ChatBotScreen(viewModel: com.example.ui.viewmodel.MahitaViewModel, onNavigat
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(MaterialTheme.colorScheme.surfaceVariant)
                                         .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
-                                        .clickable { send(question) }
+                                        .clickable(role = Role.Button) { send(question) }
                                         .padding(horizontal = 10.dp, vertical = 10.dp),
                                     contentAlignment = Alignment.Center
                                 ) {

@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -174,7 +176,7 @@ fun CyclePhaseGuideDialog(
                                 .weight(1f)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(if (isSelected) p.themeColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                .clickable { selectedPhaseId = p.id }
+                                .selectable(selected = isSelected, role = Role.RadioButton) { selectedPhaseId = p.id }
                                 .padding(vertical = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {

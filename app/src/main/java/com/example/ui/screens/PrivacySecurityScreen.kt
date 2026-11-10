@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -127,6 +129,9 @@ fun PrivacySecurityScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // Keep focused text fields above the keyboard (the app draws edge-to-edge).
+                .consumeWindowInsets(padding)
+                .imePadding()
                 .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)

@@ -1,6 +1,23 @@
 package com.example.ui.screens
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import com.example.ui.theme.rememberHanitaHaptics
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -78,7 +95,17 @@ fun TodayTab(
     onLogMood: (String) -> Unit,
     today: java.time.LocalDate = java.time.LocalDate.now()
 ) {
-    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+  BoxWithConstraints(Modifier.fillMaxSize()) {
+    // On a short phone (or with a large system font) everything cannot fit one screen: the tab then
+    // scrolls with a fixed-size ring instead of squeezing the ring to nothing or clipping buttons.
+    val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+    val compact = maxHeight < 600.dp * fontScale
+    Column(
+        Modifier
+            .fillMaxSize()
+            .then(if (compact) Modifier.verticalScroll(rememberScrollState()) else Modifier),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Spacer(Modifier.height(8.dp))
         HeaderRow(
             userName = userName,
@@ -99,7 +126,10 @@ fun TodayTab(
 
         // The ring takes whatever height is left, so the tab always fits the screen.
         BoxWithConstraints(
-            modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (compact) Modifier.height(220.dp) else Modifier.weight(1f))
+                .padding(vertical = 6.dp),
             contentAlignment = Alignment.Center
         ) {
             val ring = min(min(maxWidth, maxHeight), 250.dp)
@@ -130,8 +160,10 @@ fun TodayTab(
         WaterAndMoodRow(waterGlasses, onIncrementWater, onDecrementWater, onLogMood)
         Spacer(Modifier.height(12.dp))
     }
+  }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun QuickAction(
     title: String,
@@ -142,8 +174,13 @@ private fun QuickAction(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val haptics = rememberHanitaHaptics()
     Card(
-        modifier = modifier.clickable(onClick = onClick).testTag(tag),
+        onClick = {
+            haptics.tick()
+            onClick()
+        },
+        modifier = modifier.testTag(tag),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = tint.copy(alpha = 0.08f)),
         border = BorderStroke(1.dp, tint.copy(alpha = 0.25f))
@@ -156,9 +193,12 @@ private fun QuickAction(
                 Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(19.dp))
             }
             Spacer(Modifier.height(4.dp))
-            Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = MaterialTheme.colorScheme.onSurface)
             Text(
-                subtitle, fontSize = 10.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                title, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                subtitle, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center
             )
         }
@@ -174,6 +214,7 @@ private fun WaterAndMoodRow(
     today: java.time.LocalDate = java.time.LocalDate.now()
 ) {
     val context = LocalContext.current
+    val haptics = rememberHanitaHaptics()
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -181,19 +222,48 @@ private fun WaterAndMoodRow(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onDecrementWater, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Filled.Remove, contentDescription = "کم کردن یک لیوان آب", tint = Color(0xFF0EA5E9))
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("💧 ${com.example.utils.PersianNumbers.toPersianDigits(waterGlasses)} از ۸", fontWeight = FontWeight.Black, fontSize = 13.sp, color = Color(0xFF0284C7))
-                Text("${com.example.utils.PersianNumbers.toPersianDigits(waterGlasses * 250)} میلی‌لیتر", fontSize = 10.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            // 40dp visual, 48dp touch area (IconButton enforces the minimum interactive size).
             IconButton(
                 onClick = {
-                    onIncrementWater()
-                    Toast.makeText(context, "یک لیوان آب (۲۵۰ میلی‌لیتر) ثبت شد 💧", Toast.LENGTH_SHORT).show()
+                    haptics.tick()
+                    onDecrementWater()
                 },
-                modifier = Modifier.size(32.dp).testTag("today_add_water")
+                enabled = waterGlasses > 0,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(Icons.Filled.Remove, contentDescription = "کم کردن یک لیوان آب", tint = Color(0xFF0EA5E9))
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.semantics(mergeDescendants = true) {
+                    liveRegion = LiveRegionMode.Polite
+                }
+            ) {
+                AnimatedContent(
+                    targetState = waterGlasses,
+                    transitionSpec = {
+                        val up = targetState > initialState
+                        (slideInVertically { if (up) it / 2 else -it / 2 } + fadeIn()) togetherWith
+                            (slideOutVertically { if (up) -it / 2 else it / 2 } + fadeOut())
+                    },
+                    label = "waterCount"
+                ) { glasses ->
+                    Text(
+                        "💧 ${com.example.utils.PersianNumbers.toPersianDigits(glasses)} از ۸",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 13.sp,
+                        color = if (com.example.ui.theme.ThemeProvider.isDark) Color(0xFF7DD3FC) else Color(0xFF0369A1)
+                    )
+                }
+                Text("${com.example.utils.PersianNumbers.toPersianDigits(waterGlasses * 250)} میلی‌لیتر", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            // The counter animates and is announced, so no toast piles up on repeated taps.
+            IconButton(
+                onClick = {
+                    haptics.tick()
+                    onIncrementWater()
+                },
+                modifier = Modifier.size(40.dp).testTag("today_add_water")
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "افزودن یک لیوان آب", tint = Color(0xFF0EA5E9))
             }
@@ -202,16 +272,22 @@ private fun WaterAndMoodRow(
             val moods = listOf("پرانرژی ✨" to "✨", "آرام و متمرکز 🧘" to "🧘", "خواب‌آلود و خسته 😴" to "😴", "حساس و احساساتی 🌧️" to "🌧️")
             Row(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceEvenly) {
                 moods.forEach { (mood, emoji) ->
+                    val label = mood.substringBeforeLast(' ')
                     Box(
                         Modifier
-                            .size(38.dp)
+                            .minimumInteractiveComponentSize()
+                            .size(40.dp)
+                            .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), CircleShape)
-                            .clickable {
+                            .clickable(role = Role.Button, onClickLabel = "ثبت حال «$label» برای امروز") {
+                                haptics.confirm()
                                 onLogMood(mood)
                                 Toast.makeText(context, "حالت «$mood» برای امروز ثبت شد 🌸", Toast.LENGTH_SHORT).show()
                             },
                         contentAlignment = Alignment.Center
-                    ) { Text(emoji, fontSize = 18.sp) }
+                    ) {
+                        Text(emoji, fontSize = 18.sp, modifier = Modifier.semantics { contentDescription = label })
+                    }
                 }
             }
         }

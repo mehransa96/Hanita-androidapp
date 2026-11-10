@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -179,7 +181,7 @@ fun SettingsDialog(
                                     color = if (isSelected) SleekPrimary else SleekBorder.copy(alpha = 0.5f),
                                     shape = RoundedCornerShape(12.dp)
                                 )
-                                .clickable { viewModel.setThemeMode(modeCode) }
+                                .selectable(selected = isSelected, role = Role.RadioButton) { viewModel.setThemeMode(modeCode) }
                                 .padding(vertical = 10.dp, horizontal = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -245,7 +247,7 @@ fun SettingsDialog(
                                             color = if (isSelected) SleekPrimary else SleekBorder.copy(alpha = 0.5f),
                                             shape = RoundedCornerShape(12.dp)
                                         )
-                                        .clickable { viewModel.setAppTheme(code) }
+                                        .selectable(selected = isSelected, role = Role.RadioButton) { viewModel.setAppTheme(code) }
                                         .padding(horizontal = 8.dp, vertical = 10.dp)
                                 ) {
                                     Row(
@@ -315,7 +317,7 @@ fun SettingsDialog(
                                             color = if (isSelected) SleekPrimary else SleekBorder.copy(alpha = 0.5f),
                                             shape = RoundedCornerShape(12.dp)
                                         )
-                                        .clickable { viewModel.setAppFont(code) }
+                                        .selectable(selected = isSelected, role = Role.RadioButton) { viewModel.setAppFont(code) }
                                         .padding(horizontal = 8.dp, vertical = 12.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -448,7 +450,7 @@ fun SettingsDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable { showStartDatePickerInSettings = true },
+                                .clickable(role = Role.Button) { showStartDatePickerInSettings = true },
                             colors = CardDefaults.cardColors(containerColor = SleekPrimary.copy(alpha = 0.08f)),
                             border = BorderStroke(1.dp, SleekPrimary.copy(alpha = 0.35f))
                         ) {
@@ -523,7 +525,7 @@ fun SettingsDialog(
                                 onValueChange = { editDuration = it },
                                 label = { Text("طول چرخه پیش‌فرض (روز)", fontSize = 12.sp) },
                                 // Once two periods are logged, forecasts use the real average instead.
-                                supportingText = { Text("تا ثبت دو پریود استفاده می‌شود؛ بعد از آن میانگین واقعی شما ملاک است.", fontSize = 9.5.sp, lineHeight = 13.sp) },
+                                supportingText = { Text("تا ثبت دو پریود استفاده می‌شود؛ بعد از آن میانگین واقعی شما ملاک است.", fontSize = 11.sp, lineHeight = 15.sp) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
@@ -594,13 +596,13 @@ fun SettingsDialog(
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (selected) SleekPrimary else SleekPrimaryLight)
-                                        .clickable { viewModel.setDaysBefore(day) }
+                                        .selectable(selected = selected, role = Role.RadioButton) { viewModel.setDaysBefore(day) }
                                         .padding(vertical = 8.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = label,
-                                        fontSize = 10.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (selected) Color.White else SleekPrimaryDark
                                     )

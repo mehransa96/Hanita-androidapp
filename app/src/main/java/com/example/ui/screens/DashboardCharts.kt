@@ -208,7 +208,7 @@ fun CycleHistoryChart(
             if (cycles.any { !it.isTypical }) {
                 Text(
                     text = "ستون نارنجی یعنی فاصله کمتر از ۲۱ یا بیشتر از ۴۵ روز؛ اگر پریودی را ثبت نکرده‌اید، آن را در تقویم اضافه کنید تا میانگین دقیق‌تر شود.",
-                    fontSize = 10.5.sp,
+                    fontSize = 11.sp,
                     lineHeight = 16.sp,
                     color = warnColor
                 )

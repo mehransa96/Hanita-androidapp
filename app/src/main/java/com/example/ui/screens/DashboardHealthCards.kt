@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -344,7 +345,7 @@ fun QuickHydrationAndMoodCard(
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(moodColor.copy(alpha = 0.1f))
                                 .border(1.dp, moodColor.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-                                .clickable(onClickLabel = "ثبت حال $moodValue برای امروز") {
+                                .clickable(role = Role.Button, onClickLabel = "ثبت حال $moodValue برای امروز") {
                                     onLogMood(moodValue)
                                     android.widget.Toast.makeText(context, "حال «$moodValue» برای امروز ثبت شد 🌸", android.widget.Toast.LENGTH_SHORT).show()
                                 }
@@ -375,7 +376,7 @@ fun DailyPhysicalSymptomsCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onNavigateToLog),
+            .clickable(role = Role.Button, onClick = onNavigateToLog),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(20.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),

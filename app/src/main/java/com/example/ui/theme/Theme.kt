@@ -604,6 +604,7 @@ fun MyApplicationTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = typography,
+            shapes = HanitaShapes,
             content = content
         )
     }
@@ -613,10 +614,10 @@ fun Modifier.bounceClick(onClick: () -> Unit) = composed {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.92f else 1.0f,
+        targetValue = if (isPressed) 0.96f else 1.0f,
         animationSpec = spring(
-            dampingRatio = 0.7f,
-            stiffness = 300f
+            dampingRatio = 0.75f,
+            stiffness = 600f
         ),
         label = "bounceScale"
     )
@@ -629,6 +630,7 @@ fun Modifier.bounceClick(onClick: () -> Unit) = composed {
         .clickable(
             interactionSource = interactionSource,
             indication = androidx.compose.foundation.LocalIndication.current,
+            role = androidx.compose.ui.semantics.Role.Button,
             onClick = onClick
         )
 }

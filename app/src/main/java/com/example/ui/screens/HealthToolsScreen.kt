@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -140,6 +142,9 @@ fun HealthToolsScreen(viewModel: HealthToolsViewModel, onNavigateBack: () -> Uni
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // Keep focused text fields above the keyboard (the app draws edge-to-edge).
+                .consumeWindowInsets(padding)
+                .imePadding()
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp)

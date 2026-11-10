@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.semantics.Role
 import android.content.Context
 import android.os.Build
 import android.os.CancellationSignal
@@ -203,7 +204,7 @@ private fun PadKey(label: String, onClick: () -> Unit) {
             .size(72.dp)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(label, fontSize = 26.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
@@ -213,7 +214,7 @@ private fun PadKey(label: String, onClick: () -> Unit) {
 @Composable
 private fun PadIcon(icon: ImageVector, description: String, onClick: () -> Unit) {
     Box(
-        modifier = Modifier.size(72.dp).clip(CircleShape).clickable(onClick = onClick),
+        modifier = Modifier.size(72.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = description, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))

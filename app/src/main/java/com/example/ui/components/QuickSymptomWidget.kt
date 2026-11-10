@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -180,7 +182,7 @@ private fun QuickSelectorRow(
                         .weight(1f)
                         .clip(RoundedCornerShape(8.dp))
                         .background(if (isSelected) iconTint.copy(alpha = 0.15f) else Color.Transparent)
-                        .clickable { onSelect(text) }
+                        .selectable(selected = isSelected, role = Role.RadioButton) { onSelect(text) }
                         .padding(vertical = 6.dp),
                     contentAlignment = Alignment.Center
                 ) {
