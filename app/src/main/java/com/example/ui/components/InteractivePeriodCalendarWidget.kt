@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -198,7 +200,7 @@ fun InteractivePeriodCalendarWidget(
                                 if (isSelected) MaterialTheme.colorScheme.primary
                                 else Color.Transparent
                             )
-                            .clickable {
+                            .selectable(selected = isSelected, role = Role.RadioButton) {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 selectionTarget = target
                             }
@@ -587,7 +589,7 @@ fun InteractivePeriodCalendarWidget(
                                             if (isSelected) flowColor
                                             else flowColor.copy(alpha = 0.1f)
                                         )
-                                        .clickable { selectedFlow = flowKey }
+                                        .selectable(selected = isSelected, role = Role.RadioButton) { selectedFlow = flowKey }
                                         .padding(vertical = 8.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -775,9 +777,9 @@ private fun DayCellItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isStart) {
-                    Text("شروع", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                    Text("شروع", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
                 } else if (isEnd) {
-                    Text("پایان", fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                    Text("پایان", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
                 } else if (isPastRecorded) {
                     Box(
                         modifier = Modifier

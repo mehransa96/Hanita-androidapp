@@ -87,6 +87,9 @@ fun HealthScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                // Keep focused text fields above the keyboard (the app draws edge-to-edge).
+                .consumeWindowInsets(paddingValues)
+                .imePadding()
                 .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(20.dp)

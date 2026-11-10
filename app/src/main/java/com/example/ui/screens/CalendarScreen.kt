@@ -412,7 +412,7 @@ fun CalendarScreen(
                                     Surface(
                                         color = SleekPrimaryLight,
                                         shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier.clickable {
+                                        modifier = Modifier.clickable(role = Role.Button) {
                                             currentMonth = JalaliDate(todayJalali.year, todayJalali.month, 1)
                                             selectedDate = todayJalali
                                         }

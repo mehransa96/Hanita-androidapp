@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import com.example.ui.theme.forTheme
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
@@ -228,7 +230,7 @@ fun ProfessionalCycleEditDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(14.dp))
-                                .clickable { showStartDatePicker = true },
+                                .clickable(role = Role.Button) { showStartDatePicker = true },
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                         ) {
@@ -294,7 +296,7 @@ fun ProfessionalCycleEditDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(14.dp))
-                                .clickable { showEndDatePicker = true },
+                                .clickable(role = Role.Button) { showEndDatePicker = true },
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                         ) {
@@ -366,7 +368,7 @@ fun ProfessionalCycleEditDialog(
                                     color = if (isSelected) SleekPrimary else MaterialTheme.colorScheme.surfaceVariant,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .clickable {
+                                        .selectable(selected = isSelected, role = Role.RadioButton) {
                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             endDate = minOf(startDate.plusDays((days - 1).toLong()), today)
                                         }
@@ -503,7 +505,7 @@ fun ProfessionalCycleEditDialog(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .clickable {
+                                        .selectable(selected = isSelected, role = Role.RadioButton) {
                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             flow = key
                                         },

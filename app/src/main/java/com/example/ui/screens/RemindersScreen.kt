@@ -229,6 +229,9 @@ fun RemindersScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
+                    // Keep focused text fields above the keyboard (the app draws edge-to-edge).
+                    .consumeWindowInsets(paddingValues)
+                    .imePadding()
                     .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
@@ -393,7 +396,7 @@ fun RemindersScreen(
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(10.dp))
                                                 .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f))
-                                                .clickable { viewModel.setDaysBefore(day) }
+                                                .selectable(selected = selected, role = Role.RadioButton) { viewModel.setDaysBefore(day) }
                                                 .padding(vertical = 10.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
@@ -563,7 +566,7 @@ fun RemindersScreen(
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(10.dp))
                                                 .background(if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f))
-                                                .clickable { viewModel.setOvulationDaysBefore(day) }
+                                                .selectable(selected = selected, role = Role.RadioButton) { viewModel.setOvulationDaysBefore(day) }
                                                 .padding(vertical = 10.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
@@ -1122,7 +1125,7 @@ fun RemindersScreen(
                                     .weight(1f)
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                                    .clickable { medType = typeKey }
+                                    .selectable(selected = selected, role = Role.RadioButton) { medType = typeKey }
                                     .padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -1251,7 +1254,7 @@ fun RemindersScreen(
                                     .weight(1f)
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                                    .clickable { editMedType = typeKey }
+                                    .selectable(selected = selected, role = Role.RadioButton) { editMedType = typeKey }
                                     .padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center
                             ) {

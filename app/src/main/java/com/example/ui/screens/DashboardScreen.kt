@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -118,7 +119,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 /** The five sections of the app, in bottom-bar order (rightmost first in RTL). */
 enum class HomeTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     TODAY("امروز", Icons.Filled.Home),
-    CYCLE("چرخه و تحلیل", Icons.Filled.Insights),
+    CYCLE("چرخه", Icons.Filled.Insights),
     HEALTH("سلامت", Icons.Filled.HealthAndSafety),
     WELLBEING("حال خوب", Icons.Filled.Spa),
     PARTNER("همراه", Icons.Filled.Favorite)
@@ -184,13 +185,31 @@ fun DashboardScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
+            val navHaptics = com.example.ui.theme.rememberHanitaHaptics()
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
                 HomeTab.values().forEach { tab ->
                     NavigationBarItem(
                         selected = selectedTab == tab.ordinal,
-                        onClick = { selectedTab = tab.ordinal },
+                        onClick = {
+                            if (selectedTab != tab.ordinal) {
+                                navHaptics.tick()
+                                selectedTab = tab.ordinal
+                            }
+                        },
                         icon = { Icon(tab.icon, contentDescription = null) },
-                        label = { Text(tab.label, fontSize = 10.5.sp, maxLines = 1) },
+                        label = {
+                            Text(
+                                tab.label,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.primary
+                        ),
                         modifier = Modifier.testTag("tab_${tab.name.lowercase()}")
                     )
                 }
@@ -200,8 +219,10 @@ fun DashboardScreen(
         AnimatedContent(
             targetState = selectedTab,
             transitionSpec = {
-                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)) togetherWith
-                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160))
+                // Tabs are siblings: a quick cross-fade with a slight rise (Material "fade through").
+                (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220, delayMillis = 60)) +
+                    androidx.compose.animation.scaleIn(androidx.compose.animation.core.tween(220, delayMillis = 60), initialScale = 0.98f)) togetherWith
+                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(90))
             },
             label = "homeTab",
             modifier = Modifier
@@ -503,7 +524,7 @@ private fun QuickPeriodEditCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClickLabel = "ویرایش آخرین دوره", onClick = onClick)
+            .clickable(role = Role.Button, onClickLabel = "ویرایش آخرین دوره", onClick = onClick)
             .testTag("quick_edit_cycle_button"),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f)),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f)),

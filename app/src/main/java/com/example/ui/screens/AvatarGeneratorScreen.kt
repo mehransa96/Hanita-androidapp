@@ -297,6 +297,9 @@ fun AvatarGeneratorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                // Keep focused text fields above the keyboard (the app draws edge-to-edge).
+                .consumeWindowInsets(paddingValues)
+                .imePadding()
                 .padding(horizontal = 20.dp),
             contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),

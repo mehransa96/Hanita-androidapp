@@ -2,9 +2,9 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -35,6 +35,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,7 +54,15 @@ fun TabHeader(title: String, subtitle: String, onOpenSettings: () -> Unit, onLoc
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 20.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onBackground)
+            Text(
+                title,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.semantics { heading() }
+            )
             Text(
                 subtitle,
                 fontSize = 12.sp,
@@ -79,64 +90,88 @@ data class HubItem(
 )
 
 /**
- * A grid of entry tiles that always fits the space it is given (rows share the height equally),
- * so a tab never needs scrolling.
+ * A grid of entry tiles that fits the space it is given (rows share the height equally), so a tab
+ * normally needs no scrolling. On a short phone or with a large system font the rows would get too
+ * low to read, so the grid then keeps a comfortable row height and scrolls instead of clipping text.
  */
 @Composable
 fun HubGrid(items: List<HubItem>, modifier: Modifier = Modifier, columns: Int = 2) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items.chunked(columns).forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                row.forEach { item -> HubTile(item, Modifier.weight(1f).fillMaxHeight()) }
-                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+    val rows = items.chunked(columns)
+    val gap = 10.dp
+    BoxWithConstraints(modifier) {
+        val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+        val minRow = 68.dp * fontScale
+        val fitted = (maxHeight - gap * (rows.size - 1)) / rows.size
+        val scroll = fitted < minRow
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (scroll) Modifier.verticalScroll(rememberScrollState()) else Modifier),
+            verticalArrangement = Arrangement.spacedBy(gap)
+        ) {
+            rows.forEach { row ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (scroll) Modifier.height(minRow) else Modifier.weight(1f)),
+                    horizontalArrangement = Arrangement.spacedBy(gap)
+                ) {
+                    row.forEach { item -> HubTile(item, Modifier.weight(1f).fillMaxHeight()) }
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                }
             }
         }
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun HubTile(item: HubItem, modifier: Modifier = Modifier) {
+    // Card(onClick) keeps the ripple inside the rounded corners and announces a button.
     Card(
-        modifier = modifier
-            .clickable(onClick = item.onClick)
-            .testTag(item.testTag),
+        onClick = item.onClick,
+        modifier = modifier.testTag(item.testTag),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, item.tint.copy(alpha = 0.22f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp, pressedElevation = 3.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(40.dp).background(item.tint.copy(alpha = 0.13f), CircleShape),
-                contentAlignment = Alignment.Center
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            // Very low tiles drop the subtitle rather than cut the title in half.
+            val showSubtitle = maxHeight >= 60.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(item.icon, contentDescription = null, tint = item.tint, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    item.title,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.5.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 17.sp
-                )
-                Text(
-                    item.subtitle,
-                    fontSize = 10.5.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 14.sp
-                )
+                Box(
+                    modifier = Modifier.size(40.dp).background(item.tint.copy(alpha = 0.13f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(item.icon, contentDescription = null, tint = item.tint, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        item.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 18.sp
+                    )
+                    if (showSubtitle) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            item.subtitle,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
             }
         }
     }
@@ -158,7 +193,7 @@ fun CardSheet(title: String, onDismiss: () -> Unit, content: @Composable ColumnS
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         title,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).semantics { heading() },
                         fontWeight = FontWeight.Black,
                         fontSize = 17.sp,
                         color = MaterialTheme.colorScheme.onBackground

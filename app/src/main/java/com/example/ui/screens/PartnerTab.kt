@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import android.app.Activity
 import android.content.Intent
 import android.provider.ContactsContract
@@ -239,7 +242,7 @@ fun PartnerTab(
                         Text("اطلاع‌رسانی روزهای حساس", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         Text(
                             if (alertsOn) "در این روزها پیام آماده برایتان اعلان می‌شود" else "خاموش",
-                            fontSize = 10.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     IconButton(onClick = { showSettings = true }) {
@@ -443,14 +446,13 @@ private fun PartnerAlertSettingsDialog(
                 Text("در کدام روزها پیام برای همسر آماده شود؟", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 PartnerAlerts.Event.values().forEach { event ->
                     Row(
-                        Modifier.fillMaxWidth().clickable {
+                        Modifier.fillMaxWidth().toggleable(value = event in events, role = Role.Checkbox) {
                             events = if (event in events) events - event else events + event
                         },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Checkbox(checked = event in events, onCheckedChange = {
-                            events = if (it) events + event else events - event
-                        })
+                        // The whole row toggles (one TalkBack stop, full-width touch target).
+                        Checkbox(checked = event in events, onCheckedChange = null)
                         Text("${event.emoji} ${event.title}", fontSize = 13.sp)
                     }
                 }
@@ -467,10 +469,10 @@ private fun PartnerAlertSettingsDialog(
                 Text("لحن پیام", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 PartnerAlerts.Tone.values().forEach { option ->
                     Row(
-                        Modifier.fillMaxWidth().clickable { tone = option },
+                        Modifier.fillMaxWidth().selectable(selected = tone == option, role = Role.RadioButton) { tone = option },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RadioButton(selected = tone == option, onClick = { tone = option })
+                        RadioButton(selected = tone == option, onClick = null)
                         Text(option.title, fontSize = 13.sp)
                     }
                 }
@@ -480,7 +482,7 @@ private fun PartnerAlertSettingsDialog(
                 )
                 Text(
                     "اعلان در ساعت یادآورهای برنامه (تنظیمات) نمایش داده می‌شود.",
-                    fontSize = 10.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },

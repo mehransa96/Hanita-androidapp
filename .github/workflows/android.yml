@@ -72,3 +72,35 @@ jobs:
           name: test-reports
           path: app/build/reports/tests/
           if-no-files-found: ignore
+
+  # Renders every main screen (light/dark, 411dp and 360dp phones, large font) to PNGs so the
+  # mobile UI can be reviewed without a device. Informational: it never blocks a merge.
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Record screenshots
+        run: ./gradlew --stacktrace testDebugUnitTest -Pscreenshots -Proborazzi.test.record=true --tests com.example.ScreensScreenshotTest
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: app/build/outputs/roborazzi/
+          if-no-files-found: warn

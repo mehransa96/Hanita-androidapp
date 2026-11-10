@@ -230,29 +230,35 @@ class MainActivity : ComponentActivity() {
                         NavHost(
                             navController = navController,
                             startDestination = startDestination,
+                            // Material "shared axis X": a short slide plus a cross-fade feels quicker and
+                            // calmer than sliding the whole screen. Exit runs faster than enter.
                             enterTransition = {
                                 slideIntoContainer(
                                     AnimatedContentTransitionScope.SlideDirection.Start,
-                                    animationSpec = tween(400, easing = FastOutSlowInEasing)
-                                ) + fadeIn(animationSpec = tween(300))
+                                    animationSpec = com.example.ui.theme.HanitaMotion.enter(),
+                                    initialOffset = { it / 5 }
+                                ) + fadeIn(animationSpec = tween(com.example.ui.theme.HanitaMotion.ENTER_MS, delayMillis = 60))
                             },
                             exitTransition = {
                                 slideOutOfContainer(
                                     AnimatedContentTransitionScope.SlideDirection.Start,
-                                    animationSpec = tween(400, easing = FastOutSlowInEasing)
-                                ) + fadeOut(animationSpec = tween(300))
+                                    animationSpec = com.example.ui.theme.HanitaMotion.exit(),
+                                    targetOffset = { it / 5 }
+                                ) + fadeOut(animationSpec = tween(com.example.ui.theme.HanitaMotion.FADE_MS))
                             },
                             popEnterTransition = {
                                 slideIntoContainer(
                                     AnimatedContentTransitionScope.SlideDirection.End,
-                                    animationSpec = tween(400, easing = FastOutSlowInEasing)
-                                ) + fadeIn(animationSpec = tween(300))
+                                    animationSpec = com.example.ui.theme.HanitaMotion.enter(),
+                                    initialOffset = { it / 5 }
+                                ) + fadeIn(animationSpec = tween(com.example.ui.theme.HanitaMotion.ENTER_MS, delayMillis = 60))
                             },
                             popExitTransition = {
                                 slideOutOfContainer(
                                     AnimatedContentTransitionScope.SlideDirection.End,
-                                    animationSpec = tween(400, easing = FastOutSlowInEasing)
-                                ) + fadeOut(animationSpec = tween(300))
+                                    animationSpec = com.example.ui.theme.HanitaMotion.exit(),
+                                    targetOffset = { it / 5 }
+                                ) + fadeOut(animationSpec = tween(com.example.ui.theme.HanitaMotion.FADE_MS))
                             }
                         ) {
                             composable("login") {

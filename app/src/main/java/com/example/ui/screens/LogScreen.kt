@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import com.example.ui.theme.forTheme
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -190,6 +193,9 @@ fun LogScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                // Keep focused text fields above the keyboard (the app draws edge-to-edge).
+                .consumeWindowInsets(paddingValues)
+                .imePadding()
                 .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState())
         ) {
@@ -524,7 +530,7 @@ fun LogScreen(
                             .background(
                                 color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.Transparent
                             )
-                            .clickable {
+                            .selectable(selected = isSelected, role = Role.RadioButton) {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 selectedEmoji = emoji
                             },
@@ -945,7 +951,7 @@ fun FeaturedSymptomCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onToggle(!isSelected) },
+            .toggleable(value = isSelected, role = Role.Checkbox) { onToggle(!isSelected) },
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
         ),
@@ -1039,7 +1045,7 @@ fun SeveritySelectorChip(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .background(if (isSelected) color else color.copy(alpha = 0.12f))
-            .clickable(onClick = onClick)
+            .selectable(selected = isSelected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -1170,7 +1176,7 @@ private fun RemoveCustomIcon(label: String, onRemove: () -> Unit) {
         modifier = Modifier
             .size(18.dp)
             .clip(CircleShape)
-            .clickable(onClick = onRemove)
+            .clickable(role = Role.Button, onClick = onRemove)
     )
 }
 

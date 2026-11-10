@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -314,7 +316,7 @@ fun HormoneLevelsChartCard(
                             .clip(RoundedCornerShape(10.dp))
                             .background(chipBg)
                             .border(1.dp, borderCol, RoundedCornerShape(10.dp))
-                            .clickable {
+                            .toggleable(value = isSelected, role = Role.Checkbox) {
                                 selectedHormones = if (isSelected) {
                                     if (selectedHormones.size > 1) selectedHormones - hormone else selectedHormones
                                 } else {

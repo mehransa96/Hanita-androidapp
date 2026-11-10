@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import com.example.ui.theme.forTheme
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -437,7 +440,7 @@ fun VisualDailySymptomLogger(
                         ),
                         modifier = Modifier
                             .testTag("symptom_item_${symptom.id}")
-                            .clickable {
+                            .toggleable(value = isChecked, role = Role.Checkbox) {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 if (isChecked) {
                                     activeSymptoms.remove(symptom.name)
@@ -504,7 +507,7 @@ fun VisualDailySymptomLogger(
                                                     if (isSevSelected) activeColor else MaterialTheme.colorScheme.outlineVariant,
                                                     RoundedCornerShape(6.dp)
                                                 )
-                                                .clickable {
+                                                .selectable(selected = isSevSelected, role = Role.RadioButton) {
                                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                     activeSymptoms[symptom.name] = sevKey
                                                 }
@@ -556,7 +559,7 @@ fun VisualDailySymptomLogger(
                                 if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
                                 RoundedCornerShape(14.dp)
                             )
-                            .clickable {
+                            .selectable(selected = isSelected, role = Role.RadioButton) {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 selectedEmoji = if (isSelected) "" else emoji
                             }
@@ -624,16 +627,15 @@ fun VisualDailySymptomLogger(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 2.dp)
-                            .clickable {
+                            .toggleable(value = isTaken, role = Role.Checkbox) {
                                 onToggleMedication(med.id, !isTaken)
                             },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(
                             checked = isTaken,
-                            onCheckedChange = { checked ->
-                                onToggleMedication(med.id, checked)
-                            },
+                            // The whole row toggles (one TalkBack stop, full-width touch target).
+                            onCheckedChange = null,
                             colors = CheckboxDefaults.colors(checkedColor = SleekPrimary)
                         )
                         Spacer(modifier = Modifier.width(6.dp))

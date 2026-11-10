@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.semantics.Role
 import android.content.res.AssetFileDescriptor
 import android.media.MediaPlayer
 import androidx.compose.animation.*
@@ -370,7 +371,7 @@ fun MoodScreen(
                         elevation = CardDefaults.cardElevation(if (isThisPlaying) 4.dp else 1.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { togglePlayPause(track) }
+                            .clickable(role = Role.Button) { togglePlayPause(track) }
                             .testTag("music_track_${track.id}")
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -725,7 +726,7 @@ fun MoodScreen(
                                         .size(52.dp)
                                         .clip(CircleShape)
                                         .background(MaterialTheme.colorScheme.primary)
-                                        .clickable {
+                                        .clickable(role = Role.Button) {
                                             if (isPlaying) {
                                                 try {
                                                     if (mediaPlayer.isPlaying) mediaPlayer.pause()

@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.semantics.Role
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -378,7 +379,7 @@ fun DetailedCycleRecordCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .clickable { onEdit() },
+            .clickable(role = Role.Button) { onEdit() },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
