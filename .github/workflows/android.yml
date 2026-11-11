@@ -50,6 +50,7 @@ jobs:
       - name: Upload lint report and Room schemas
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: lint-and-schemas
           path: |
@@ -58,29 +59,35 @@ jobs:
             partner/build/reports/lint-results-debug.*
             app/schemas/
           if-no-files-found: ignore
+          retention-days: 3
 
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: hanita-apk
           path: |
             app/build/outputs/apk/debug/*.apk
             app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
+          retention-days: 14
 
       # "GentleMan": the companion app for partners.
       - name: Upload partner companion APK
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: hanita-partner-apk
           path: |
             partner/build/outputs/apk/debug/*.apk
             partner/build/outputs/apk/release/*.apk
           if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: test-reports
           path: |
@@ -88,6 +95,7 @@ jobs:
             core/build/reports/tests/
             partner/build/reports/tests/
           if-no-files-found: ignore
+          retention-days: 3
 
   # Renders every main screen (light/dark, 411dp and 360dp phones, large font) to PNGs so the
   # mobile UI can be reviewed without a device. Informational: it never blocks a merge.
@@ -116,7 +124,9 @@ jobs:
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: screenshots
           path: app/build/outputs/roborazzi/
           if-no-files-found: warn
+          retention-days: 3
