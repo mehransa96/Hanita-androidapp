@@ -29,7 +29,7 @@ firebaseBom = "34.12.0"
 googleServices = "4.4.2"
 vico = "1.15.0"
 workRuntimeKtx = "2.10.0"
-desugarJdkLibs = "2.0.4"
+desugarJdkLibs = "2.1.5"
 zxingCore = "3.5.3"
 zxingAndroidEmbedded = "4.3.0"
 
