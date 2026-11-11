@@ -98,7 +98,7 @@ class PartnerLinkTest {
     fun updatesAreFoundInsideMessagesAndLinks() {
         val pairing = PartnerLink.Pairing.create()
         val text = PartnerLink.updateText(pairing, card())
-        val message = "💌 به‌روزرسانی هانیتا:\n${PartnerLink.updateLink(text)}\nبا Gentleman باز کن."
+        val message = "💌 به‌روزرسانی هانیتا:\n${PartnerLink.updateLink(text)}\nبا GentleMan باز کن."
         val opened = PartnerLink.open(message, pairing, fromScan = false)
         assertTrue(opened is Opened.Update)
     }

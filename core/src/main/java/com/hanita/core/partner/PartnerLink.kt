@@ -25,7 +25,7 @@ import javax.crypto.spec.SecretKeySpec
  */
 object PartnerLink {
     /** The partner app's name, shown in both apps. */
-    const val PARTNER_APP_NAME = "Gentleman"
+    const val PARTNER_APP_NAME = "GentleMan"
     const val PREFIX = "HNP1"
     /** Links like `hanitapartner://u/HNP1.U....` open the partner app directly. */
     const val SCHEME = "hanitapartner"
