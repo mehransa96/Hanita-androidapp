@@ -24,6 +24,8 @@ import javax.crypto.spec.SecretKeySpec
  *  - sealed = 12-byte nonce || AES-GCM(card bytes), with "HNP1|<kind>|<pairId>" as associated data.
  */
 object PartnerLink {
+    /** The partner app's name, shown in both apps. */
+    const val PARTNER_APP_NAME = "Gentleman"
     const val PREFIX = "HNP1"
     /** Links like `hanitapartner://u/HNP1.U....` open the partner app directly. */
     const val SCHEME = "hanitapartner"

@@ -77,7 +77,7 @@ private sealed class CompanionScreen {
 }
 
 /**
- * Pairs Hanita with the partner app "همراه هانیتا" and sends it encrypted cycle cards.
+ * Pairs Hanita with the partner app "Gentleman" and sends it encrypted cycle cards.
  *
  * No server is involved: the first pairing is a QR code scanned face to face (it carries the
  * secret key), later updates are a QR code again or an encrypted text sent through any
@@ -121,7 +121,7 @@ fun PartnerCompanionDialog(
         screen = CompanionScreen.Qr(
             text = PartnerLink.pairingText(pairing, card),
             title = "QR اتصال",
-            hint = "در گوشی همسرت «همراه هانیتا» را باز کن، «اسکن QR» را بزن و این کد را اسکن کن. " +
+            hint = "در گوشی همسرت «Gentleman» را باز کن، «اسکن QR» را بزن و این کد را اسکن کن. " +
                 "این QR کلید رمز را دارد؛ فقط حضوری نشانش بده و از آن عکس نگیر یا برای کسی نفرست.",
             verificationCode = pairing.verificationCode()
         )
@@ -135,7 +135,7 @@ fun PartnerCompanionDialog(
         screen = CompanionScreen.Qr(
             text = PartnerLink.updateText(pairing, card),
             title = "QR به‌روزرسانی",
-            hint = "در «همراه هانیتا» گزینه «دریافت به‌روزرسانی» و سپس «اسکن QR» را بزن.",
+            hint = "در «Gentleman» گزینه «دریافت به‌روزرسانی» و سپس «اسکن QR» را بزن.",
             verificationCode = null
         )
     }
@@ -167,7 +167,7 @@ fun PartnerCompanionDialog(
                             fontWeight = FontWeight.Black, fontSize = 17.sp, color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            "«همراه هانیتا»: یادآور و راهنمای روزانه برای همسرت",
+                            "«Gentleman»: یادآور و راهنمای روزانه برای همسرت",
                             fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -207,7 +207,7 @@ fun PartnerCompanionDialog(
 
                             if (!paired) {
                                 Text(
-                                    "۱. «همراه هانیتا» را روی گوشی همسرت نصب کن.\n۲. دکمه زیر را بزن و QR را با گوشی او اسکن کن.",
+                                    "۱. «Gentleman» را روی گوشی همسرت نصب کن.\n۲. دکمه زیر را بزن و QR را با گوشی او اسکن کن.",
                                     fontSize = 12.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Button(
@@ -259,7 +259,7 @@ fun PartnerCompanionDialog(
                                     }
                                 }
                                 Text(
-                                    "متن ارسالی رمزنگاری شده است و فقط «همراه هانیتا» روی گوشی همسرت می‌تواند آن را باز کند.",
+                                    "متن ارسالی رمزنگاری شده است و فقط «Gentleman» روی گوشی همسرت می‌تواند آن را باز کند.",
                                     fontSize = 11.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -293,7 +293,7 @@ fun PartnerCompanionDialog(
     if (confirmDisconnect) {
         AlertDialog(
             onDismissRequest = { confirmDisconnect = false },
-            title = { Text("قطع اتصال با همراه هانیتا؟") },
+            title = { Text("قطع اتصال با Gentleman؟") },
             text = {
                 Text(
                     "کلید اتصال از این گوشی پاک می‌شود و دیگر هیچ به‌روزرسانی‌ای ساخته نمی‌شود. " +
@@ -312,7 +312,7 @@ fun PartnerCompanionDialog(
                         screen = CompanionScreen.Qr(
                             text = revokeText,
                             title = "QR قطع اتصال",
-                            hint = "این کد را در «همراه هانیتا» اسکن کن یا با دکمه زیر بفرست تا اطلاعات از گوشی همسرت هم پاک شود.",
+                            hint = "این کد را در «Gentleman» اسکن کن یا با دکمه زیر بفرست تا اطلاعات از گوشی همسرت هم پاک شود.",
                             verificationCode = null
                         )
                     }
@@ -326,8 +326,8 @@ fun PartnerCompanionDialog(
 
 /** The text sent through a messenger: a short explanation and the encrypted link. */
 private fun updateMessage(updateText: String): String =
-    "💌 به‌روزرسانی برای «همراه هانیتا»\n" +
-        "اگر لینک باز نشد، همین پیام را کپی کن و در همراه هانیتا «جای‌گذاری» را بزن.\n" +
+    "💌 به‌روزرسانی برای «Gentleman»\n" +
+        "اگر لینک باز نشد، همین پیام را کپی کن و در Gentleman «جای‌گذاری» را بزن.\n" +
         PartnerLink.updateLink(updateText)
 
 @Composable
@@ -340,7 +340,7 @@ private fun QrContent(screen: CompanionScreen.Qr, onBack: () -> Unit) {
         ) {
             Image(
                 bitmap = bitmap,
-                contentDescription = "کد QR برای اسکن با همراه هانیتا",
+                contentDescription = "کد QR برای اسکن با Gentleman",
                 modifier = Modifier.size(260.dp),
                 filterQuality = FilterQuality.None
             )

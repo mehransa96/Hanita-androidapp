@@ -169,7 +169,7 @@ fun PartnerTab(
                         Icon(Icons.Filled.Call, contentDescription = "تماس با همسر", tint = Rose)
                     }
                 }
-                // The partner app ("همراه هانیتا"): QR pairing and encrypted updates, no server.
+                // The partner app ("Gentleman"): QR pairing and encrypted updates, no server.
                 IconButton(onClick = { showCompanion = true }, modifier = Modifier.testTag("partner_companion_button")) {
                     Icon(Icons.Filled.QrCode2, contentDescription = "اتصال به اپ همراه همسر", tint = Rose)
                 }

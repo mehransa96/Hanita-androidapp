@@ -68,7 +68,7 @@ jobs:
             app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
 
-      # "همراه هانیتا": the companion app for partners.
+      # "Gentleman": the companion app for partners.
       - name: Upload partner companion APK
         uses: actions/upload-artifact@v4
         with:

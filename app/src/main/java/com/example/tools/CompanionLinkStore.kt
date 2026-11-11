@@ -8,7 +8,7 @@ import com.hanita.core.partner.PartnerLink
 import java.time.LocalDate
 
 /**
- * The link to the partner app ("همراه هانیتا"), stored only on this phone.
+ * The link to the partner app ("Gentleman"), stored only on this phone.
  *
  * Holds the shared key of the pairing and the owner's sharing choices. Nothing is sent
  * anywhere by the app itself: every update is shown as a QR code or handed to a messenger
