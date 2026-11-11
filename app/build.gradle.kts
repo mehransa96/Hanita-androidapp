@@ -84,6 +84,8 @@ ksp {
 
 dependencies {
   coreLibraryDesugaring(libs.desugar.jdk.libs)
+  // Cycle maths, Jalali dates and the encrypted link to the partner app ("همراه هانیتا").
+  implementation(project(":core"))
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
   implementation(libs.androidx.activity.compose)

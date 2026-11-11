@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -74,6 +75,7 @@ import androidx.compose.ui.unit.sp
 import com.example.domain.PartnerAlerts
 import com.example.tools.PartnerPrefs
 import com.example.tools.PartnerReminders
+import com.example.ui.components.PartnerCompanionDialog
 import com.example.ui.components.PartnerSyncDialog
 import com.example.ui.viewmodel.CycleInfo
 import com.example.ui.viewmodel.PredictionInfo
@@ -117,6 +119,7 @@ fun PartnerTab(
     var showEditor by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showGuide by remember { mutableStateOf(false) }
+    var showCompanion by remember { mutableStateOf(false) }
 
     val todayEvent = PartnerAlerts.eventForToday(
         cycleInfo.isPeriod, cycleInfo.isPms, cycleInfo.isFertile, cycleInfo.daysUntilNextPeriod, daysBefore
@@ -165,6 +168,10 @@ fun PartnerTab(
                     IconButton(onClick = { PartnerReminders.launch(context, PartnerReminders.dialIntent(normalizedPhone)) }) {
                         Icon(Icons.Filled.Call, contentDescription = "تماس با همسر", tint = Rose)
                     }
+                }
+                // The partner app ("GentleMan"): QR pairing and encrypted updates, no server.
+                IconButton(onClick = { showCompanion = true }, modifier = Modifier.testTag("partner_companion_button")) {
+                    Icon(Icons.Filled.QrCode2, contentDescription = "اتصال به اپ همراه همسر", tint = Rose)
                 }
                 IconButton(onClick = { showEditor = true }, modifier = Modifier.testTag("partner_edit_button")) {
                     Icon(Icons.Filled.Edit, contentDescription = "ویرایش اطلاعات همسر", tint = Rose)
@@ -324,6 +331,16 @@ fun PartnerTab(
                 showSettings = false
                 changed()
             }
+        )
+    }
+
+    if (showCompanion) {
+        PartnerCompanionDialog(
+            userName = userName,
+            lastPeriodStart = predictionInfo.lastPeriodStart,
+            cycleLength = predictionInfo.calculatedAverage,
+            periodLength = predictionInfo.averagePeriodLength,
+            onDismiss = { showCompanion = false }
         )
     }
 

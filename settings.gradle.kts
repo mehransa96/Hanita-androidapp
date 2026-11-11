@@ -25,3 +25,7 @@ dependencyResolutionManagement {
 rootProject.name = "Hanita"
 
 include(":app")
+// Shared, Android-free logic used by both apps: cycle maths, Jalali dates and the partner link.
+include(":core")
+// "همراه هانیتا": the light companion app for partners.
+include(":partner")

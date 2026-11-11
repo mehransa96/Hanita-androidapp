@@ -144,7 +144,7 @@ object BackupManager {
     suspend fun wipeAll(context: Context) = withContext(Dispatchers.IO) {
         AppDatabase.getDatabase(context).clearAllTables()
         // The medicine-alarm store is left in place so the reschedule below can cancel old alarms.
-        listOf(USER_PREFS, WellnessPrefs.NAME, PartnerPrefs.NAME, AppLockManager.NAME, "hanita_permissions")
+        listOf(USER_PREFS, WellnessPrefs.NAME, PartnerPrefs.NAME, CompanionLinkStore.NAME, AppLockManager.NAME, "hanita_permissions")
             .forEach { context.getSharedPreferences(it, Context.MODE_PRIVATE).edit().clear().commit() }
         LocalSnapshots.deleteAll(context)
         com.example.data.preferences.UserPreferencesManager(context).reload()
