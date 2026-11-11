@@ -40,7 +40,8 @@ jobs:
 
       - name: Print lint findings
         if: always()
-        run: cat app/build/reports/lint-results.txt || true
+        run: |
+          for m in app core partner; do echo "=== $m"; cat "$m/build/reports/lint-results.txt" || true; done
 
       - name: Print Room schema
         if: always()
@@ -53,6 +54,8 @@ jobs:
           name: lint-and-schemas
           path: |
             app/build/reports/lint-results-debug.*
+            core/build/reports/lint-results-debug.*
+            partner/build/reports/lint-results-debug.*
             app/schemas/
           if-no-files-found: ignore
 
@@ -65,12 +68,25 @@ jobs:
             app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
 
+      # "همراه هانیتا": the companion app for partners.
+      - name: Upload partner companion APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: hanita-partner-apk
+          path: |
+            partner/build/outputs/apk/debug/*.apk
+            partner/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
-          path: app/build/reports/tests/
+          path: |
+            app/build/reports/tests/
+            core/build/reports/tests/
+            partner/build/reports/tests/
           if-no-files-found: ignore
 
   # Renders every main screen (light/dark, 411dp and 360dp phones, large font) to PNGs so the

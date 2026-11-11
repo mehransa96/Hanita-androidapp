@@ -504,6 +504,7 @@ class MainActivity : ComponentActivity() {
         getSharedPreferences(com.example.data.preferences.WellnessPrefs.NAME, android.content.Context.MODE_PRIVATE).edit(commit = true) { clear() }
         getSharedPreferences(com.example.security.AppLockManager.NAME, android.content.Context.MODE_PRIVATE).edit(commit = true) { clear() }
         getSharedPreferences(com.example.tools.PartnerPrefs.NAME, android.content.Context.MODE_PRIVATE).edit(commit = true) { clear() }
+        getSharedPreferences(com.example.tools.CompanionLinkStore.NAME, android.content.Context.MODE_PRIVATE).edit(commit = true) { clear() }
         try {
             com.example.data.AppDatabase.closeAndForget()
             deleteDatabase("hanita_database")

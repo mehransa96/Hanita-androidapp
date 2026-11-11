@@ -49,7 +49,9 @@ jobs:
 
       - name: Name the APK after the tag
         if: steps.version.outputs.skip != 'true'
-        run: cp app/build/outputs/apk/debug/app-debug.apk "hanita-${{ steps.version.outputs.tag }}.apk"
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "hanita-${{ steps.version.outputs.tag }}.apk"
+          cp partner/build/outputs/apk/debug/partner-debug.apk "hanita-partner-${{ steps.version.outputs.tag }}.apk"
 
       - name: Publish GitHub release
         if: steps.version.outputs.skip != 'true'
@@ -59,4 +61,6 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Hanita ${{ steps.version.outputs.tag }}
           body_path: .github/release-notes/${{ steps.version.outputs.tag }}.md
-          files: hanita-${{ steps.version.outputs.tag }}.apk
+          files: |
+            hanita-${{ steps.version.outputs.tag }}.apk
+            hanita-partner-${{ steps.version.outputs.tag }}.apk
