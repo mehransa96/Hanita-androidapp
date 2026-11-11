@@ -111,7 +111,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Record screenshots
-        run: ./gradlew --stacktrace testDebugUnitTest -Pscreenshots -Proborazzi.test.record=true --tests com.example.ScreensScreenshotTest
+        run: ./gradlew --stacktrace :app:testDebugUnitTest -Pscreenshots -Proborazzi.test.record=true --tests com.example.ScreensScreenshotTest
 
       - name: Upload screenshots
         if: always()
