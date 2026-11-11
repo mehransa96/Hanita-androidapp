@@ -3,6 +3,8 @@ package com.hanita.partner
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Base64
+import com.hanita.core.gentleman.ImportantDate
+import com.hanita.core.gentleman.Status
 import com.hanita.core.partner.PartnerCard
 import com.hanita.core.partner.PartnerDay
 import com.hanita.core.partner.PartnerLink
@@ -31,7 +33,7 @@ class PartnerStore(context: Context) {
         /** Paired for the first time (or again); show the verification code. */
         class Paired(val code: String, val ownerName: String) : Result()
         class Updated(val ownerName: String) : Result()
-        /** The owner disconnected: everything was deleted. */
+        /** The owner disconnected: the link and her data were deleted. */
         object Disconnected : Result()
         /** This card is older than the one already here. */
         object Older : Result()
@@ -56,7 +58,7 @@ class PartnerStore(context: Context) {
                 val old = card
                 when {
                     opened.card.revoked -> {
-                        clearAll()
+                        clearLink()
                         Result.Disconnected
                     }
                     old != null && opened.card.issuedAtMillis < old.issuedAtMillis -> Result.Older
@@ -98,7 +100,7 @@ class PartnerStore(context: Context) {
         set(value) = prefs.edit().putInt(KEY_DAYS_BEFORE, value.coerceIn(1, 5)).apply()
 
     var dailyTip: Boolean
-        get() = prefs.getBoolean(KEY_DAILY_TIP, false)
+        get() = prefs.getBoolean(KEY_DAILY_TIP, true)
         set(value) = prefs.edit().putBoolean(KEY_DAILY_TIP, value).apply()
 
     /** Minutes after midnight for the daily reminder check (default 09:00). */
@@ -117,7 +119,42 @@ class PartnerStore(context: Context) {
                 .filter { it.isNotEmpty() }.take(MAX_MESSAGES).joinToString(SEPARATOR.toString())
         ).apply()
 
-    /** Deletes the pairing, the card and every setting. */
+    // ---- Profile ----
+
+    /** Single or married; null until the user chooses on the welcome screen. */
+    var status: Status?
+        get() = Status.fromCode(prefs.getString(KEY_STATUS, null))
+        set(value) = prefs.edit().putString(KEY_STATUS, value?.code).apply()
+
+    var userName: String
+        get() = prefs.getString(KEY_USER_NAME, "").orEmpty()
+        set(value) = prefs.edit().putString(KEY_USER_NAME, value.trim().take(30)).apply()
+
+    // ---- Important dates ----
+
+    var dates: List<ImportantDate>
+        get() = ImportantDate.decode(prefs.getString(KEY_DATES, null))
+        set(value) = prefs.edit().putString(KEY_DATES, ImportantDate.encode(value)).apply()
+
+    var dateReminders: Boolean
+        get() = prefs.getBoolean(KEY_DATE_REMINDERS, true)
+        set(value) = prefs.edit().putBoolean(KEY_DATE_REMINDERS, value).apply()
+
+    // ---- Daily challenge ----
+
+    /** Days (epoch days) on which the daily challenge was done; only the last 400 are kept. */
+    var doneDays: Set<Long>
+        get() = prefs.getStringSet(KEY_DONE_DAYS, null)?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+        set(value) = prefs.edit()
+            .putStringSet(KEY_DONE_DAYS, value.sortedDescending().take(400).map { it.toString() }.toSet())
+            .apply()
+
+    /** Removes only the link with Hanita (pairing and card); the profile and dates stay. */
+    fun clearLink() {
+        prefs.edit().remove(KEY_PAIR_ID).remove(KEY_KEY).remove(KEY_CARD).remove(KEY_RECEIVED_AT).apply()
+    }
+
+    /** Deletes everything: the link, the profile, the dates and every setting. */
     fun clearAll() {
         prefs.edit().clear().apply()
     }
@@ -137,5 +174,10 @@ class PartnerStore(context: Context) {
         private const val KEY_DAILY_TIP = "daily_tip"
         private const val KEY_TIME = "reminder_time"
         private const val KEY_MESSAGES = "custom_messages"
+        private const val KEY_STATUS = "status"
+        private const val KEY_USER_NAME = "user_name"
+        private const val KEY_DATES = "important_dates"
+        private const val KEY_DATE_REMINDERS = "date_reminders"
+        private const val KEY_DONE_DAYS = "done_days"
     }
 }

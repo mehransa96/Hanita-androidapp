@@ -13,6 +13,10 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.example.utils.PersianNumbers
+import com.hanita.core.gentleman.GentlemanGuide
+import com.hanita.core.gentleman.ImportantDate
+import com.hanita.core.gentleman.Status
 import com.hanita.core.partner.PartnerContent
 import com.hanita.core.partner.PartnerDay
 import java.time.LocalDate
@@ -22,7 +26,7 @@ import java.time.ZoneId
 
 /**
  * One daily alarm at the time the partner chose. When it fires, today's events are worked out
- * from the stored card and a discreet notification is shown. Inexact alarms need no special
+ * from the important dates and the stored card, and a discreet notification is shown. Inexact alarms need no special
  * permission and survive Doze (they may arrive a few minutes late).
  */
 object Reminders {
@@ -35,7 +39,7 @@ object Reminders {
         val alarm = context.getSystemService(AlarmManager::class.java) ?: return
         val pending = pendingIntent(context)
         alarm.cancel(pending)
-        if (!store.remindersEnabled || store.pairing == null) return
+        if (!store.remindersEnabled || store.status == null) return
         val minute = store.reminderMinuteOfDay
         val time = LocalTime.of(minute / 60, minute % 60)
         val now = LocalDateTime.now()
@@ -54,21 +58,40 @@ object Reminders {
 
     /** The text to show today, or null when there is nothing to remind. */
     fun textForToday(store: PartnerStore, today: LocalDate): String? {
-        val card = store.card ?: return null
-        val events = PartnerDay.eventsOn(card, today, store.reminderEvents, store.daysBeforePeriod)
-        if (events.isNotEmpty()) {
-            // Several events on one day: the most important one (period first).
-            val event = listOf(
-                PartnerDay.Event.PERIOD_START, PartnerDay.Event.PERIOD_SOON,
-                PartnerDay.Event.PMS_START, PartnerDay.Event.FERTILE_START
-            ).first { it in events }
-            return PartnerContent.notificationText(event, card.ownerName, store.daysBeforePeriod)
+        val lines = mutableListOf<String>()
+        if (store.dateReminders) {
+            ImportantDate.dueToday(store.dates, today).forEach { (date, left) -> lines += dateLine(date, left, today) }
         }
-        if (store.dailyTip && card.hasCycleData) {
-            val phase = PartnerDay.today(card, today)
-            return "💡 " + PartnerContent.dailyTipText(phase.phase, phase.fertile, today.dayOfYear)
+        val card = if (store.status == Status.MARRIED) store.card else null
+        if (card != null) {
+            val events = PartnerDay.eventsOn(card, today, store.reminderEvents, store.daysBeforePeriod)
+            if (events.isNotEmpty()) {
+                // Several events on one day: the most important one (period first).
+                val event = listOf(
+                    PartnerDay.Event.PERIOD_START, PartnerDay.Event.PERIOD_SOON,
+                    PartnerDay.Event.PMS_START, PartnerDay.Event.FERTILE_START
+                ).first { it in events }
+                lines += PartnerContent.notificationText(event, card.ownerName, store.daysBeforePeriod)
+            }
         }
-        return null
+        if (lines.isEmpty() && store.dailyTip) {
+            val status = store.status ?: return null
+            val (_, principle) = GentlemanGuide.principleOfDay(status, today)
+            lines += "💡 ${principle.title}: ${principle.text}"
+        }
+        return lines.takeIf { it.isNotEmpty() }?.joinToString("\n")
+    }
+
+    fun dateLine(date: ImportantDate, daysLeft: Int, today: LocalDate): String {
+        val emoji = when (date.kind) {
+            ImportantDate.Kind.BIRTHDAY -> "🎂"
+            ImportantDate.Kind.ANNIVERSARY -> "💍"
+            ImportantDate.Kind.OCCASION -> "🎉"
+            ImportantDate.Kind.OTHER -> "📌"
+        }
+        val years = date.yearsOnNext(today)?.let { " (${PersianNumbers.toPersianDigits(it)} سال)" }.orEmpty()
+        return if (daysLeft == 0) "$emoji امروز: ${date.title}$years"
+        else "$emoji ${PersianNumbers.toPersianDigits(daysLeft)} روز تا ${date.title}$years"
     }
 
     fun notify(context: Context, text: String) {
@@ -78,8 +101,8 @@ object Reminders {
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "یادآوری‌های همراه", NotificationManager.IMPORTANCE_DEFAULT)
-            channel.description = "یادآوری روزهای خاص و توصیه روزانه"
+            val channel = NotificationChannel(CHANNEL_ID, "یادآوری‌های GentleMan", NotificationManager.IMPORTANCE_DEFAULT)
+            channel.description = "تاریخ‌های مهم، روزهای خاص همسر و اصل روزانه"
             context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
         val open = PendingIntent.getActivity(
