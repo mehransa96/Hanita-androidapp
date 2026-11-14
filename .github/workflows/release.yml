@@ -99,12 +99,18 @@ jobs:
         if: steps.version.outputs.skip != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          # ATD = Google's slim "Automated Test Device" image built for CI: boots far faster
+          # and needs much less CPU/RAM than a full google_apis image on hosted runners.
+          api-level: 30
           arch: x86_64
-          target: google_apis
+          target: aosp_atd
+          channel: canary
+          force-avd-creation: false
           disable-animations: true
           disk-size: 2048M
           ram-size: 2048M
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
           script: .github/scripts/smoke-test.sh hanita-${{ steps.version.outputs.tag }}.apk com.aistudio.hanita.zxwpm gentleman-${{ steps.version.outputs.gentleman }}.apk com.hanita.partner
 
       - name: Publish GitHub release
