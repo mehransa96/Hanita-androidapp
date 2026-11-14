@@ -14,8 +14,8 @@ android {
     applicationId = "com.hanita.partner"
     minSdk = 24
     targetSdk = 36
-    versionCode = 2
-    versionName = "2.0.0"
+    versionCode = 3
+    versionName = "2.0.1"
   }
 
   // Release signing is configured only from environment variables, never from files in the repo.
