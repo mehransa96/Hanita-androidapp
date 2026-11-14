@@ -130,6 +130,9 @@ jobs:
             "$apksigner" sign --ks "$RUNNER_TEMP/ci.p12" --ks-pass pass:cismoke --out "$m-smoke.apk" "$in"
           done
 
+      - name: Free disk space for the emulator
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/.ghcup "$AGENT_TOOLSDIRECTORY/CodeQL" && df -h /
+
       - name: Enable KVM for the emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -142,6 +145,8 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
+          disk-size: 2048M
+          ram-size: 2048M
           script: .github/scripts/smoke-test.sh app-smoke.apk com.aistudio.hanita.zxwpm partner-smoke.apk com.hanita.partner
 
   # Renders every main screen (light/dark, 411dp and 360dp phones, large font) to PNGs so the

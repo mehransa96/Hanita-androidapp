@@ -85,6 +85,10 @@ jobs:
           done
           rm -f "$KEYSTORE_PATH"
 
+      - name: Free disk space for the emulator
+        if: steps.version.outputs.skip != 'true'
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/.ghcup "$AGENT_TOOLSDIRECTORY/CodeQL" && df -h /
+
       - name: Enable KVM for the emulator
         if: steps.version.outputs.skip != 'true'
         run: |
@@ -99,6 +103,8 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
+          disk-size: 2048M
+          ram-size: 2048M
           script: .github/scripts/smoke-test.sh hanita-${{ steps.version.outputs.tag }}.apk com.aistudio.hanita.zxwpm gentleman-${{ steps.version.outputs.gentleman }}.apk com.hanita.partner
 
       - name: Publish GitHub release
