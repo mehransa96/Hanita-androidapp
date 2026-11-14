@@ -2,6 +2,10 @@ name: Release APK
 
 # Publishes a release when release notes for the current versionName land on a branch.
 # The tag (v<versionName>) is created by the release step; an existing release is left alone.
+#
+# Both APKs are release builds signed with the permanent Hanita key, so every new release
+# installs over the previous one. The key lives in the repo only encrypted
+# (signing/hanita-release.p12.enc); the repository secret HANITA_SIGNING_PASSWORD unlocks it.
 on:
   push:
     branches: [ main, "claude/**" ]
@@ -14,7 +18,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -22,12 +26,31 @@ jobs:
         id: version
         env:
           GH_TOKEN: ${{ github.token }}
+          SIGNING_PASSWORD: ${{ secrets.HANITA_SIGNING_PASSWORD }}
         run: |
           v="v$(sed -n 's/.*versionName *= *"\(.*\)".*/\1/p' app/build.gradle.kts | head -1)"
           echo "tag=$v" >> "$GITHUB_OUTPUT"
           echo "gentleman=v$(sed -n 's/.*versionName *= *"\(.*\)".*/\1/p' partner/build.gradle.kts | head -1)" >> "$GITHUB_OUTPUT"
           test -f ".github/release-notes/$v.md" || { echo "No notes for $v"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
-          if gh release view "$v" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then echo "skip=true" >> "$GITHUB_OUTPUT"; fi
+          if gh release view "$v" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then echo "Release $v exists"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ -z "$SIGNING_PASSWORD" ]; then
+            echo "::warning::Secret HANITA_SIGNING_PASSWORD is not set, so $v was not published. Add it under Settings > Secrets and variables > Actions, then re-run this workflow."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Unlock the signing key
+        if: steps.version.outputs.skip != 'true'
+        env:
+          SIGNING_PASSWORD: ${{ secrets.HANITA_SIGNING_PASSWORD }}
+        run: |
+          ks="$RUNNER_TEMP/hanita-release.p12"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in signing/hanita-release.p12.enc -out "$ks" -pass env:SIGNING_PASSWORD
+          {
+            echo "KEYSTORE_PATH=$ks"
+            echo "STORE_PASSWORD=$SIGNING_PASSWORD"
+            echo "KEY_PASSWORD=$SIGNING_PASSWORD"
+            echo "KEY_ALIAS=hanita"
+          } >> "$GITHUB_ENV"
 
       - name: Set up JDK 21
         if: steps.version.outputs.skip != 'true'
@@ -44,15 +67,51 @@ jobs:
         if: steps.version.outputs.skip != 'true'
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build and test
+      - name: Test and build signed release APKs
         if: steps.version.outputs.skip != 'true'
-        run: ./gradlew --stacktrace assembleDebug testDebugUnitTest
+        run: ./gradlew --stacktrace testDebugUnitTest :app:assembleRelease :partner:assembleRelease
 
-      - name: Name the APK after the tag
+      - name: Check both APKs carry the permanent key
         if: steps.version.outputs.skip != 'true'
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk "hanita-${{ steps.version.outputs.tag }}.apk"
-          cp partner/build/outputs/apk/debug/partner-debug.apk "gentleman-${{ steps.version.outputs.gentleman }}.apk"
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          want="$(tr -d '[:space:]' < signing/cert-sha256.txt)"
+          cp app/build/outputs/apk/release/app-release.apk "hanita-${{ steps.version.outputs.tag }}.apk"
+          cp partner/build/outputs/apk/release/partner-release.apk "gentleman-${{ steps.version.outputs.gentleman }}.apk"
+          for apk in hanita-*.apk gentleman-*.apk; do
+            got="$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)"
+            echo "$apk: $got"
+            [ "$got" = "$want" ] || { echo "::error::$apk is not signed with the permanent key"; exit 1; }
+          done
+          rm -f "$KEYSTORE_PATH"
+
+      - name: Free disk space for the emulator
+        if: steps.version.outputs.skip != 'true'
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/.ghcup "$AGENT_TOOLSDIRECTORY/CodeQL" && df -h /
+
+      - name: Enable KVM for the emulator
+        if: steps.version.outputs.skip != 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+
+      - name: Launch both apps on an emulator
+        if: steps.version.outputs.skip != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          # ATD = Google's slim "Automated Test Device" image built for CI: boots far faster
+          # and needs much less CPU/RAM than a full google_apis image on hosted runners.
+          api-level: 30
+          arch: x86_64
+          target: aosp_atd
+          channel: canary
+          force-avd-creation: false
+          disable-animations: true
+          disk-size: 2048M
+          ram-size: 2048M
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot-save
+          script: .github/scripts/smoke-test.sh hanita-${{ steps.version.outputs.tag }}.apk com.aistudio.hanita.zxwpm gentleman-${{ steps.version.outputs.gentleman }}.apk com.hanita.partner
 
       - name: Publish GitHub release
         if: steps.version.outputs.skip != 'true'

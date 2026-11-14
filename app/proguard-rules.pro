@@ -34,3 +34,7 @@
     public static int d(...);
     public static int i(...);
 }
+
+# Keep class and member names: reflection (Moshi, Room, backups) keeps working in the
+# signed release build. The code is open source, so obfuscation adds nothing; shrinking stays on.
+-dontobfuscate
