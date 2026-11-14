@@ -65,7 +65,7 @@ jobs:
 
       - name: Set up Gradle
         if: steps.version.outputs.skip != 'true'
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Test and build signed release APKs
         if: steps.version.outputs.skip != 'true'
