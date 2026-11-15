@@ -1,6 +1,5 @@
 package com.hanita.partner.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -26,11 +25,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -54,6 +56,7 @@ import com.hanita.core.gentleman.Sources
 import com.hanita.core.gentleman.Toolkit
 import com.hanita.partner.data.GrowthRepository
 import com.hanita.partner.data.JournalEntity
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -71,6 +74,7 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
     // Chosen option per question as digits ("" = not started); saved across rotation.
     var answers by rememberSaveable(code) { mutableStateOf("") }
     var savedScore by rememberSaveable(code) { mutableStateOf(-1) }
+    var deleteId by rememberSaveable(code) { mutableStateOf(-1L) }
     val all by repo.assessments.collectAsState(initial = emptyList())
     val history = all.filter { it.kind == kind.code }
     val step = answers.length
@@ -174,7 +178,7 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
                                 )
                                 Text(PersianDates.short(dateOf(a.takenAt)), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            IconButton(onClick = { scope.launch { repo.deleteAssessment(a.id) } }) {
+                            IconButton(onClick = { deleteId = a.id }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "حذف نتیجه", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -184,6 +188,14 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
         }
         item(key = "src") { SourcesPanel(listOf(Sources.get(kind.sourceId)), "درباره این آزمون") }
         item { MutedText(Assessments.HELP_TEXT) }
+    }
+
+    if (deleteId >= 0) {
+        ConfirmDelete("این نتیجه حذف شود؟", "از سابقه و نمودار پیشرفتت هم پاک می‌شود.", onDismiss = { deleteId = -1L }) {
+            val id = deleteId
+            deleteId = -1L
+            scope.launch { repo.deleteAssessment(id) }
+        }
     }
 }
 
@@ -209,19 +221,25 @@ internal fun JournalScreen(padding: PaddingValues, repo: GrowthRepository, epoch
         }
     }
 
-    fun save(andBack: Boolean) {
-        scope.launch {
-            repo.saveJournal(JournalEntity(epochDay, mood, g1, g2, g3, note))
-            if (andBack) actions.back()
+    var deleted by remember { mutableStateOf(false) }
+    val page = JournalEntity(epochDay, mood, g1, g2, g3, note)
+    val latest by rememberUpdatedState(page)
+
+    // Everything is saved as you write (shortly after you stop typing) and again when the page
+    // closes, whether by back, a tab or the save button: nothing written is ever lost.
+    LaunchedEffect(page, loaded) {
+        if (loaded) {
+            delay(700)
+            if (!deleted) repo.saveJournal(page)
         }
     }
-
-    // Leaving the page keeps what was written.
-    BackHandler { save(andBack = true) }
+    DisposableEffect(Unit) {
+        onDispose { if (loaded && !deleted) repo.saveJournalInBackground(latest) }
+    }
 
     ScreenList(padding) {
         item {
-            Wordmark(if (day == today) "دفترچه امروز" else "دفترچه", onBack = { save(andBack = true) })
+            Wordmark(if (day == today) "دفترچه امروز" else "دفترچه", onBack = actions.back)
         }
         item { Text(PersianDates.long(day), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         if (loaded) {
@@ -283,12 +301,13 @@ internal fun JournalScreen(padding: PaddingValues, repo: GrowthRepository, epoch
             }
             item(key = "save") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { save(andBack = true) }, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.medium) {
+                    Button(onClick = actions.back, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.medium) {
                         Text("ذخیره", fontWeight = FontWeight.Bold)
                     }
                     OutlinedButton(onClick = { confirmDelete = true }, shape = MaterialTheme.shapes.medium) { Text("پاک کردن") }
                 }
             }
+            item { MutedText("نوشته‌ها خودکار ذخیره می‌شوند.") }
             item { SourcesPanel(listOf(Sources.get("seligman")), "چرا این تمرین؟") }
         }
     }
@@ -296,6 +315,7 @@ internal fun JournalScreen(padding: PaddingValues, repo: GrowthRepository, epoch
     if (confirmDelete) {
         ConfirmDelete("دفترچه این روز پاک شود؟", null, onDismiss = { confirmDelete = false }) {
             confirmDelete = false
+            deleted = true
             scope.launch {
                 repo.deleteJournal(epochDay)
                 actions.back()

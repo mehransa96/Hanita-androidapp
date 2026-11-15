@@ -14,7 +14,9 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
@@ -39,6 +41,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -59,6 +62,9 @@ import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import java.time.LocalDate
+
+/** What the content area shows: a tab, or the page [depth] levels above it. */
+private data class Shown(val tab: Tab, val route: String?, val depth: Int)
 
 /** A message that needs the user's attention after a scan or a received link. */
 private class Notice(val title: String, val text: String)
@@ -110,11 +116,14 @@ internal class AppActions(
     fun openPillar(id: String) = open(Routes.pillar(id))
 }
 
-/** The scrolling body every screen uses: edge-to-edge padding plus the screen's own items. */
+/**
+ * The scrolling body every screen uses: edge-to-edge padding plus the screen's own items. The
+ * list also shrinks above the keyboard, so a text field near the bottom is never hidden behind it.
+ */
 @Composable
 internal fun ScreenList(padding: PaddingValues, content: LazyListScope.() -> Unit) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().consumeWindowInsets(padding).imePadding(),
         contentPadding = PaddingValues(
             start = 16.dp, end = 16.dp,
             top = padding.calculateTopPadding() + 16.dp,
@@ -135,7 +144,23 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
     var version by remember { mutableIntStateOf(0) }
     val status = remember(version) { store.status }
     var tab by rememberSaveable { mutableStateOf(Tab.TODAY) }
-    var route by rememberSaveable { mutableStateOf<String?>(null) }
+    // Pages opened on top of the tab, newest last, joined by '|' so the stack survives rotation
+    // and process death. Back returns to the page underneath (for example source -> pillar).
+    var stackText by rememberSaveable { mutableStateOf("") }
+    val stack = if (stackText.isEmpty()) emptyList() else stackText.split('|')
+    val route = stack.lastOrNull()
+    // Keeps each tab's scroll position (and each open page's state) while the user moves around.
+    val saveable = rememberSaveableStateHolder()
+    fun stateKey(depth: Int, r: String) = "page$depth:$r"
+    fun screenKey(s: Shown) = if (s.route == null) "tab:${s.tab.name}" else stateKey(s.depth, s.route)
+    fun setStack(next: List<String>) {
+        // Forget the state of pages that were closed, so reopening one starts fresh.
+        stack.forEachIndexed { i, r -> if (next.getOrNull(i) != r) saveable.removeState(stateKey(i + 1, r)) }
+        stackText = next.joinToString("|")
+    }
+    fun openRoute(r: String) { if (route != r) setStack(stack + r) }
+    fun closeRoute() { setStack(stack.dropLast(1)) }
+    fun showTab(t: Tab) { tab = t; setStack(emptyList()) }
     var notice by remember { mutableStateOf<Notice?>(null) }
     var showAddMessage by remember { mutableStateOf(false) }
     // "Today" moves on when the app comes back after midnight.
@@ -168,8 +193,7 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
             is PartnerStore.Result.Paired -> {
                 // Pairing with Hanita means a married user.
                 store.status = Status.MARRIED
-                tab = Tab.PARTNER
-                route = null
+                showTab(Tab.PARTNER)
                 notice = Notice(
                     "وصل شدی ✓",
                     "کد تأیید: ${PersianNumbers.toPersianDigits(result.code)}\n" +
@@ -230,8 +254,7 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
             store.userName = name
             store.status = chosen
             store.dailyTip = dailyTip
-            tab = Tab.TODAY
-            route = null
+            showTab(Tab.TODAY)
             askForNotifications()
             changed()
         }
@@ -240,15 +263,15 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
         val current = if (tab in tabs) tab else Tab.TODAY
         val actions = AppActions(
             onChanged = ::changed,
-            openTab = { tab = it; route = null },
-            open = { route = it },
-            back = { route = null },
+            openTab = { showTab(it) },
+            open = { openRoute(it) },
+            back = { closeRoute() },
             scan = ::scan,
             paste = ::paste,
             askForNotifications = ::askForNotifications,
             addMessage = { showAddMessage = true }
         )
-        if (route != null) BackHandler { route = null }
+        if (route != null) BackHandler { closeRoute() }
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
@@ -256,10 +279,7 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
                     tabs.forEach { t ->
                         NavigationBarItem(
                             selected = current == t && route == null,
-                            onClick = {
-                                tab = t
-                                route = null
-                            },
+                            onClick = { showTab(t) },
                             icon = { Icon(t.icon, contentDescription = null) },
                             label = { Text(t.title, fontSize = 11.sp, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(
@@ -275,14 +295,19 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
             }
         ) { padding ->
             AnimatedContent(
-                targetState = current to route,
+                targetState = Shown(current, route, stack.size),
                 transitionSpec = {
-                    val deeper = targetState.second != null && initialState.second == null
+                    val deeper = targetState.depth > initialState.depth
                     (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { w -> if (deeper) -w / 12 else 0 })
                         .togetherWith(fadeOut(tween(120)))
                 },
+                // One key per screen, shared with its saved state, so a screen is never shown twice.
+                contentKey = { screenKey(it) },
                 label = "screen"
-            ) { (shownTab, shownRoute) ->
+            ) { shown ->
+                val shownTab = shown.tab
+                val shownRoute = shown.route
+                saveable.SaveableStateProvider(screenKey(shown)) {
                 if (shownRoute != null) {
                     RoutePage(
                         shownRoute, padding, store, repo, version, status, today, actions,
@@ -295,8 +320,7 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
                             scope.launch {
                                 repo.clearAll()
                                 store.clearAll()
-                                tab = Tab.TODAY
-                                route = null
+                                showTab(Tab.TODAY)
                                 changed()
                             }
                         }
@@ -309,6 +333,7 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
                         Tab.GROWTH -> GrowthScreen(padding, repo, status, today, actions)
                         Tab.TOOLS -> ToolsScreen(padding, status, actions)
                     }
+                }
                 }
             }
         }

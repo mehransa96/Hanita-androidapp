@@ -190,7 +190,7 @@ internal fun GrowthScreen(padding: PaddingValues, repo: GrowthRepository, status
             },
             onCustom = { title ->
                 addHabit = false
-                scope.launch { repo.addHabit(title) }
+                scope.launch { if (!repo.addHabit(title)) toast(context, "حداکثر ${PersianNumbers.toPersianDigits(Habits.MAX_HABITS)} عادت.") }
             }
         )
     }

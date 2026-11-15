@@ -6,9 +6,12 @@ import com.hanita.core.gentleman.Assessments
 import com.hanita.core.gentleman.Habits
 import com.hanita.core.gentleman.Status
 import com.hanita.partner.PartnerStore
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
@@ -16,6 +19,9 @@ import java.time.LocalDate
 class GrowthRepository private constructor(private val db: GentleDatabase, private val store: PartnerStore) {
 
     private val dao = db.growth()
+
+    /** Outlives any screen, for saves that must finish after the page that started them is gone. */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** Days to look back for streaks and the week strip (a year is plenty for the best streak). */
     private val logWindow = 400L
@@ -71,6 +77,11 @@ class GrowthRepository private constructor(private val db: GentleDatabase, priva
             updatedAt = System.currentTimeMillis()
         )
         if (clean.isBlankPage) dao.deleteJournal(clean.epochDay) else dao.upsertJournal(clean)
+    }
+
+    /** Saves a journal page even if the screen is leaving (tab switch, back, rotation). */
+    fun saveJournalInBackground(entry: JournalEntity) {
+        appScope.launch { saveJournal(entry) }
     }
 
     suspend fun setMood(day: LocalDate, mood: Int, current: JournalEntity?) =
@@ -143,5 +154,11 @@ class GrowthRepository private constructor(private val db: GentleDatabase, priva
             instance ?: synchronized(this) {
                 instance ?: GrowthRepository(GentleDatabase.get(context), PartnerStore(context)).also { instance = it }
             }
+
+        /** Tests only: forgets the repository and its database between tests. */
+        internal fun resetForTests() = synchronized(this) {
+            instance = null
+            GentleDatabase.resetForTests()
+        }
     }
 }

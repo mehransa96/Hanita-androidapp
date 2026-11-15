@@ -197,5 +197,11 @@ abstract class GentleDatabase : RoomDatabase() {
                     .build()
                     .also { instance = it }
             }
+
+        /** Tests only: closes the database so the next [get] opens a fresh one. */
+        internal fun resetForTests() = synchronized(this) {
+            instance?.close()
+            instance = null
+        }
     }
 }
