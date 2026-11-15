@@ -2,6 +2,7 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
+  alias(libs.plugins.roborazzi)
 }
 
 // "همراه هانیتا": a light companion app for the partner of a Hanita user.
@@ -15,8 +16,8 @@ android {
     applicationId = "com.hanita.partner"
     minSdk = 24
     targetSdk = 36
-    versionCode = 4
-    versionName = "3.0.0"
+    versionCode = 5
+    versionName = "3.1.0"
   }
 
   // Release signing is configured only from environment variables, never from files in the repo.
@@ -56,6 +57,7 @@ android {
   buildFeatures {
     compose = true
   }
+  testOptions { unitTests { isIncludeAndroidResources = true } }
   lint {
     textReport = true
     textOutput = file("build/reports/lint-results.txt")
@@ -89,4 +91,18 @@ dependencies {
   // Camera QR scanner that works without Google Play services.
   implementation(libs.zxing.android.embedded)
   testImplementation(libs.junit)
+  testImplementation(libs.robolectric)
+  testImplementation(libs.androidx.core)
+  testImplementation(platform(libs.androidx.compose.bom))
+  testImplementation(libs.androidx.compose.ui.test.junit4)
+  testImplementation(libs.roborazzi)
+  testImplementation(libs.roborazzi.compose)
+  testImplementation(libs.roborazzi.junit.rule)
+  debugImplementation(libs.androidx.compose.ui.test.manifest)
+}
+
+// Screenshots of every GentleMan screen need Robolectric native graphics, so they run on request:
+//   ./gradlew :partner:testDebugUnitTest -Pscreenshots -Proborazzi.test.record=true --tests com.hanita.partner.GentlemanScreenshotTest
+tasks.withType<Test>().configureEach {
+  if (!project.hasProperty("screenshots")) exclude("**/GentlemanScreenshotTest*")
 }

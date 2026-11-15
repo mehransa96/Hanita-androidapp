@@ -179,12 +179,18 @@ jobs:
       - name: Record screenshots
         run: ./gradlew --stacktrace :app:testDebugUnitTest -Pscreenshots -Proborazzi.test.record=true --tests com.example.ScreensScreenshotTest
 
+      - name: Record GentleMan screenshots
+        if: always()
+        run: ./gradlew --stacktrace :partner:testDebugUnitTest -Pscreenshots -Proborazzi.test.record=true --tests com.hanita.partner.GentlemanScreenshotTest
+
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
           name: screenshots
-          path: app/build/outputs/roborazzi/
+          path: |
+            app/build/outputs/roborazzi/
+            partner/build/outputs/roborazzi/
           if-no-files-found: warn
           retention-days: 3

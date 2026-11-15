@@ -66,6 +66,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.domain.CyclePredictor
@@ -164,8 +165,13 @@ internal fun Stat(value: String, label: String, modifier: Modifier = Modifier) {
             .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium)
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-        Text(label, fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Words (like a mood) get a smaller size than numbers so three stats fit a 360dp phone.
+        val isWord = value.any { it.isLetter() }
+        Text(
+            value, fontSize = if (isWord) 16.sp else 20.sp, fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
+        Text(label, fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -421,7 +427,9 @@ internal fun ScoreTrend(scores: List<Int>, max: Int, modifier: Modifier = Modifi
     val grid = MaterialTheme.colorScheme.outlineVariant
     Canvas(modifier.fillMaxWidth().height(64.dp).semantics { contentDescription = "روند امتیازها" }) {
         val stepX = size.width / (scores.size - 1)
-        fun y(v: Int) = size.height - (v.coerceIn(0, max).toFloat() / max) * size.height
+        // A small inset keeps the dots at 0 and at the maximum fully visible.
+        val inset = 5.dp.toPx()
+        fun y(v: Int) = size.height - inset - (v.coerceIn(0, max).toFloat() / max) * (size.height - 2 * inset)
         drawLine(grid, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), strokeWidth = 1.dp.toPx())
         val path = Path()
         // RTL: the newest point sits on the left end, like the rest of the layout reads.

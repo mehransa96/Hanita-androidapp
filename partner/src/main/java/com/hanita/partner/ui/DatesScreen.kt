@@ -68,6 +68,7 @@ internal fun DatesScreen(padding: PaddingValues, store: PartnerStore, version: I
     val today = LocalDate.now()
     val dates = ImportantDate.upcoming(store.dates, today)
     var draft by remember { mutableStateOf<Draft?>(null) }
+    var deleting by remember { mutableStateOf<ImportantDate?>(null) }
     val thisMonth = JalaliCalendar.gregorianToJalali(today).month
 
     fun save(list: List<ImportantDate>) {
@@ -112,7 +113,7 @@ internal fun DatesScreen(padding: PaddingValues, store: PartnerStore, version: I
                         }
                     ) {
                         DateRow(date, today) {
-                            IconButton(onClick = { save(store.dates.filter { it.id != date.id }) }) {
+                            IconButton(onClick = { deleting = date }) {
                                 Icon(
                                     Icons.Filled.Delete, contentDescription = "حذف ${date.title}",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp)
@@ -152,6 +153,13 @@ internal fun DatesScreen(padding: PaddingValues, store: PartnerStore, version: I
                         }
                 }
             }
+        }
+    }
+
+    deleting?.let { date ->
+        ConfirmDelete("«${date.title}» حذف شود؟", "یادآوری این تاریخ هم دیگر نمی‌آید.", onDismiss = { deleting = null }) {
+            deleting = null
+            save(store.dates.filter { it.id != date.id })
         }
     }
 
