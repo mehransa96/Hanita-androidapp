@@ -1,0 +1,87 @@
+package com.hanita.core.gentleman
+
+import java.time.LocalDate
+
+/**
+ * Suggested daily habits, each tied to a pillar and to the evidence behind it, plus the maths
+ * for streaks and completion rates. The user can also add habits of his own.
+ */
+object Habits {
+
+    data class Preset(
+        val id: String,
+        val title: String,
+        val pillarId: String,
+        /** One line on why, in the words of the source. */
+        val why: String,
+        val audience: GentlemanGuide.Audience = GentlemanGuide.Audience.ALL
+    ) {
+        fun fits(status: Status): Boolean = when (audience) {
+            GentlemanGuide.Audience.ALL -> true
+            GentlemanGuide.Audience.SINGLE -> status == Status.SINGLE
+            GentlemanGuide.Audience.MARRIED -> status == Status.MARRIED
+        }
+    }
+
+    val PRESETS: List<Preset> = listOf(
+        Preset("sleep7", "دست‌کم ۷ ساعت خواب", "health", "حداقل خواب توصیه‌شده برای بزرگسالان (AASM)."),
+        Preset("move30", "۳۰ دقیقه پیاده‌روی تند یا ورزش", "health", "پنج روز در هفته، همان ۱۵۰ دقیقه توصیه سازمان جهانی بهداشت است."),
+        Preset("veggies", "دست‌کم پنج وعده میوه و سبزی", "health", "توصیه سازمان جهانی بهداشت برای رژیم سالم."),
+        Preset("gratitude", "نوشتن سه اتفاق خوب امروز", "esteem", "در کارآزمایی Seligman، شادی را تا شش ماه بالا برد."),
+        Preset("breathe", "۵ دقیقه تنفس آرام", "calm", "پنج دقیقه تنفس با بازدم طولانی، خلق را بهتر و تنش را کم کرد (Balban, 2023)."),
+        Preset("read", "۲۰ دقیقه مطالعه", "mind", "یادگیری روزانه، پایه رشد فردی."),
+        Preset("deepwork", "۶۰ دقیقه کار عمیق بدون گوشی", "work", "بازه بی‌وقفه برای مهم‌ترین کار (Newport)."),
+        Preset("spending", "ثبت خرج‌های امروز", "money", "بدون دانستن خرج‌ها، بودجه‌ای در کار نیست."),
+        Preset("connect", "پیام یا تماس با یک دوست یا خانواده", "friends", "روابط اجتماعی قوی با سلامت و طول عمر بیشتر همراه است."),
+        Preset("skincare", "شست‌وشو و مرطوب‌کننده صبح و شب", "style", "روال ساده مراقبت پوست مردان (AAD)."),
+        Preset(
+            "partnertalk", "۲۰ دقیقه گفت‌وگوی بدون گوشی با همسر", "marriage",
+            "گفت‌وگوی روزانه درباره روزِ هم، از توصیه‌های گاتمن.", GentlemanGuide.Audience.MARRIED
+        ),
+        Preset(
+            "appreciate", "یک قدردانی مشخص از همسر", "marriage",
+            "تحسین و قدردانی، پادزهر تحقیر در رابطه است (گاتمن).", GentlemanGuide.Audience.MARRIED
+        ),
+        Preset(
+            "newperson", "یک گفت‌وگوی کوتاه با یک آدم تازه", "presence",
+            "تمرین تدریجی، اضطراب اجتماعی را کم و اعتمادبه‌نفس را بیشتر می‌کند.", GentlemanGuide.Audience.SINGLE
+        )
+    )
+
+    fun presetsFor(status: Status): List<Preset> = PRESETS.filter { it.fits(status) }
+
+    fun preset(id: String): Preset? = PRESETS.firstOrNull { it.id == id }
+
+    /** The habits a new user starts with, so the growth screen is never empty. */
+    fun starterIds(status: Status): List<String> =
+        if (status == Status.MARRIED) listOf("sleep7", "move30", "partnertalk") else listOf("sleep7", "move30", "gratitude")
+
+    /** Share of the last [days] days (including today) that were done, 0..100. */
+    fun completionPercent(done: Set<Long>, today: LocalDate, days: Int = 7): Int {
+        if (days <= 0) return 0
+        val end = today.toEpochDay()
+        val count = (0 until days).count { (end - it) in done }
+        return count * 100 / days
+    }
+
+    /** The longest run of consecutive done days ever. */
+    fun bestStreak(done: Set<Long>): Int {
+        var best = 0
+        for (day in done) {
+            if ((day - 1) in done) continue
+            var length = 1
+            while ((day + length) in done) length++
+            if (length > best) best = length
+        }
+        return best
+    }
+
+    /** Done/not-done for each of the last [days] days, oldest first (for the week strip). */
+    fun lastDays(done: Set<Long>, today: LocalDate, days: Int = 7): List<Boolean> {
+        val end = today.toEpochDay()
+        return (days - 1 downTo 0).map { (end - it) in done }
+    }
+
+    const val MAX_TITLE = 60
+    const val MAX_HABITS = 12
+}

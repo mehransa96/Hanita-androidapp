@@ -91,7 +91,7 @@ internal fun DatesScreen(padding: PaddingValues, store: PartnerStore, version: I
 
     ScreenList(padding) {
         item {
-            Wordmark("تاریخ‌های مهم") {
+            Wordmark("تاریخ‌های مهم", onBack = actions.back) {
                 IconButton(onClick = { draft = Draft(null, "", ImportantDate.Kind.BIRTHDAY, thisMonth, null, null, 1) }) {
                     Icon(Icons.Filled.Add, contentDescription = "افزودن تاریخ", tint = MaterialTheme.colorScheme.primary)
                 }

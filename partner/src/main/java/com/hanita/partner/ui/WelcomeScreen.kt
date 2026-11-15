@@ -57,7 +57,7 @@ internal fun WelcomeScreen(onDone: (name: String, status: Status, dailyTip: Bool
                     "هر روز، کمی جنتلمن‌تر.",
                     fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground
                 )
-                MutedText("اصل و چالش روزانه، راهنمای منش و ارتباط، یادآوری تاریخ‌های مهم و برای متاهل‌ها همراهی با همسر در روزهای حساس.")
+                MutedText("برنامه خودسازی مردانه بر پایه منابع علمی: عزت نفس، اعتمادبه‌نفس، منش و ارتباط، سلامت، کار و پول؛ با عادت‌ها، دفترچه روزانه، آزمون‌های خودشناسی و ابزارهای کاربردی. برای متاهل‌ها همسرداری و همراهی با همسر در روزهای حساس.")
             }
         }
         item {
@@ -77,12 +77,12 @@ internal fun WelcomeScreen(onDone: (name: String, status: Status, dailyTip: Bool
                 Label("وضعیتت")
                 StatusOption(
                     Icons.Filled.Person, "مجرد",
-                    "منش، آراستگی، آشنایی محترمانه و انتخاب آگاهانه همسر",
+                    "عزت نفس، منش، آشنایی محترمانه، انتخاب آگاهانه همسر و زندگی مستقل",
                     status == Status.SINGLE
                 ) { status = Status.SINGLE }
                 StatusOption(
                     Icons.Filled.Favorite, "متاهل",
-                    "همسرداری، مدیریت اختلاف و اتصال اختیاری به Hanita همسرت",
+                    "همسرداری، مدیریت اختلاف، پدری و اتصال اختیاری به Hanita همسرت",
                     status == Status.MARRIED
                 ) { status = Status.MARRIED }
                 MutedText("بعداً هم از تنظیمات قابل تغییر است.")

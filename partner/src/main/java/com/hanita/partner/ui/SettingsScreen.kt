@@ -66,7 +66,7 @@ internal fun SettingsScreen(
     val card = store.card
 
     ScreenList(padding) {
-        item { Wordmark("تنظیمات") }
+        item { Wordmark("تنظیمات", onBack = actions.back) }
 
         item {
             Panel {
@@ -205,7 +205,7 @@ internal fun SettingsScreen(
             Panel {
                 Label("حریم خصوصی")
                 MutedText(
-                    "$APP_NAME به اینترنت وصل نمی‌شود و حساب کاربری ندارد. پروفایل، تاریخ‌ها و پیشرفتت فقط روی همین گوشی است. " +
+                    "$APP_NAME به اینترنت وصل نمی‌شود و حساب کاربری ندارد. پروفایل، تاریخ‌ها، عادت‌ها، دفترچه، نتیجه آزمون‌ها و هدف‌هایت فقط در پایگاه داده خصوصی همین گوشی است و در پشتیبان‌گیری ابری اندروید هم نمی‌رود. " +
                         "اطلاعات همسر فقط با اجازه او و رمزنگاری‌شده با AES-256 از Hanita می‌رسد."
                 )
                 TextButton(onClick = { confirmReset = true }) {
@@ -232,7 +232,7 @@ internal fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { confirmReset = false },
             title = { Text("همه چیز پاک شود؟", fontWeight = FontWeight.Bold) },
-            text = { Text("پروفایل، تاریخ‌ها، پیشرفت، پیام‌ها و اتصال با Hanita پاک می‌شوند. این کار برگشت‌پذیر نیست.") },
+            text = { Text("پروفایل، تاریخ‌ها، عادت‌ها، دفترچه، آزمون‌ها، هدف‌ها، پیام‌ها و اتصال با Hanita پاک می‌شوند. این کار برگشت‌پذیر نیست.") },
             confirmButton = {
                 TextButton(onClick = { confirmReset = false; onResetAll() }) {
                     Text("پاک کن", color = MaterialTheme.colorScheme.error)
