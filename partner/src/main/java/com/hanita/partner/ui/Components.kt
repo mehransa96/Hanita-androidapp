@@ -8,6 +8,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +23,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Bolt
@@ -70,7 +74,13 @@ import com.hanita.core.partner.PartnerCard
 import com.hanita.core.partner.PartnerDay
 import com.hanita.core.partner.PartnerDay.Phase
 import com.hanita.core.partner.PartnerLink
+import com.hanita.core.gentleman.Sources
 import com.hanita.partner.PartnerStore
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 
 internal val APP_NAME = PartnerLink.PARTNER_APP_NAME
 
@@ -127,8 +137,14 @@ internal fun Label(text: String, color: Color = MaterialTheme.colorScheme.primar
 }
 
 @Composable
-internal fun Wordmark(subtitle: String, trailing: @Composable () -> Unit = {}) {
+internal fun Wordmark(subtitle: String, onBack: (() -> Unit)? = null, trailing: @Composable () -> Unit = {}) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        if (onBack != null) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "بازگشت")
+            }
+            Spacer(Modifier.width(4.dp))
+        }
         Column(Modifier.weight(1f)) {
             Text(
                 APP_NAME.uppercase(),
@@ -316,4 +332,113 @@ internal fun SwitchRow(title: String, checked: Boolean, subtitle: String? = null
 @Composable
 internal fun MutedText(text: String) {
     Text(text, fontSize = 12.5.sp, lineHeight = 21.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** Opens a web page in the phone's browser (this app itself never goes online). */
+internal fun openUrl(context: Context, url: String) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    } catch (e: ActivityNotFoundException) {
+        toast(context, "مرورگری برای باز کردن لینک پیدا نشد.")
+    }
+}
+
+/** A tappable row with an icon, a title, an optional subtitle and a chevron. */
+@Composable
+internal fun Tile(icon: ImageVector, title: String, subtitle: String? = null, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconTile(icon, size = 40)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            if (subtitle != null) Text(subtitle, fontSize = 12.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** "Based on" list under a pillar, test or tool; entries with a link open in the browser. */
+@Composable
+internal fun SourcesPanel(sources: List<Sources.Source>, title: String = "منابع") {
+    if (sources.isEmpty()) return
+    val context = LocalContext.current
+    Panel {
+        Label(title, color = MaterialTheme.colorScheme.secondary)
+        sources.forEach { source -> SourceRow(source) { url -> openUrl(context, url) } }
+    }
+}
+
+@Composable
+internal fun SourceRow(source: Sources.Source, onOpen: (String) -> Unit) {
+    val url = source.url
+    Row(
+        Modifier.fillMaxWidth().then(
+            if (url != null) Modifier.clickable(role = Role.Button) { onOpen(url) } else Modifier
+        ),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(Modifier.padding(top = 4.dp).width(3.dp).height(36.dp).background(MaterialTheme.colorScheme.secondary, CircleShape))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(source.author, fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+            Text(source.title, fontSize = 12.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(source.note, fontSize = 12.5.sp, lineHeight = 20.sp)
+        }
+        if (url != null) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "باز کردن منبع",
+                tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(start = 6.dp).size(18.dp)
+            )
+        }
+    }
+}
+
+/** Seven small squares, oldest on the right (RTL), filled where the habit was done. */
+@Composable
+internal fun WeekStrip(days: List<Boolean>) {
+    val on = MaterialTheme.colorScheme.primary
+    val off = MaterialTheme.colorScheme.surfaceVariant
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.semantics {
+            contentDescription = "${PersianNumbers.toPersianDigits(days.count { it })} روز از ${PersianNumbers.toPersianDigits(days.size)} روز اخیر"
+        }
+    ) {
+        days.forEach { done -> Box(Modifier.size(12.dp).background(if (done) on else off, MaterialTheme.shapes.extraSmall)) }
+    }
+}
+
+/** A small line chart of scores (oldest first) on a 0..[max] axis. */
+@Composable
+internal fun ScoreTrend(scores: List<Int>, max: Int, modifier: Modifier = Modifier) {
+    if (scores.size < 2) return
+    val line = MaterialTheme.colorScheme.primary
+    val grid = MaterialTheme.colorScheme.outlineVariant
+    Canvas(modifier.fillMaxWidth().height(64.dp).semantics { contentDescription = "روند امتیازها" }) {
+        val stepX = size.width / (scores.size - 1)
+        fun y(v: Int) = size.height - (v.coerceIn(0, max).toFloat() / max) * size.height
+        drawLine(grid, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), strokeWidth = 1.dp.toPx())
+        val path = Path()
+        // RTL: the newest point sits on the left end, like the rest of the layout reads.
+        scores.forEachIndexed { i, v ->
+            val x = size.width - i * stepX
+            if (i == 0) path.moveTo(x, y(v)) else path.lineTo(x, y(v))
+        }
+        drawPath(path, line, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
+        scores.forEachIndexed { i, v -> drawCircle(line, 3.5.dp.toPx(), Offset(size.width - i * stepX, y(v))) }
+    }
+}
+
+/** A thin progress bar for 0..100. */
+@Composable
+internal fun Meter(percent: Int, color: Color = MaterialTheme.colorScheme.primary) {
+    val track = MaterialTheme.colorScheme.surfaceVariant
+    Box(Modifier.fillMaxWidth().height(6.dp).background(track, CircleShape)) {
+        Box(Modifier.fillMaxWidth(percent.coerceIn(0, 100) / 100f).fillMaxHeight().background(color, CircleShape))
+    }
 }

@@ -3,19 +3,26 @@ package com.hanita.partner.ui
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.TipsAndUpdates
 import androidx.compose.material.icons.filled.Today
-import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,12 +48,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.example.utils.PersianNumbers
 import com.hanita.core.gentleman.Status
 import com.hanita.partner.PartnerStore
 import com.hanita.partner.Reminders
+import com.hanita.partner.data.GrowthRepository
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import java.time.LocalDate
 
 /** A message that needs the user's attention after a scan or a received link. */
 private class Notice(val title: String, val text: String)
@@ -55,8 +67,8 @@ internal enum class Tab(val title: String, val icon: ImageVector) {
     TODAY("امروز", Icons.Filled.Today),
     PARTNER("همسر", Icons.Filled.FavoriteBorder),
     PATH("مسیر", Icons.Filled.Explore),
-    DATES("تاریخ‌ها", Icons.Filled.Event),
-    SETTINGS("تنظیمات", Icons.Filled.Tune);
+    GROWTH("رشد", Icons.AutoMirrored.Filled.TrendingUp),
+    TOOLS("ابزار", Icons.Filled.TipsAndUpdates);
 
     companion object {
         fun forStatus(status: Status): List<Tab> =
@@ -64,16 +76,39 @@ internal enum class Tab(val title: String, val icon: ImageVector) {
     }
 }
 
+/**
+ * Pages opened on top of a tab (with a back arrow), kept as plain strings so they survive
+ * rotation: "settings", "dates", "sources", "pillar/<id>", "assess/<code>", "journal/<epochDay>",
+ * "breath/<id>", "budget", "apology", "soft", "questions", "check/<id>".
+ */
+internal object Routes {
+    const val SETTINGS = "settings"
+    const val DATES = "dates"
+    const val SOURCES = "sources"
+    const val BUDGET = "budget"
+    const val APOLOGY = "apology"
+    const val SOFT = "soft"
+    const val QUESTIONS = "questions"
+    fun pillar(id: String) = "pillar/$id"
+    fun assess(code: String) = "assess/$code"
+    fun journal(epochDay: Long) = "journal/$epochDay"
+    fun breath(id: String) = "breath/$id"
+    fun check(id: String) = "check/$id"
+}
+
 /** Callbacks the screens share. */
 internal class AppActions(
     val onChanged: () -> Unit,
     val openTab: (Tab) -> Unit,
-    val openPillar: (String) -> Unit,
+    val open: (String) -> Unit,
+    val back: () -> Unit,
     val scan: () -> Unit,
     val paste: () -> Unit,
     val askForNotifications: () -> Unit,
     val addMessage: () -> Unit
-)
+) {
+    fun openPillar(id: String) = open(Routes.pillar(id))
+}
 
 /** The scrolling body every screen uses: edge-to-edge padding plus the screen's own items. */
 @Composable
@@ -94,13 +129,24 @@ internal fun ScreenList(padding: PaddingValues, content: LazyListScope.() -> Uni
 fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
     val store = remember { PartnerStore(context) }
+    val repo = remember { GrowthRepository.get(context) }
     var version by remember { mutableIntStateOf(0) }
     val status = remember(version) { store.status }
     var tab by rememberSaveable { mutableStateOf(Tab.TODAY) }
-    var pillarId by rememberSaveable { mutableStateOf<String?>(null) }
+    var route by rememberSaveable { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<Notice?>(null) }
     var showAddMessage by remember { mutableStateOf(false) }
+    // "Today" moves on when the app comes back after midnight.
+    var today by remember { mutableStateOf(LocalDate.now()) }
+    LifecycleResumeEffect(Unit) {
+        val now = LocalDate.now()
+        if (now != today) today = now
+        onPauseOrDispose { }
+    }
+
+    LaunchedEffect(status) { repo.prepare(status) }
 
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     fun askForNotifications() {
@@ -123,6 +169,7 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
                 // Pairing with Hanita means a married user.
                 store.status = Status.MARRIED
                 tab = Tab.PARTNER
+                route = null
                 notice = Notice(
                     "وصل شدی ✓",
                     "کد تأیید: ${PersianNumbers.toPersianDigits(result.code)}\n" +
@@ -133,7 +180,7 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
             is PartnerStore.Result.Updated -> toast(context, "اطلاعات همسرت به‌روز شد")
             PartnerStore.Result.Disconnected -> notice = Notice(
                 "اتصال قطع شد",
-                "همسرت اتصال با Hanita را قطع کرد و اطلاعات او از این گوشی پاک شد. تاریخ‌ها و تنظیمات خودت سر جایشان هستند."
+                "همسرت اتصال با Hanita را قطع کرد و اطلاعات او از این گوشی پاک شد. تاریخ‌ها، پیشرفت و تنظیمات خودت سر جایشان هستند."
             )
             PartnerStore.Result.Older -> toast(context, "این به‌روزرسانی از اطلاعات فعلی قدیمی‌تر است.")
             PartnerStore.Result.PairingNeedsScan -> notice = Notice(
@@ -184,6 +231,7 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
             store.status = chosen
             store.dailyTip = dailyTip
             tab = Tab.TODAY
+            route = null
             askForNotifications()
             changed()
         }
@@ -192,23 +240,25 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
         val current = if (tab in tabs) tab else Tab.TODAY
         val actions = AppActions(
             onChanged = ::changed,
-            openTab = { tab = it },
-            openPillar = { pillarId = it; tab = Tab.PATH },
+            openTab = { tab = it; route = null },
+            open = { route = it },
+            back = { route = null },
             scan = ::scan,
             paste = ::paste,
             askForNotifications = ::askForNotifications,
             addMessage = { showAddMessage = true }
         )
+        if (route != null) BackHandler { route = null }
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
                     tabs.forEach { t ->
                         NavigationBarItem(
-                            selected = current == t,
+                            selected = current == t && route == null,
                             onClick = {
-                                if (t == Tab.PATH && current == Tab.PATH) pillarId = null
                                 tab = t
+                                route = null
                             },
                             icon = { Icon(t.icon, contentDescription = null) },
                             label = { Text(t.title, fontSize = 11.sp, maxLines = 1) },
@@ -224,25 +274,42 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
                 }
             }
         ) { padding ->
-            when (current) {
-                Tab.TODAY -> TodayScreen(padding, store, version, status, actions)
-                Tab.PARTNER -> PartnerScreen(padding, store, version, actions)
-                Tab.PATH -> PathScreen(padding, status, pillarId, onOpen = { pillarId = it }, onBack = { pillarId = null })
-                Tab.DATES -> DatesScreen(padding, store, version, status, actions)
-                Tab.SETTINGS -> SettingsScreen(
-                    padding, store, version, status, actions,
-                    onUnlink = {
-                        store.clearLink()
-                        changed()
-                        toast(context, "اتصال با Hanita قطع شد و اطلاعات همسرت پاک شد.")
-                    },
-                    onResetAll = {
-                        store.clearAll()
-                        tab = Tab.TODAY
-                        pillarId = null
-                        changed()
+            AnimatedContent(
+                targetState = current to route,
+                transitionSpec = {
+                    val deeper = targetState.second != null && initialState.second == null
+                    (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { w -> if (deeper) -w / 12 else 0 })
+                        .togetherWith(fadeOut(tween(120)))
+                },
+                label = "screen"
+            ) { (shownTab, shownRoute) ->
+                if (shownRoute != null) {
+                    RoutePage(
+                        shownRoute, padding, store, repo, version, status, today, actions,
+                        onUnlink = {
+                            store.clearLink()
+                            changed()
+                            toast(context, "اتصال با Hanita قطع شد و اطلاعات همسرت پاک شد.")
+                        },
+                        onResetAll = {
+                            scope.launch {
+                                repo.clearAll()
+                                store.clearAll()
+                                tab = Tab.TODAY
+                                route = null
+                                changed()
+                            }
+                        }
+                    )
+                } else {
+                    when (shownTab) {
+                        Tab.TODAY -> TodayScreen(padding, store, repo, version, status, today, actions)
+                        Tab.PARTNER -> PartnerScreen(padding, store, version, actions)
+                        Tab.PATH -> PathScreen(padding, status, actions)
+                        Tab.GROWTH -> GrowthScreen(padding, repo, status, today, actions)
+                        Tab.TOOLS -> ToolsScreen(padding, status, actions)
                     }
-                )
+                }
             }
         }
     }
@@ -265,5 +332,37 @@ fun PartnerApp(incomingText: String?, onIncomingHandled: () -> Unit) {
                 changed()
             }
         )
+    }
+}
+
+/** Shows the page a route names; unknown or no-longer-valid routes fall back to nothing. */
+@Composable
+private fun RoutePage(
+    route: String,
+    padding: PaddingValues,
+    store: PartnerStore,
+    repo: GrowthRepository,
+    version: Int,
+    status: Status,
+    today: LocalDate,
+    actions: AppActions,
+    onUnlink: () -> Unit,
+    onResetAll: () -> Unit
+) {
+    val arg = route.substringAfter('/', "")
+    when {
+        route == Routes.SETTINGS -> SettingsScreen(padding, store, version, status, actions, onUnlink, onResetAll)
+        route == Routes.DATES -> DatesScreen(padding, store, version, status, actions)
+        route == Routes.SOURCES -> SourcesScreen(padding, actions)
+        route == Routes.BUDGET -> BudgetScreen(padding, actions)
+        route == Routes.APOLOGY -> ApologyScreen(padding, actions)
+        route == Routes.SOFT -> SoftStartScreen(padding, actions)
+        route == Routes.QUESTIONS -> QuestionsScreen(padding, status, actions)
+        route.startsWith("pillar/") -> PillarScreen(padding, status, arg, actions)
+        route.startsWith("assess/") -> AssessmentScreen(padding, repo, arg, actions)
+        route.startsWith("journal/") -> JournalScreen(padding, repo, arg.toLongOrNull() ?: today.toEpochDay(), today, actions)
+        route.startsWith("breath/") -> BreathingScreen(padding, arg, actions)
+        route.startsWith("check/") -> ChecklistScreen(padding, arg, actions)
+        else -> LaunchedEffect(route) { actions.back() }
     }
 }

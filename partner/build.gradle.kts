@@ -1,6 +1,7 @@
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.google.devtools.ksp)
 }
 
 // "همراه هانیتا": a light companion app for the partner of a Hanita user.
@@ -14,8 +15,8 @@ android {
     applicationId = "com.hanita.partner"
     minSdk = 24
     targetSdk = 36
-    versionCode = 3
-    versionName = "2.0.1"
+    versionCode = 4
+    versionName = "3.0.0"
   }
 
   // Release signing is configured only from environment variables, never from files in the repo.
@@ -62,6 +63,11 @@ android {
   }
 }
 
+ksp {
+  // The schema of every database version is kept in git so future migrations can be verified.
+  arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
   coreLibraryDesugaring(libs.desugar.jdk.libs)
   implementation(project(":core"))
@@ -74,6 +80,12 @@ dependencies {
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
+  implementation(libs.androidx.lifecycle.runtime.compose)
+  // Local database for habits, journal, self-checks and goals (never leaves the phone).
+  implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.room.ktx)
+  "ksp"(libs.androidx.room.compiler)
+  implementation(libs.kotlinx.coroutines.android)
   // Camera QR scanner that works without Google Play services.
   implementation(libs.zxing.android.embedded)
   testImplementation(libs.junit)

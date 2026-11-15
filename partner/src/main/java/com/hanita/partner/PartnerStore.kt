@@ -140,21 +140,27 @@ class PartnerStore(context: Context) {
         get() = prefs.getBoolean(KEY_DATE_REMINDERS, true)
         set(value) = prefs.edit().putBoolean(KEY_DATE_REMINDERS, value).apply()
 
-    // ---- Daily challenge ----
+    // ---- Data from version 2 ----
 
-    /** Days (epoch days) on which the daily challenge was done; only the last 400 are kept. */
-    var doneDays: Set<Long>
+    /** Challenge days kept here by GentleMan 2.x; moved into the database on first start. */
+    val legacyDoneDays: Set<Long>
         get() = prefs.getStringSet(KEY_DONE_DAYS, null)?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
-        set(value) = prefs.edit()
-            .putStringSet(KEY_DONE_DAYS, value.sortedDescending().take(400).map { it.toString() }.toSet())
-            .apply()
+
+    fun clearLegacyDoneDays() {
+        prefs.edit().remove(KEY_DONE_DAYS).apply()
+    }
+
+    /** Whether the starter habits were offered once (so deleting them all does not bring them back). */
+    var starterHabitsAdded: Boolean
+        get() = prefs.getBoolean(KEY_STARTER_HABITS, false)
+        set(value) = prefs.edit().putBoolean(KEY_STARTER_HABITS, value).apply()
 
     /** Removes only the link with Hanita (pairing and card); the profile and dates stay. */
     fun clearLink() {
         prefs.edit().remove(KEY_PAIR_ID).remove(KEY_KEY).remove(KEY_CARD).remove(KEY_RECEIVED_AT).apply()
     }
 
-    /** Deletes everything: the link, the profile, the dates and every setting. */
+    /** Deletes every setting here: the link, the profile and the dates (the database is cleared separately). */
     fun clearAll() {
         prefs.edit().clear().apply()
     }
@@ -179,5 +185,6 @@ class PartnerStore(context: Context) {
         private const val KEY_DATES = "important_dates"
         private const val KEY_DATE_REMINDERS = "date_reminders"
         private const val KEY_DONE_DAYS = "done_days"
+        private const val KEY_STARTER_HABITS = "starter_habits"
     }
 }
