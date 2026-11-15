@@ -22,6 +22,16 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.Air
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -145,11 +155,21 @@ internal fun GrowthScreen(padding: PaddingValues, repo: GrowthRepository, status
         // ---- Self-checks ----
         item(key = "assess") {
             Panel {
-                Label("آزمون‌های خودشناسی")
-                MutedText("هر یک تا دو ماه تکرارشان کن تا تغییرت را ببینی. نتیجه فقط برای خودشناسی است، نه تشخیص.")
-                Assessments.Kind.values().forEachIndexed { i, kind ->
-                    if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    AssessmentRow(kind, assessments.filter { it.kind == kind.code }) { actions.open(Routes.assess(kind.code)) }
+                Label("آزمون‌های معتبر خودشناسی")
+                MutedText("هر یک تا دو ماه تکرارشان کن تا تغییرت را ببینی. همه آزمون‌ها ابزار علمی منتشرشده‌اند و نتیجه فقط برای خودشناسی است، نه تشخیص.")
+                val kinds = Assessments.Kind.forStatus(status)
+                Assessments.Group.values().forEach { group ->
+                    val inGroup = kinds.filter { it.group == group }
+                    if (inGroup.isNotEmpty()) {
+                        Column(Modifier.padding(top = 6.dp)) {
+                            Text(group.title, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(group.subtitle, fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        inGroup.forEachIndexed { i, kind ->
+                            if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            AssessmentRow(kind, assessments.filter { it.kind == kind.code }) { actions.open(Routes.assess(kind.code)) }
+                        }
+                    }
                 }
             }
         }
@@ -260,27 +280,45 @@ private fun JournalRow(entry: JournalEntity, onClick: () -> Unit) {
     }
 }
 
+internal fun assessmentIcon(kind: Assessments.Kind): ImageVector = when (kind) {
+    Assessments.Kind.WELL_BEING -> Icons.Filled.Insights
+    Assessments.Kind.DEPRESSION -> Icons.Filled.Psychology
+    Assessments.Kind.ANXIETY -> Icons.Filled.Air
+    Assessments.Kind.STRESS -> Icons.Filled.MonitorHeart
+    Assessments.Kind.SELF_ESTEEM -> Icons.Filled.HealthAndSafety
+    Assessments.Kind.PERSONALITY -> Icons.Filled.Face
+    Assessments.Kind.RESILIENCE -> Icons.Filled.Bolt
+    Assessments.Kind.SELF_EFFICACY -> Icons.Filled.EmojiEvents
+    Assessments.Kind.LIFE_SATISFACTION -> Icons.Filled.AutoAwesome
+    Assessments.Kind.LONELINESS -> Icons.Filled.People
+    Assessments.Kind.RELATIONSHIP -> Icons.Filled.Favorite
+}
+
 @Composable
 private fun AssessmentRow(kind: Assessments.Kind, history: List<AssessmentEntity>, onStart: () -> Unit) {
     val last = history.firstOrNull()
-    val max = Assessments.scale(kind).maxScore
+    val scale = Assessments.scale(kind)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconTile(if (kind == Assessments.Kind.SELF_ESTEEM) Icons.Filled.HealthAndSafety else Icons.Filled.Insights, size = 40)
+        IconTile(assessmentIcon(kind), size = 40)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(kind.title, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text(kind.subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "${kind.subtitle} · ${PersianNumbers.toPersianDigits(kind.minutes)} دقیقه",
+                fontSize = 12.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             if (last != null) {
-                val result = Assessments.interpret(kind, last.score)
                 Text(
-                    "آخرین: ${PersianNumbers.toPersianDigits(last.score)} از ${PersianNumbers.toPersianDigits(max)} · ${result.title} · ${PersianDates.short(dateOf(last.takenAt))}",
-                    fontSize = 11.5.sp, color = MaterialTheme.colorScheme.primary
+                    "آخرین: ${historyLine(kind, last.score, last.answers)} · ${PersianDates.short(dateOf(last.takenAt))}",
+                    fontSize = 11.5.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.primary
                 )
             }
         }
         OutlinedButton(onClick = onStart, shape = MaterialTheme.shapes.medium) { Text(if (last == null) "شروع" else "تکرار") }
     }
-    if (history.size >= 2) ScoreTrend(history.take(8).reversed().map { it.score }, max)
+    if (!scale.isProfile && history.size >= 2) {
+        ScoreTrend(history.take(8).reversed().map { it.score - scale.minScore }, scale.maxScore - scale.minScore)
+    }
 }
 
 @Composable

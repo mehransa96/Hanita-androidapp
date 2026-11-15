@@ -10,6 +10,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Checkroom
@@ -48,6 +55,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.utils.PersianNumbers
+import com.hanita.core.gentleman.Advice
+import com.hanita.core.gentleman.Assessments
 import com.hanita.core.gentleman.GentlemanGuide
 import com.hanita.core.gentleman.GentlemanGuide.Category
 import com.hanita.core.gentleman.Sources
@@ -72,7 +81,26 @@ internal fun pillarIcon(id: String): ImageVector = when (id) {
     "work" -> Icons.Filled.Timeline
     "friends" -> Icons.Filled.Contacts
     "father" -> Icons.Filled.ChildCare
+    "career" -> Icons.Filled.BarChart
+    "leader" -> Icons.Filled.Bolt
+    "menhealth" -> Icons.Filled.MonitorHeart
+    "fitness" -> Icons.AutoMirrored.Filled.DirectionsRun
+    "digital" -> Icons.Filled.NightsStay
     else -> Icons.AutoMirrored.Filled.TrendingUp
+}
+
+/** A tool that puts a pillar into practice, as (route, button title). */
+private fun pillarTool(id: String): Pair<String, String>? = when (id) {
+    "menhealth" -> Routes.HEALTH_CHECK to "چکاپ مردانه متناسب با سنم"
+    "fitness" -> Routes.check("workout") to "برنامه قدرتی مبتدی"
+    "health" -> Routes.BODY to "محاسبه BMI و دور کمر"
+    "career" -> Routes.check("negotiate") to "آمادگی برای مذاکره حقوق"
+    "money" -> Routes.BUDGET to "بودجه ۵۰/۳۰/۲۰"
+    "calm" -> Routes.breath("box") to "تمرین تنفس"
+    "digital" -> Routes.check("sleep") to "چک‌لیست بهداشت خواب"
+    "conflict" -> Routes.SOFT to "شروع نرم یک گفت‌وگوی سخت"
+    "esteem" -> Routes.assess(Assessments.Kind.SELF_ESTEEM.code) to "آزمون عزت نفس"
+    else -> null
 }
 
 /** The gentleman's library: five categories, each with the pillars that fit the user's status. */
@@ -181,10 +209,29 @@ internal fun PillarScreen(padding: PaddingValues, status: Status, pillarId: Stri
                 }
             }
         }
+        Advice.forPillar(pillar.id)?.let { advice ->
+            item(key = "first") {
+                Panel {
+                    Label("قدم اول این هفته")
+                    Text(advice.firstStep, fontSize = 15.sp, lineHeight = 25.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            item(key = "mistakes") {
+                Panel {
+                    Label("اشتباه‌های رایج", MaterialTheme.colorScheme.error)
+                    advice.mistakes.forEach { Bullet(it, MaterialTheme.colorScheme.error) }
+                }
+            }
+        }
         item(key = "challenges") {
             Panel {
                 Label("چالش‌های این محور")
                 pillar.challenges.forEach { Bullet(it) }
+            }
+        }
+        pillarTool(pillar.id)?.let { (route, title) ->
+            item(key = "tool") {
+                Button(onClick = { actions.open(route) }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) { Text(title) }
             }
         }
         item(key = "sources") { SourcesPanel(Sources.forPillar(pillar.id), "بر پایه این منابع") }

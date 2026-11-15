@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.hanita.core.gentleman.Assessments
 import com.hanita.core.gentleman.Habits
 import com.hanita.core.gentleman.Status
+import com.hanita.core.gentleman.ThemePresets
 import com.hanita.partner.data.GrowthRepository
 import com.hanita.partner.data.JournalEntity
 import kotlinx.coroutines.flow.first
@@ -141,5 +142,31 @@ class GrowthRepositoryTest {
         assertTrue(repo.goals.first().isEmpty())
         assertTrue(repo.journal.first().isEmpty())
         assertTrue(repo.challengeDays.first().isEmpty())
+    }
+
+    @Test fun themeChoiceIsSavedAndSurvivesAReset() {
+        val store = PartnerStore(app)
+        assertEquals(ThemePresets.DEFAULT_ID, store.themeId)
+        assertEquals(ThemePresets.Mode.SYSTEM, store.themeMode)
+        store.themeId = "navy"
+        store.themeMode = ThemePresets.Mode.DARK
+        store.userName = "علی"
+        store.clearAll()
+        val again = PartnerStore(app)
+        assertEquals("navy", again.themeId)
+        assertEquals(ThemePresets.Mode.DARK, again.themeMode)
+        assertEquals("", again.userName)
+        again.themeId = "no-such-theme"
+        assertEquals(ThemePresets.DEFAULT_ID, again.themeId)
+    }
+
+    @Test fun newSelfChecksAreStoredWithTheirScores() = runBlocking {
+        val phq = List(9) { 1 }
+        assertEquals(9, repo.saveAssessment(Assessments.Kind.DEPRESSION, phq))
+        assertEquals(0, repo.saveAssessment(Assessments.Kind.PERSONALITY, List(20) { 0 }))
+        assertNull(repo.saveAssessment(Assessments.Kind.RELATIONSHIP, listOf(9, 0, 0, 0)))
+        val saved = repo.assessments.first()
+        assertEquals(setOf("phq9", "ipip"), saved.map { it.kind }.toSet())
+        assertEquals(List(20) { 0 }, Assessments.decodeAnswers(saved.first { it.kind == "ipip" }.answers))
     }
 }

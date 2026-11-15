@@ -2,6 +2,7 @@ package com.hanita.partner.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
@@ -9,6 +10,12 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.Font
@@ -16,6 +23,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.hanita.core.gentleman.ThemePresets
 import com.hanita.partner.R
 
 val Vazirmatn = FontFamily(
@@ -26,51 +34,67 @@ val Vazirmatn = FontFamily(
 /** Muted red for period days on the cycle bar (same in both modes). */
 val PeriodRed = Color(0xFFE5484D)
 
-/**
- * Graphite and one amber accent: a calm, minimal, "dashboard" look. Dark is the signature
- * mode; the light mode keeps the same structure with WCAG AA contrast.
- */
-private val Dark = darkColorScheme(
-    primary = Color(0xFFF5A524),
-    onPrimary = Color(0xFF1A1200),
-    primaryContainer = Color(0xFF2B2111),
-    onPrimaryContainer = Color(0xFFFFD58A),
-    secondary = Color(0xFF7CA4C9),
-    onSecondary = Color(0xFF0A1A2A),
-    secondaryContainer = Color(0xFF1C2733),
-    onSecondaryContainer = Color(0xFFCFE0F1),
-    background = Color(0xFF0E1014),
-    onBackground = Color(0xFFECEFF3),
-    surface = Color(0xFF171A20),
-    onSurface = Color(0xFFECEFF3),
-    surfaceVariant = Color(0xFF20242C),
-    onSurfaceVariant = Color(0xFF9AA3AF),
-    surfaceContainer = Color(0xFF171A20),
-    outline = Color(0xFF3A404B),
-    outlineVariant = Color(0xFF2A2F38),
-    error = Color(0xFFFF6B6B)
-)
+/** Turns one palette of a ready-made theme into a Material colour scheme. */
+private fun ThemePresets.Palette.toScheme(dark: Boolean): ColorScheme {
+    fun c(v: Long) = Color(v)
+    val base = if (dark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        primary = c(primary),
+        onPrimary = c(onPrimary),
+        primaryContainer = c(primaryContainer),
+        onPrimaryContainer = c(onPrimaryContainer),
+        secondary = c(secondary),
+        onSecondary = c(if (dark) background else 0xFFFFFFFF),
+        secondaryContainer = c(secondaryContainer),
+        onSecondaryContainer = c(onSecondaryContainer),
+        background = c(background),
+        onBackground = c(onSurface),
+        surface = c(surface),
+        onSurface = c(onSurface),
+        surfaceVariant = c(surfaceVariant),
+        onSurfaceVariant = c(onSurfaceVariant),
+        surfaceContainer = c(surface),
+        surfaceContainerLow = c(surface),
+        surfaceContainerHigh = c(surfaceVariant),
+        surfaceContainerHighest = c(surfaceVariant),
+        outline = c(outline),
+        outlineVariant = c(outlineVariant),
+        error = c(error),
+        errorContainer = c(if (dark) 0xFF3B1517 else 0xFFFDE8E8),
+        onErrorContainer = c(if (dark) 0xFFFFD9D6 else 0xFF5F1012)
+    )
+}
 
-private val Light = lightColorScheme(
-    primary = Color(0xFF9A5B00),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFEFD2),
-    onPrimaryContainer = Color(0xFF3D2600),
-    secondary = Color(0xFF3B6A93),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE3EDF7),
-    onSecondaryContainer = Color(0xFF0F2A42),
-    background = Color(0xFFF3F4F6),
-    onBackground = Color(0xFF111418),
-    surface = Color.White,
-    onSurface = Color(0xFF111418),
-    surfaceVariant = Color(0xFFECEEF1),
-    onSurfaceVariant = Color(0xFF545C67),
-    surfaceContainer = Color.White,
-    outline = Color(0xFFC5CAD1),
-    outlineVariant = Color(0xFFE1E4E8),
-    error = Color(0xFFC62828)
-)
+/**
+ * The user's choice of theme and light/dark mode. Changes apply at once and are saved by [save].
+ */
+@Stable
+class ThemeController(id: String, mode: ThemePresets.Mode, private val save: (String, ThemePresets.Mode) -> Unit = { _, _ -> }) {
+    var id: String by mutableStateOf(ThemePresets.get(id).id)
+        private set
+    var mode: ThemePresets.Mode by mutableStateOf(mode)
+        private set
+
+    fun choose(newId: String) {
+        id = ThemePresets.get(newId).id
+        save(id, mode)
+    }
+
+    fun choose(newMode: ThemePresets.Mode) {
+        mode = newMode
+        save(id, mode)
+    }
+
+    @Composable
+    fun isDark(): Boolean = when (mode) {
+        ThemePresets.Mode.SYSTEM -> isSystemInDarkTheme()
+        ThemePresets.Mode.LIGHT -> false
+        ThemePresets.Mode.DARK -> true
+    }
+}
+
+/** The theme controller of the running app; null in previews and tests (default theme). */
+val LocalThemeController = staticCompositionLocalOf<ThemeController?> { null }
 
 private fun persianTypography(): Typography {
     val base = Typography()
@@ -101,15 +125,21 @@ private val TightShapes = Shapes(
     extraLarge = RoundedCornerShape(18.dp)
 )
 
-/** Persian, right-to-left, graphite theme that follows the system dark mode. */
+/**
+ * Persian, right-to-left theme. Uses the user's chosen ready-made theme and mode when a
+ * [controller] is given, otherwise the default graphite theme following the system.
+ */
 @Composable
-fun PartnerTheme(content: @Composable () -> Unit) {
+fun PartnerTheme(controller: ThemeController? = null, content: @Composable () -> Unit) {
+    val preset = ThemePresets.get(controller?.id)
+    val dark = controller?.isDark() ?: isSystemInDarkTheme()
+    val scheme = remember(preset.id, dark) { (if (dark) preset.dark else preset.light).toScheme(dark) }
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) Dark else Light,
+        colorScheme = scheme,
         typography = persianTypography(),
         shapes = TightShapes
     ) {
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl, LocalThemeController provides controller) {
             content()
         }
     }

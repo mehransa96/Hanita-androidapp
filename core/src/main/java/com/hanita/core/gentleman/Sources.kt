@@ -169,6 +169,101 @@ object Sources {
         Source(
             "aap", "American Academy of Pediatrics (HealthyChildren.org)", "Disciplining your child / The role of fathers",
             "انضباط بدون تنبیه بدنی و اهمیت مشارکت پدر."
+        ),
+        // ---- Self-checks added in 4.0 ----
+        Source(
+            "phq9", "Kroenke, Spitzer و Williams (2001)", "The PHQ-9: Validity of a brief depression severity measure. Journal of General Internal Medicine, 16(9)",
+            "پرسشنامه ۹ سؤالی غربالگری افسردگی و نقطه‌های برش ۵، ۱۰، ۱۵ و ۲۰ (آزاد برای استفاده).",
+            "https://doi.org/10.1046/j.1525-1497.2001.016009606.x"
+        ),
+        Source(
+            "gad7", "Spitzer و همکاران (2006)", "A brief measure for assessing generalized anxiety disorder: The GAD-7. Archives of Internal Medicine, 166(10)",
+            "مقیاس ۷ سؤالی غربالگری اضطراب و نقطه‌های برش ۵، ۱۰ و ۱۵ (آزاد برای استفاده).",
+            "https://doi.org/10.1001/archinte.166.10.1092"
+        ),
+        Source(
+            "pss", "Cohen, Kamarck و Mermelstein (1983)", "A global measure of perceived stress. Journal of Health and Social Behavior, 24(4)",
+            "مقیاس ۱۰ سؤالی استرس ادراک‌شده؛ چهار سؤال معکوس نمره‌گذاری می‌شوند.",
+            "https://doi.org/10.2307/2136404"
+        ),
+        Source(
+            "mini-ipip", "Donnellan و همکاران (2006)", "The Mini-IPIP scales: Tiny-yet-effective measures of the Big Five factors of personality. Psychological Assessment, 18(2)",
+            "نسخه ۲۰ سؤالی آزمون پنج‌عاملی شخصیت از بانک عمومی IPIP (مالکیت عمومی).",
+            "https://doi.org/10.1037/1040-3590.18.2.192"
+        ),
+        Source(
+            "brs", "Smith و همکاران (2008)", "The brief resilience scale: Assessing the ability to bounce back. International Journal of Behavioral Medicine, 15(3)",
+            "مقیاس ۶ سؤالی توانایی برگشتن پس از سختی‌ها.",
+            "https://doi.org/10.1080/10705500802222972"
+        ),
+        Source(
+            "gse", "Schwarzer و Jerusalem (1995)", "Generalized Self-Efficacy scale. In: Measures in Health Psychology: A User's Portfolio. NFER-NELSON",
+            "مقیاس ۱۰ سؤالی باور به توانایی خود در کنار آمدن با سختی‌ها (آزاد برای استفاده با ذکر منبع)."
+        ),
+        Source(
+            "swls", "Diener و همکاران (1985)", "The Satisfaction With Life Scale. Journal of Personality Assessment, 49(1)",
+            "مقیاس ۵ سؤالی رضایت از زندگی و تفسیر بازه‌های نمره.",
+            "https://doi.org/10.1207/s15327752jpa4901_13"
+        ),
+        Source(
+            "ucla3", "Hughes و همکاران (2004)", "A short scale for measuring loneliness in large surveys. Research on Aging, 26(6)",
+            "نسخه سه‌سؤالی مقیاس تنهایی UCLA؛ نمره ۶ و بالاتر معمولاً «احساس تنهایی» در نظر گرفته می‌شود.",
+            "https://doi.org/10.1177/0164027504268574"
+        ),
+        Source(
+            "csi4", "Funk و Rogge (2007)", "Testing the ruler with item response theory: The Couples Satisfaction Index. Journal of Family Psychology, 21(4)",
+            "شاخص ۴ سؤالی رضایت زوجین؛ نمره زیر ۱۳٫۵ نشانه نارضایتی قابل‌توجه است.",
+            "https://doi.org/10.1037/0893-3200.21.4.572"
+        ),
+        // ---- Pillars and tools added in 4.0 ----
+        Source(
+            "fisher-ury", "Fisher, Ury و Patton (2011)", "Getting to Yes: Negotiating Agreement Without Giving In (3rd ed.)",
+            "مذاکره بر پایه منافع، نه موضع؛ و شناختن بهترین جایگزین خودت (BATNA)."
+        ),
+        Source(
+            "dweck", "Carol S. Dweck (2006)", "Mindset: The New Psychology of Success",
+            "ذهنیت رشد: توانایی با تمرین و بازخورد بیشتر می‌شود."
+        ),
+        Source(
+            "goleman", "Daniel Goleman (2000)", "Leadership That Gets Results. Harvard Business Review, 78(2)",
+            "سبک‌های رهبری و اثر هوش هیجانی رهبر بر جو تیم."
+        ),
+        Source(
+            "edmondson", "Amy Edmondson (1999)", "Psychological safety and learning behavior in work teams. Administrative Science Quarterly, 44(2)",
+            "امنیت روانی: تیمی که در آن پرسیدن و اشتباه کردن ترسناک نیست، بهتر یاد می‌گیرد.",
+            "https://doi.org/10.2307/2666999"
+        ),
+        Source(
+            "uspstf", "U.S. Preventive Services Task Force", "USPSTF A and B Recommendations",
+            "غربالگری‌های پیشنهادی بزرگسالان بر اساس سن و عوامل خطر؛ پایه ابزار «چکاپ مردانه».",
+            "https://www.uspreventiveservicestaskforce.org/uspstf/recommendation-topics/uspstf-a-and-b-recommendations"
+        ),
+        Source(
+            "who-bp", "World Health Organization", "Hypertension — fact sheet",
+            "فشار خون بالا اغلب بی‌علامت است و فقط با اندازه‌گیری منظم پیدا می‌شود.",
+            "https://www.who.int/news-room/fact-sheets/detail/hypertension"
+        ),
+        Source(
+            "who-bmi", "World Health Organization", "A healthy lifestyle — WHO recommendations (body mass index)",
+            "دسته‌بندی شاخص توده بدنی بزرگسالان: کم‌وزن، طبیعی، اضافه‌وزن و چاقی.",
+            "https://www.who.int/europe/news-room/fact-sheets/item/a-healthy-lifestyle---who-recommendations"
+        ),
+        Source(
+            "nice-whtr", "NICE (2022)", "Obesity: identification, assessment and management — waist-to-height ratio",
+            "نسبت دور کمر به قد زیر ۰٫۵ سالم؛ ۰٫۵ تا ۰٫۶ خطر بیشتر و ۰٫۶ به بالا خطر زیاد برای سلامت قلب و متابولیسم."
+        ),
+        Source(
+            "acsm", "American College of Sports Medicine (2021)", "ACSM's Guidelines for Exercise Testing and Prescription (11th ed.)",
+            "اصول تمرین قدرتی: هر گروه عضلانی دو تا سه بار در هفته، ۸ تا ۱۲ تکرار، افزایش تدریجی بار."
+        ),
+        Source(
+            "newport-dm", "Cal Newport (2019)", "Digital Minimalism: Choosing a Focused Life in a Noisy World",
+            "استفاده آگاهانه از فناوری: فقط ابزاری که به ارزش‌هایت کمک می‌کند."
+        ),
+        Source(
+            "hunt", "Hunt و همکاران (2018)", "No more FOMO: Limiting social media decreases loneliness and depression. Journal of Social and Clinical Psychology, 37(10)",
+            "محدود کردن شبکه‌های اجتماعی به حدود ۳۰ دقیقه در روز، تنهایی و افسردگی را در سه هفته کم کرد.",
+            "https://doi.org/10.1521/jscp.2018.37.10.751"
         )
     )
 
@@ -194,7 +289,12 @@ object Sources {
         "calm" to listOf("apa-anger", "balban", "zaccaro", "nccih"),
         "work" to listOf("clear", "gollwitzer", "lally", "newport"),
         "friends" to listOf("holt", "carnegie"),
-        "father" to listOf("cdc-parenting", "aap")
+        "father" to listOf("cdc-parenting", "aap"),
+        "career" to listOf("fisher-ury", "dweck", "newport"),
+        "leader" to listOf("goleman", "edmondson", "carnegie"),
+        "menhealth" to listOf("uspstf", "who-bp", "sleep"),
+        "fitness" to listOf("who-pa", "acsm"),
+        "digital" to listOf("newport-dm", "hunt", "sleep")
     )
 
     fun forPillar(pillarId: String): List<Source> = PILLAR_SOURCES[pillarId].orEmpty().map(::get)

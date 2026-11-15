@@ -21,6 +21,11 @@ import com.hanita.partner.ui.JournalScreen
 import com.hanita.partner.ui.PartnerApp
 import com.hanita.partner.ui.PartnerScreen
 import com.hanita.partner.ui.PartnerTheme
+import com.hanita.partner.ui.ThemeController
+import com.hanita.partner.ui.HealthCheckScreen
+import com.hanita.partner.ui.BodyScreen
+import com.hanita.partner.ui.ChecklistScreen
+import com.hanita.core.gentleman.ThemePresets
 import com.hanita.partner.ui.PathScreen
 import com.hanita.partner.ui.PillarScreen
 import com.hanita.partner.ui.SettingsScreen
@@ -86,8 +91,8 @@ class GentlemanScreenshotTest {
         return store to repo
     }
 
-    private fun shoot(name: String, content: @Composable () -> Unit) {
-        compose.setContent { PartnerTheme { content() } }
+    private fun shoot(name: String, themes: ThemeController? = null, content: @Composable () -> Unit) {
+        compose.setContent { PartnerTheme(themes) { content() } }
         repeat(15) {
             Thread.sleep(80)
             compose.mainClock.advanceTimeBy(400)
@@ -164,6 +169,43 @@ class GentlemanScreenshotTest {
 
     @Test fun settings() {
         val (store, _) = seeded(Status.MARRIED)
-        shoot("14_settings") { SettingsScreen(none, store, 0, Status.MARRIED, actions, {}, {}) }
+        shoot("14_settings", ThemeController("graphite", ThemePresets.Mode.DARK)) {
+            SettingsScreen(none, store, 0, Status.MARRIED, actions, {}, {})
+        }
     }
+
+    // ---- 4.0: themes, new self-checks and men's health tools ----
+
+    @Config(qualifiers = "w411dp-h891dp-notnight-mdpi")
+    @Test fun themesNavyLight() {
+        seeded(Status.MARRIED)
+        shoot("15_theme_navy_light", ThemeController("navy", ThemePresets.Mode.LIGHT)) { PartnerApp(null) {} }
+    }
+
+    @Config(qualifiers = "w411dp-h891dp-night-mdpi")
+    @Test fun themesForestDark() {
+        seeded(Status.SINGLE)
+        shoot("16_theme_forest_dark", ThemeController("forest", ThemePresets.Mode.DARK)) { PartnerApp(null) {} }
+    }
+
+    @Config(qualifiers = "w411dp-h891dp-night-mdpi")
+    @Test fun themesCopperGrowth() {
+        val (_, repo) = seeded(Status.MARRIED)
+        shoot("17_theme_copper_growth", ThemeController("copper", ThemePresets.Mode.DARK)) {
+            GrowthScreen(none, repo, Status.MARRIED, today, actions)
+        }
+    }
+
+    @Test fun assessmentPhq9() {
+        val (_, repo) = seeded(Status.SINGLE)
+        shoot("18_assessment_phq9") { AssessmentScreen(none, repo, Assessments.Kind.DEPRESSION.code, actions) }
+    }
+
+    @Test fun pillarMensHealth() = shoot("19_pillar_menhealth") { PillarScreen(none, Status.SINGLE, "menhealth", actions) }
+
+    @Test fun healthCheck() = shoot("20_health_check") { HealthCheckScreen(none, actions) }
+
+    @Test fun body() = shoot("21_body") { BodyScreen(none, actions) }
+
+    @Test fun workout() = shoot("22_workout") { ChecklistScreen(none, "workout", actions) }
 }

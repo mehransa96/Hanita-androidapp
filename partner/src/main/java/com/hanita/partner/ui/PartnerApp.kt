@@ -85,7 +85,7 @@ internal enum class Tab(val title: String, val icon: ImageVector) {
 /**
  * Pages opened on top of a tab (with a back arrow), kept as plain strings so they survive
  * rotation: "settings", "dates", "sources", "pillar/<id>", "assess/<code>", "journal/<epochDay>",
- * "breath/<id>", "budget", "apology", "soft", "questions", "check/<id>".
+ * "breath/<id>", "budget", "apology", "soft", "questions", "check/<id>", "healthcheck", "body".
  */
 internal object Routes {
     const val SETTINGS = "settings"
@@ -95,6 +95,8 @@ internal object Routes {
     const val APOLOGY = "apology"
     const val SOFT = "soft"
     const val QUESTIONS = "questions"
+    const val HEALTH_CHECK = "healthcheck"
+    const val BODY = "body"
     fun pillar(id: String) = "pillar/$id"
     fun assess(code: String) = "assess/$code"
     fun journal(epochDay: Long) = "journal/$epochDay"
@@ -383,6 +385,8 @@ private fun RoutePage(
         route == Routes.APOLOGY -> ApologyScreen(padding, actions)
         route == Routes.SOFT -> SoftStartScreen(padding, actions)
         route == Routes.QUESTIONS -> QuestionsScreen(padding, status, actions)
+        route == Routes.HEALTH_CHECK -> HealthCheckScreen(padding, actions)
+        route == Routes.BODY -> BodyScreen(padding, actions)
         route.startsWith("pillar/") -> PillarScreen(padding, status, arg, actions)
         route.startsWith("assess/") -> AssessmentScreen(padding, repo, arg, actions)
         route.startsWith("journal/") -> JournalScreen(padding, repo, arg.toLongOrNull() ?: today.toEpochDay(), today, actions)
