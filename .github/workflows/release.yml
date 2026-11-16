@@ -6,11 +6,19 @@ name: Release APK
 # Both APKs are release builds signed with the permanent Hanita key, so every new release
 # installs over the previous one. The key lives in the repo only encrypted
 # (signing/hanita-release.p12.enc); the repository secret HANITA_SIGNING_PASSWORD unlocks it.
+#
+# Releases are built only from main (after the PR is merged), never from work branches: a build
+# from a branch used the same ~20 Actions minutes and could publish code that was never merged.
 on:
   push:
-    branches: [ main, "claude/**" ]
+    branches: [ main ]
     paths: [ ".github/release-notes/**" ]
   workflow_dispatch:
+
+# Two pushes in a row never build the same release twice.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
