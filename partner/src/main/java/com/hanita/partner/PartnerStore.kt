@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Base64
 import com.hanita.core.gentleman.ImportantDate
 import com.hanita.core.gentleman.Status
+import com.hanita.core.gentleman.ThemePresets
 import com.hanita.core.partner.PartnerCard
 import com.hanita.core.partner.PartnerDay
 import com.hanita.core.partner.PartnerLink
@@ -155,6 +156,17 @@ class PartnerStore(context: Context) {
         get() = prefs.getBoolean(KEY_STARTER_HABITS, false)
         set(value) = prefs.edit().putBoolean(KEY_STARTER_HABITS, value).apply()
 
+    // ---- Appearance ----
+
+    /** The chosen ready-made theme (see ThemePresets). */
+    var themeId: String
+        get() = ThemePresets.get(prefs.getString(KEY_THEME, null)).id
+        set(value) = prefs.edit().putString(KEY_THEME, value).apply()
+
+    var themeMode: ThemePresets.Mode
+        get() = ThemePresets.Mode.fromCode(prefs.getString(KEY_THEME_MODE, null))
+        set(value) = prefs.edit().putString(KEY_THEME_MODE, value.code).apply()
+
     /** Removes only the link with Hanita (pairing and card); the profile and dates stay. */
     fun clearLink() {
         prefs.edit().remove(KEY_PAIR_ID).remove(KEY_KEY).remove(KEY_CARD).remove(KEY_RECEIVED_AT).apply()
@@ -162,7 +174,10 @@ class PartnerStore(context: Context) {
 
     /** Deletes every setting here: the link, the profile and the dates (the database is cleared separately). */
     fun clearAll() {
-        prefs.edit().clear().apply()
+        // The look of the app is a preference, not personal data: it survives a reset.
+        val theme = prefs.getString(KEY_THEME, null)
+        val mode = prefs.getString(KEY_THEME_MODE, null)
+        prefs.edit().clear().putString(KEY_THEME, theme).putString(KEY_THEME_MODE, mode).apply()
     }
 
     companion object {
@@ -186,5 +201,7 @@ class PartnerStore(context: Context) {
         private const val KEY_DATE_REMINDERS = "date_reminders"
         private const val KEY_DONE_DAYS = "done_days"
         private const val KEY_STARTER_HABITS = "starter_habits"
+        private const val KEY_THEME = "theme"
+        private const val KEY_THEME_MODE = "theme_mode"
     }
 }

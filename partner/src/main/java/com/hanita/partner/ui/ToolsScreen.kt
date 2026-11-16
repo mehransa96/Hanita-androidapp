@@ -24,6 +24,10 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Forum
@@ -99,10 +103,23 @@ internal fun ToolsScreen(padding: PaddingValues, status: Status, actions: AppAct
         item {
             Panel {
                 Label("آمادگی")
-                Toolkit.CHECKLISTS.forEach { c ->
+                Toolkit.CHECKLISTS.filter { it.id !in HEALTH_CHECKLISTS }.forEach { c ->
                     if (c.id != "date" || status == Status.SINGLE) {
                         Tile(Icons.Filled.Description, c.title, "${PersianNumbers.toPersianDigits(c.items.size)} قدم") { actions.open(Routes.check(c.id)) }
                     }
+                }
+            }
+        }
+        item {
+            Panel {
+                Label("سلامت و بدن")
+                Tile(Icons.Filled.MonitorHeart, "چکاپ مردانه", "آزمایش‌ها و غربالگری‌های لازم برای سن تو") { actions.open(Routes.HEALTH_CHECK) }
+                Tile(Icons.Filled.MonitorWeight, "BMI و دور کمر", "وزن سالم و خطر چربی شکمی") { actions.open(Routes.BODY) }
+                Toolkit.CHECKLISTS.filter { it.id in HEALTH_CHECKLISTS }.forEach { c ->
+                    Tile(
+                        if (c.id == "workout") Icons.Filled.FitnessCenter else Icons.Filled.Bedtime,
+                        c.title, "${PersianNumbers.toPersianDigits(c.items.size)} قدم"
+                    ) { actions.open(Routes.check(c.id)) }
                 }
             }
         }
@@ -122,6 +139,9 @@ internal fun ToolsScreen(padding: PaddingValues, status: Status, actions: AppAct
         }
     }
 }
+
+/** Checklists shown under "health and body" instead of "preparation". */
+private val HEALTH_CHECKLISTS = setOf("workout", "sleep")
 
 // ---- Breathing ----
 
@@ -490,6 +510,9 @@ internal fun ChecklistScreen(padding: PaddingValues, id: String, actions: AppAct
             val sourceIds = when (list.id) {
                 "meeting" -> listOf("carnegie", "balban")
                 "date" -> listOf("vanepp", "post")
+                "negotiate" -> listOf("fisher-ury")
+                "workout" -> listOf("who-pa", "acsm")
+                "sleep" -> listOf("sleep", "newport-dm")
                 else -> listOf("gottman")
             }
             SourcesPanel(sourceIds.map(Sources::get))

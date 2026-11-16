@@ -2,6 +2,20 @@ package com.hanita.partner.ui
 
 import android.app.TimePickerDialog
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.BrightnessAuto
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import com.hanita.core.gentleman.ThemePresets
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -53,6 +67,7 @@ internal fun SettingsScreen(
     onResetAll: () -> Unit
 ) {
     val context = LocalContext.current
+    val themes = LocalThemeController.current
     var name by remember { mutableStateOf(store.userName) }
     var enabled by remember { mutableStateOf(store.remindersEnabled) }
     var dailyTip by remember { mutableStateOf(store.dailyTip) }
@@ -95,6 +110,10 @@ internal fun SettingsScreen(
                 }
                 MutedText("مسیر، چالش‌ها و بخش «همسر» بر اساس وضعیتت تنظیم می‌شوند.")
             }
+        }
+
+        if (themes != null) {
+            item(key = "appearance") { AppearancePanel(themes) }
         }
 
         item(key = "reminders-$version") {
@@ -240,5 +259,79 @@ internal fun SettingsScreen(
             },
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("انصراف") } }
         )
+    }
+}
+
+/** Ready-made themes as swatches, plus automatic / light / dark. Applied at once. */
+@Composable
+private fun AppearancePanel(themes: ThemeController) {
+    val dark = themes.isDark()
+    Panel {
+        Label("ظاهر و تم")
+        MutedText("یکی از تم‌های آماده را انتخاب کن؛ همه برای خوانایی در نور کم و زیاد تنظیم شده‌اند.")
+        ThemePresets.ALL.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { preset ->
+                    ThemeSwatch(preset, if (dark) preset.dark else preset.light, preset.id == themes.id, Modifier.weight(1f)) {
+                        themes.choose(preset.id)
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+        Text("حالت نمایش", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ThemePresets.Mode.values().forEach { mode ->
+                FilterChip(
+                    selected = themes.mode == mode,
+                    onClick = { themes.choose(mode) },
+                    label = { Text(mode.title) },
+                    leadingIcon = {
+                        Icon(
+                            when (mode) {
+                                ThemePresets.Mode.SYSTEM -> Icons.Filled.BrightnessAuto
+                                ThemePresets.Mode.LIGHT -> Icons.Filled.LightMode
+                                ThemePresets.Mode.DARK -> Icons.Filled.DarkMode
+                            },
+                            contentDescription = null, modifier = Modifier.size(18.dp)
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeSwatch(
+    preset: ThemePresets.Preset,
+    palette: ThemePresets.Palette,
+    selected: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    val shape = MaterialTheme.shapes.medium
+    Column(
+        modifier
+            .clip(shape)
+            .background(Color(palette.background))
+            .border(
+                if (selected) 2.dp else 1.dp,
+                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                shape
+            )
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            listOf(palette.primary, palette.secondary, palette.surfaceVariant).forEach { c ->
+                Box(Modifier.size(16.dp).background(Color(c), CircleShape).border(1.dp, Color(palette.outline), CircleShape))
+            }
+            Spacer(Modifier.weight(1f))
+            if (selected) Icon(Icons.Filled.CheckCircle, contentDescription = "انتخاب‌شده", tint = Color(palette.primary), modifier = Modifier.size(18.dp))
+        }
+        Text(preset.title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(palette.onSurface), maxLines = 1)
+        Text(preset.subtitle, fontSize = 11.sp, lineHeight = 16.sp, color = Color(palette.onSurfaceVariant), maxLines = 2)
     }
 }

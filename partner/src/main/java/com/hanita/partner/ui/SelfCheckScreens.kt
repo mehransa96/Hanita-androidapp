@@ -60,6 +60,21 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
+/** The pillar to read next after a self-check. */
+internal fun relatedPillar(kind: Assessments.Kind): Pair<String, String> = when (kind) {
+    Assessments.Kind.SELF_ESTEEM -> "esteem" to "محور عزت نفس"
+    Assessments.Kind.PERSONALITY -> "presence" to "حضور و اعتمادبه‌نفس"
+    Assessments.Kind.SELF_EFFICACY -> "work" to "کار و بهره‌وری"
+    Assessments.Kind.LIFE_SATISFACTION -> "mind" to "ذهن و رشد فردی"
+    Assessments.Kind.LONELINESS -> "friends" to "دوستی و روابط"
+    Assessments.Kind.RELATIONSHIP -> "conflict" to "مدیریت اختلاف"
+    else -> "calm" to "آرامش و استرس"
+}
+
+/** Position of [score] between the scale's lowest and highest total, 0..100. */
+internal fun Assessments.Scale.percentOf(score: Int): Int =
+    ((score - minScore) * 100 / (maxScore - minScore).coerceAtLeast(1)).coerceIn(0, 100)
+
 /** One question at a time, then the result, the history and the source. */
 @Composable
 internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, code: String, actions: AppActions) {
@@ -109,7 +124,7 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
                     if (index < scale.questions.size) {
                         Panel {
                             Text(scale.questions[index].text, fontSize = 18.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold)
-                            scale.options.forEachIndexed { i, option ->
+                            scale.optionsFor(index).forEachIndexed { i, option ->
                                 OutlinedButton(
                                     onClick = {
                                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -117,7 +132,7 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = MaterialTheme.shapes.medium
-                                ) { Text(option) }
+                                ) { Text(option.label, textAlign = TextAlign.Center) }
                             }
                             if (index > 0) {
                                 TextButton(onClick = { answers = answers.dropLast(1) }) { Text("سؤال قبلی") }
@@ -127,39 +142,28 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
                 }
             }
         } else {
-            val score = savedScore.takeIf { it >= 0 } ?: Assessments.score(kind, Assessments.decodeAnswers(answers)) ?: 0
-            val result = Assessments.interpret(kind, score)
+            val chosen = Assessments.decodeAnswers(answers)
+            if (Assessments.needsUrgentHelp(kind, chosen)) {
+                item(key = "urgent") { UrgentHelpPanel() }
+            }
             item(key = "result") {
-                Panel {
-                    Label("نتیجه تو")
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(PersianNumbers.toPersianDigits(score), fontSize = 40.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(6.dp))
-                        Text("از ${PersianNumbers.toPersianDigits(scale.maxScore)}", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
+                if (scale.isProfile) {
+                    ProfileResult(chosen)
+                } else {
+                    val score = savedScore.takeIf { it >= 0 } ?: Assessments.score(kind, chosen) ?: scale.minScore
+                    ScoreResult(scale, score)
+                }
+            }
+            item(key = "next") {
+                val (pillarId, pillarTitle) = relatedPillar(kind)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { actions.openPillar(pillarId) }, shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f)) {
+                        Text(pillarTitle, maxLines = 1)
                     }
-                    Meter(score * 100 / scale.maxScore)
-                    Text(result.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text(result.text, fontSize = 14.5.sp, lineHeight = 24.sp)
-                    if (result.seekHelp) {
-                        Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.medium).padding(12.dp)) {
-                            Text(Assessments.HELP_TEXT, fontSize = 13.sp, lineHeight = 21.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (kind == Assessments.Kind.SELF_ESTEEM) {
-                            Button(onClick = { actions.openPillar("esteem") }, shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f)) {
-                                Text("محور عزت نفس")
-                            }
-                        } else {
-                            Button(onClick = { actions.openPillar("calm") }, shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f)) {
-                                Text("آرامش و استرس")
-                            }
-                        }
-                        OutlinedButton(
-                            onClick = { answers = ""; savedScore = -1 },
-                            shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f)
-                        ) { Text("دوباره") }
-                    }
+                    OutlinedButton(
+                        onClick = { answers = ""; savedScore = -1 },
+                        shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f)
+                    ) { Text("دوباره") }
                 }
             }
         }
@@ -167,15 +171,14 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
             item(key = "history") {
                 Panel {
                     Label("سابقه")
-                    ScoreTrend(history.take(8).reversed().map { it.score }, scale.maxScore)
+                    if (!scale.isProfile && history.size >= 2) {
+                        ScoreTrend(history.take(8).reversed().map { it.score - scale.minScore }, scale.maxScore - scale.minScore)
+                    }
                     history.take(10).forEachIndexed { i, a ->
                         if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(
-                                    "${PersianNumbers.toPersianDigits(a.score)} · ${Assessments.interpret(kind, a.score).title}",
-                                    fontSize = 14.sp, fontWeight = FontWeight.Bold
-                                )
+                                Text(historyLine(kind, a.score, a.answers), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 Text(PersianDates.short(dateOf(a.takenAt)), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             IconButton(onClick = { deleteId = a.id }) {
@@ -187,7 +190,7 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
             }
         }
         item(key = "src") { SourcesPanel(listOf(Sources.get(kind.sourceId)), "درباره این آزمون") }
-        item { MutedText(Assessments.HELP_TEXT) }
+        item { MutedText(Assessments.ABOUT + " " + Assessments.HELP_TEXT) }
     }
 
     if (deleteId >= 0) {
@@ -195,6 +198,81 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
             val id = deleteId
             deleteId = -1L
             scope.launch { repo.deleteAssessment(id) }
+        }
+    }
+}
+
+/** One line for a past result: the score and its meaning, or the strongest trait. */
+internal fun historyLine(kind: Assessments.Kind, score: Int, answers: String): String {
+    val scale = Assessments.scale(kind)
+    if (scale.isProfile) {
+        val top = Assessments.profile(Assessments.decodeAnswers(answers))?.maxByOrNull { it.percent }
+        return top?.let { "بیشترین ویژگی: ${it.trait.title}" } ?: "نیم‌رخ شخصیت"
+    }
+    return "${PersianNumbers.toPersianDigits(score)} از ${PersianNumbers.toPersianDigits(scale.maxScore)} · ${Assessments.interpret(kind, score).title}"
+}
+
+@Composable
+private fun ScoreResult(scale: Assessments.Scale, score: Int) {
+    val result = Assessments.interpret(scale.kind, score)
+    val tone = when (result.level) {
+        Assessments.Level.HIGH, Assessments.Level.MIDDLE -> MaterialTheme.colorScheme.primary
+        Assessments.Level.LOW, Assessments.Level.VERY_LOW -> MaterialTheme.colorScheme.error
+    }
+    Panel {
+        Label("نتیجه تو")
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(PersianNumbers.toPersianDigits(score), fontSize = 40.sp, fontWeight = FontWeight.Bold, color = tone)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "از ${PersianNumbers.toPersianDigits(scale.maxScore)}",
+                fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+        Meter(scale.percentOf(score), tone)
+        if (scale.higherIsWorse) MutedText("در این آزمون نمره کمتر یعنی نشانه‌های کمتر.")
+        Text(result.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(result.text, fontSize = 14.5.sp, lineHeight = 24.sp)
+        if (result.seekHelp) {
+            Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.medium).padding(12.dp)) {
+                Text(Assessments.HELP_TEXT, fontSize = 13.sp, lineHeight = 21.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileResult(answers: List<Int>) {
+    val traits = Assessments.profile(answers) ?: return
+    val result = Assessments.interpret(Assessments.Kind.PERSONALITY, 0)
+    Panel {
+        Label("نتیجه تو")
+        Text(result.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        MutedText(result.text)
+        traits.forEach { t ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(t.trait.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text("${PersianNumbers.toPersianDigits(t.percent)}٪", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                }
+                Meter(t.percent)
+                Text(t.text, fontSize = 13.5.sp, lineHeight = 22.sp)
+                Text(t.trait.tip, fontSize = 12.5.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun UrgentHelpPanel() {
+    Box(
+        Modifier.fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.large)
+            .padding(16.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("مهم: لطفاً همین امروز کمک بگیر", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+            Text(Assessments.URGENT_TEXT, fontSize = 14.sp, lineHeight = 23.sp, color = MaterialTheme.colorScheme.onErrorContainer)
         }
     }
 }
