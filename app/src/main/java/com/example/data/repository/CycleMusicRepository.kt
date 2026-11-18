@@ -346,7 +346,7 @@ object CycleMusicRepository {
             categoryBadge = "معاشرت و حال خوب",
             benefitDescription = "هارمونی جازی و ریتم نرم بوسانوا فضای گرم و صمیمی برای شام دونفره، گفت‌وگو و وقت گذراندن با دوستان می‌سازد.",
             frequencyLabel = "بوسانوا ۱۳۲ BPM",
-            intent = MusicIntent.JOY,
+            intent = MusicIntent.CALM,
             bpm = 132,
             howToListen = "پس‌زمینه شام یا گفت‌وگو با صدای کم."
         ),
@@ -362,7 +362,7 @@ object CycleMusicRepository {
             categoryBadge = "ضد اضطراب PMS",
             benefitDescription = "آکوردهای جاز پیانوی الکتریک ۷۲ BPM با درام سوینگ و خش‌خش صفحه گرامافون؛ برای آرام‌تر شدن حال‌وهوای روزهای قبل از پریود.",
             frequencyLabel = "Lo-Fi ۷۰ BPM",
-            intent = MusicIntent.CALM,
+            intent = MusicIntent.FOCUS,
             bpm = 72,
             howToListen = "عصرها هنگام مطالعه سبک یا استراحت؛ صدای کم تا متوسط."
         ),
