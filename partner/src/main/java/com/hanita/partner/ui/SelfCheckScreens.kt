@@ -90,6 +90,8 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
     var answers by rememberSaveable(code) { mutableStateOf("") }
     var savedScore by rememberSaveable(code) { mutableStateOf(-1) }
     var deleteId by rememberSaveable(code) { mutableStateOf(-1L) }
+    // When this attempt began, so the result can be compared with the one before it.
+    var startedAt by rememberSaveable(code) { mutableStateOf(System.currentTimeMillis()) }
     val all by repo.assessments.collectAsState(initial = emptyList())
     val history = all.filter { it.kind == kind.code }
     val step = answers.length
@@ -105,6 +107,15 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
         item { Wordmark(kind.title, onBack = actions.back) }
         if (!finished) {
             item { Text(kind.subtitle, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary) }
+            if (step == 0) {
+                item(key = "about") {
+                    Panel {
+                        Label("درباره این آزمون")
+                        Text(kind.about, fontSize = 14.sp, lineHeight = 23.sp)
+                        MutedText(Assessments.HOW_TO)
+                    }
+                }
+            }
             item { MutedText(scale.intro) }
             item(key = "progress") {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -151,7 +162,8 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
                     ProfileResult(chosen)
                 } else {
                     val score = savedScore.takeIf { it >= 0 } ?: Assessments.score(kind, chosen) ?: scale.minScore
-                    ScoreResult(scale, score)
+                    val previous = history.firstOrNull { it.takenAt < startedAt }
+                    ScoreResult(scale, score, chosen, previous?.score, previous?.takenAt)
                 }
             }
             item(key = "next") {
@@ -161,7 +173,7 @@ internal fun AssessmentScreen(padding: PaddingValues, repo: GrowthRepository, co
                         Text(pillarTitle, maxLines = 1)
                     }
                     OutlinedButton(
-                        onClick = { answers = ""; savedScore = -1 },
+                        onClick = { answers = ""; savedScore = -1; startedAt = System.currentTimeMillis() },
                         shape = MaterialTheme.shapes.medium, modifier = Modifier.weight(1f)
                     ) { Text("دوباره") }
                 }
@@ -213,27 +225,103 @@ internal fun historyLine(kind: Assessments.Kind, score: Int, answers: String): S
 }
 
 @Composable
-private fun ScoreResult(scale: Assessments.Scale, score: Int) {
-    val result = Assessments.interpret(scale.kind, score)
+private fun ScoreResult(scale: Assessments.Scale, score: Int, answers: List<Int>, previous: Int?, previousAt: Long?) {
+    val kind = scale.kind
+    val result = Assessments.interpret(kind, score)
     val tone = when (result.level) {
         Assessments.Level.HIGH, Assessments.Level.MIDDLE -> MaterialTheme.colorScheme.primary
         Assessments.Level.LOW, Assessments.Level.VERY_LOW -> MaterialTheme.colorScheme.error
     }
-    Panel {
-        Label("نتیجه تو")
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(PersianNumbers.toPersianDigits(score), fontSize = 40.sp, fontWeight = FontWeight.Bold, color = tone)
-            Spacer(Modifier.width(6.dp))
-            Text(
-                "از ${PersianNumbers.toPersianDigits(scale.maxScore)}",
-                fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp)
-            )
+    val flags = Assessments.flags(kind, answers)
+    val subscores = Assessments.subscores(kind, answers)
+    val insights = Assessments.insights(kind, answers)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Panel {
+            Label("نتیجه تو")
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(PersianNumbers.toPersianDigits(score), fontSize = 40.sp, fontWeight = FontWeight.Bold, color = tone)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "از ${PersianNumbers.toPersianDigits(scale.maxScore)}",
+                    fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+            Meter(scale.percentOf(score), tone)
+            if (scale.higherIsWorse) MutedText("در این آزمون نمره کمتر یعنی نشانه‌های کمتر.")
+            if (kind == Assessments.Kind.RESILIENCE) {
+                val mean = Assessments.resilienceMean(score)
+                MutedText("میانگین پاسخ‌هایت: ${PersianNumbers.toPersianDigits(String.format(java.util.Locale.US, "%.2f", mean).replace('.', '٫'))} از ۵ (روش گزارش سازندگان آزمون).")
+            }
+            Text(result.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(result.text, fontSize = 14.5.sp, lineHeight = 24.sp)
+            scale.norm?.let { MutedText(it) }
+            if (previous != null && previousAt != null) {
+                val change = Assessments.change(kind, previous, score)
+                val color = when {
+                    !change.meaningful -> MaterialTheme.colorScheme.onSurfaceVariant
+                    change.direction == Assessments.Direction.BETTER -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.error
+                }
+                Text(
+                    "نسبت به ${PersianDates.short(dateOf(previousAt))}: ${change.text}",
+                    fontSize = 13.sp, lineHeight = 21.sp, color = color
+                )
+            }
         }
-        Meter(scale.percentOf(score), tone)
-        if (scale.higherIsWorse) MutedText("در این آزمون نمره کمتر یعنی نشانه‌های کمتر.")
-        Text(result.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Text(result.text, fontSize = 14.5.sp, lineHeight = 24.sp)
-        if (result.seekHelp) {
+        flags.forEach { flag ->
+            Box(
+                Modifier.fillMaxWidth()
+                    .background(
+                        if (flag.seekHelp) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+                        MaterialTheme.shapes.medium
+                    )
+                    .padding(12.dp)
+            ) {
+                val onColor = if (flag.seekHelp) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(flag.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = onColor)
+                    Text(flag.text, fontSize = 13.sp, lineHeight = 21.sp, color = onColor)
+                }
+            }
+        }
+        if (subscores.isNotEmpty()) {
+            Panel {
+                Label("جزئیات نتیجه")
+                subscores.forEach { sub ->
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(sub.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            Text(
+                                "${PersianNumbers.toPersianDigits(sub.score)} از ${PersianNumbers.toPersianDigits(sub.max)}",
+                                fontSize = 12.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Meter(sub.percent)
+                        Text(sub.text, fontSize = 13.sp, lineHeight = 21.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+        if (insights.concerns.isNotEmpty() || insights.strengths.isNotEmpty()) {
+            Panel {
+                Label("پاسخ‌هایی که بیشتر اثر داشتند")
+                if (insights.concerns.isNotEmpty()) {
+                    Text("جای توجه بیشتر", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                    insights.concerns.forEach { Bullet("${it.question} — «${it.answer}»", MaterialTheme.colorScheme.error) }
+                }
+                if (insights.strengths.isNotEmpty()) {
+                    Text("نقطه قوت", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    insights.strengths.forEach { Bullet("${it.question} — «${it.answer}»") }
+                }
+            }
+        }
+        if (result.steps.isNotEmpty()) {
+            Panel {
+                Label("قدم‌های بعدی")
+                result.steps.forEachIndexed { i, step -> Step(PersianNumbers.toPersianDigits(i + 1), step) }
+            }
+        }
+        if (result.seekHelp || flags.any { it.seekHelp }) {
             Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.shapes.medium).padding(12.dp)) {
                 Text(Assessments.HELP_TEXT, fontSize = 13.sp, lineHeight = 21.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
             }
@@ -245,18 +333,36 @@ private fun ScoreResult(scale: Assessments.Scale, score: Int) {
 private fun ProfileResult(answers: List<Int>) {
     val traits = Assessments.profile(answers) ?: return
     val result = Assessments.interpret(Assessments.Kind.PERSONALITY, 0)
-    Panel {
-        Label("نتیجه تو")
-        Text(result.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        MutedText(result.text)
-        traits.forEach { t ->
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(t.trait.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    Text("${PersianNumbers.toPersianDigits(t.percent)}٪", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Panel {
+            Label("نتیجه تو")
+            Text(result.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            MutedText(result.text)
+            traits.forEach { t ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(t.trait.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text(
+                            "${t.levelTitle} · ${PersianNumbers.toPersianDigits(t.percent)}٪",
+                            fontSize = 13.sp, color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Meter(t.percent)
                 }
-                Meter(t.percent)
-                Text(t.text, fontSize = 13.5.sp, lineHeight = 22.sp)
+            }
+        }
+        traits.forEach { t ->
+            Panel {
+                Label(t.trait.title)
+                Text(t.text, fontSize = 14.sp, lineHeight = 23.sp)
+                Text("نقطه قوت", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text(t.strength, fontSize = 13.5.sp, lineHeight = 22.sp)
+                Text("مراقب باش", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                Text(t.watch, fontSize = 13.5.sp, lineHeight = 22.sp)
+                Text("در کار", fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
+                Text(t.trait.atWork, fontSize = 13.sp, lineHeight = 21.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("در رابطه", fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
+                Text(t.trait.inLove, fontSize = 13.sp, lineHeight = 21.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(t.trait.tip, fontSize = 12.5.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }

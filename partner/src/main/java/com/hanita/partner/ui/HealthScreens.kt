@@ -88,6 +88,9 @@ internal fun HealthCheckScreen(padding: PaddingValues, actions: AppActions) {
                                 fontSize = 12.5.sp, color = MaterialTheme.colorScheme.primary
                             )
                             Text(s.why, fontSize = 13.sp, lineHeight = 21.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (s.how.isNotBlank()) {
+                                Text("چطور: " + s.how, fontSize = 12.5.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }
@@ -98,6 +101,8 @@ internal fun HealthCheckScreen(padding: PaddingValues, actions: AppActions) {
                     Bullet("دندانپزشکی هر ۶ تا ۱۲ ماه.")
                     Bullet("اگر توده تازه، درد قفسه سینه، تنگی نفس یا خون در ادرار و مدفوع دیدی، منتظر نوبت چکاپ نمان.")
                     Bullet("واکسن‌ها را با پزشک مرور کن (مثلاً یادآور کزاز هر ۱۰ سال).")
+                    Bullet("سابقه خانوادگی (سکته یا حمله قلبی زودرس، سرطان روده یا پروستات در پدر یا برادر، دیابت) را به پزشک بگو؛ ممکن است غربالگری را زودتر یا منظم‌تر کند.")
+                    Bullet("فهرست داروها و مکمل‌هایت را همراه ببر و نتیجه آزمایش‌های قبلی را نگه دار تا روند دیده شود.")
                 }
             }
         }
@@ -141,6 +146,19 @@ internal fun BodyScreen(padding: PaddingValues, actions: AppActions) {
                     Text(result.bmiClass.advice, fontSize = 14.sp, lineHeight = 23.sp)
                     val (low, high) = MensHealth.healthyWeight(height!!)
                     MutedText("وزن سالم برای قد تو: ${PersianNumbers.toPersianDigits(low)} تا ${PersianNumbers.toPersianDigits(high)} کیلوگرم. برای ورزشکاران عضلانی، BMI ممکن است وزن را بیش از واقع نشان دهد.")
+                    when {
+                        result.kgToNormal > 0 -> {
+                            val first = (weight!! * 0.05).toInt().coerceAtLeast(1)
+                            Text(
+                                "تا مرز وزن طبیعی حدود ${PersianNumbers.toPersianDigits(result.kgToNormal)} کیلوگرم فاصله داری. هدف اول واقع‌بینانه: ${PersianNumbers.toPersianDigits(first)} کیلوگرم (۵٪ وزن) در ۳ تا ۶ ماه؛ همین مقدار هم فشار خون و قند را بهتر می‌کند.",
+                                fontSize = 13.5.sp, lineHeight = 22.sp
+                            )
+                        }
+                        result.kgToNormal < 0 -> Text(
+                            "تا مرز وزن طبیعی حدود ${PersianNumbers.toPersianDigits(-result.kgToNormal)} کیلوگرم کم داری.",
+                            fontSize = 13.5.sp, lineHeight = 22.sp
+                        )
+                    }
                 }
             }
             val ratio = result.waistRatio
@@ -155,6 +173,11 @@ internal fun BodyScreen(padding: PaddingValues, actions: AppActions) {
                         }
                         Text(risk.advice, fontSize = 14.sp, lineHeight = 23.sp)
                         MutedText("هدف ساده: دور کمرت کمتر از نصف قدت باشد.")
+                        result.waistSize?.let { size ->
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            Text("دور کمر: ${size.title}", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text(size.advice, fontSize = 13.5.sp, lineHeight = 22.sp)
+                        }
                     }
                 }
             }
@@ -165,6 +188,6 @@ internal fun BodyScreen(padding: PaddingValues, actions: AppActions) {
                 }
             }
         }
-        item { SourcesPanel(listOf(Sources.get("who-bmi"), Sources.get("nice-whtr"))) }
+        item { SourcesPanel(listOf(Sources.get("who-bmi"), Sources.get("nice-whtr"), Sources.get("who-waist"))) }
     }
 }

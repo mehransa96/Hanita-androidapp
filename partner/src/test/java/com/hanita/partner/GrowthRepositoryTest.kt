@@ -161,12 +161,16 @@ class GrowthRepositoryTest {
     }
 
     @Test fun newSelfChecksAreStoredWithTheirScores() = runBlocking {
-        val phq = List(9) { 1 }
+        // Nine symptom items plus the unscored closing question on daily life.
+        val phq = List(9) { 1 } + 2
         assertEquals(9, repo.saveAssessment(Assessments.Kind.DEPRESSION, phq))
-        assertEquals(0, repo.saveAssessment(Assessments.Kind.PERSONALITY, List(20) { 0 }))
+        assertNull("the old 9-answer form is incomplete now", repo.saveAssessment(Assessments.Kind.DEPRESSION, List(9) { 1 }))
+        assertEquals(0, repo.saveAssessment(Assessments.Kind.PERSONALITY, List(50) { 0 }))
         assertNull(repo.saveAssessment(Assessments.Kind.RELATIONSHIP, listOf(9, 0, 0, 0)))
         val saved = repo.assessments.first()
         assertEquals(setOf("phq9", "ipip"), saved.map { it.kind }.toSet())
-        assertEquals(List(20) { 0 }, Assessments.decodeAnswers(saved.first { it.kind == "ipip" }.answers))
+        val ipip = Assessments.decodeAnswers(saved.first { it.kind == "ipip" }.answers)
+        assertEquals(List(50) { 0 }, ipip)
+        assertEquals(5, Assessments.profile(ipip)!!.size)
     }
 }

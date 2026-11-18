@@ -97,19 +97,27 @@ class GentlemanFourTest {
 
     @Test fun personalityProfile() {
         val k = Kind.PERSONALITY
-        // "Completely true" everywhere: four factors have two straight and two reversed items,
-        // intellect/imagination has one straight and three reversed (as published).
+        assertEquals(50, Assessments.PERSONALITY.questions.size)
+        Assessments.Trait.values().forEach { t -> assertEquals(10, Assessments.PERSONALITY.questions.count { it.trait == t }) }
+        // "Completely true" everywhere, with the IPIP-50 keying: E 5+/5-, A 6+/4-, C 6+/4-,
+        // emotional stability 2+/8-, intellect 7+/3-.
         val profile = Assessments.profile(allValue(k, 5))!!
         assertEquals(5, profile.size)
-        profile.filter { it.trait != Assessments.Trait.OPENNESS }.forEach { assertEquals(12, it.score); assertEquals(50, it.percent) }
-        assertEquals(8, profile.first { it.trait == Assessments.Trait.OPENNESS }.score)
+        val expected = mapOf(
+            Assessments.Trait.EXTRAVERSION to 30, Assessments.Trait.AGREEABLENESS to 34,
+            Assessments.Trait.CONSCIENTIOUSNESS to 34, Assessments.Trait.STABILITY to 18, Assessments.Trait.OPENNESS to 38
+        )
+        profile.forEach { assertEquals(it.trait.name, expected.getValue(it.trait), it.score); assertEquals(10, it.min); assertEquals(50, it.max) }
         val ideal = Assessments.PERSONALITY.questions.indices.map { i ->
             pick(k, i, if (Assessments.PERSONALITY.questions[i].reversed) 1 else 5)
         }
-        Assessments.profile(ideal)!!.forEach { assertEquals(20, it.score); assertEquals(100, it.percent) }
-        assertEquals(4, Assessments.PERSONALITY.questions.count { it.trait == Assessments.Trait.OPENNESS })
+        Assessments.profile(ideal)!!.forEach { assertEquals(50, it.score); assertEquals(100, it.percent); assertEquals("خیلی بالا", it.levelTitle) }
         assertNull(Assessments.profile(listOf(0, 1)))
         assertEquals(0, Assessments.score(k, ideal))
+        // Results saved from the 20-item Mini-IPIP still show a profile (each factor 4..20).
+        val legacy = Assessments.profile(List(20) { 0 })!!
+        legacy.filter { it.trait != Assessments.Trait.OPENNESS }.forEach { assertEquals(12, it.score); assertEquals(50, it.percent) }
+        assertEquals(8, legacy.first { it.trait == Assessments.Trait.OPENNESS }.score)
     }
 
     @Test fun resilienceEfficacySatisfactionLonelinessCouples() {
@@ -155,7 +163,7 @@ class GentlemanFourTest {
         fun ids(age: Int, smoker: Boolean = false, overweight: Boolean = false) =
             MensHealth.screeningsFor(age, smoker, overweight).map { it.id }.toSet()
         assertTrue(ids(17).isEmpty())
-        assertEquals(setOf("bp", "mood", "hcv", "hiv"), ids(25))
+        assertEquals(setOf("bp", "weight", "mood", "alcohol", "hcv", "hiv"), ids(25))
         assertTrue("sugar" in ids(40, overweight = true) && "sugar" !in ids(40))
         assertTrue("lipids" in ids(40) && "lipids" !in ids(39))
         assertTrue("colon" in ids(45) && "colon" !in ids(44) && "colon" !in ids(76))
