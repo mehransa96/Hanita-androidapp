@@ -1,17 +1,39 @@
 name: Android CI
 
+# Actions minutes are limited on a private repository, so CI runs once per change:
+#   - pull requests run the build job (a push to a PR branch no longer starts a second, duplicate run);
+#   - main runs it once more after a merge;
+#   - the slow emulator smoke test and the screenshots run only when started by hand
+#     (Actions > Android CI > Run workflow). The release workflow still smoke-tests every release.
+# Changes that touch only documentation or release notes do not start CI.
 on:
   push:
-    branches: [ main, master, "claude/**" ]
+    branches: [ main ]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "licenses/**"
+      - ".github/release-notes/**"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "licenses/**"
+      - ".github/release-notes/**"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# A newer push to the same PR cancels the run that is still going.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -29,14 +51,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK and run unit tests
-        run: ./gradlew --stacktrace assembleDebug testDebugUnitTest
-
-      - name: Build release (minified, unsigned)
-        run: ./gradlew --stacktrace assembleRelease
-
-      - name: Android Lint
-        run: ./gradlew --stacktrace lintDebug
+      # One Gradle invocation: configuration and compilation are shared by all four tasks.
+      - name: Build, test and lint (debug + minified release)
+        run: ./gradlew --stacktrace assembleDebug testDebugUnitTest assembleRelease lintDebug
 
       - name: Print lint findings
         if: always()
@@ -100,6 +117,7 @@ jobs:
   # Launches the minified release builds on an emulator so an R8 problem shows up before a
   # release does. Signed here with a throwaway key; real releases use the permanent key.
   release-smoke:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -158,6 +176,7 @@ jobs:
   # Renders every main screen (light/dark, 411dp and 360dp phones, large font) to PNGs so the
   # mobile UI can be reviewed without a device. Informational: it never blocks a merge.
   screenshots:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     continue-on-error: true

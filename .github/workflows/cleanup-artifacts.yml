@@ -6,8 +6,10 @@ on:
   push:
     paths:
       - .github/workflows/cleanup-artifacts.yml
+  # Weekly is enough: every upload also has a short retention-days, so old artifacts expire on
+  # their own. A daily run cost about 30 billed Actions minutes a month for little gain.
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "17 3 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -21,7 +23,7 @@ jobs:
         with:
           script: |
             // A push or a manual run clears everything older than 30 minutes;
-            // the daily run keeps the last 7 days.
+            // the weekly run keeps the last 7 days.
             const maxAgeMs = context.eventName === 'schedule' ? 7 * 24 * 3600e3 : 30 * 60e3;
             const cutoff = Date.now() - maxAgeMs;
             const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
