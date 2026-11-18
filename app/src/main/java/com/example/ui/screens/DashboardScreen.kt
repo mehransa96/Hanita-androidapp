@@ -295,8 +295,8 @@ fun DashboardScreen(
                     HubGrid(
                         modifier = Modifier.fillMaxWidth().weight(1f).padding(bottom = 12.dp),
                         items = listOf(
-                            HubItem("موسیقی متناسب با دوره", "۱۶ قطعه اختصاصی برای ۴ فاز چرخه", Icons.Filled.MusicNote, Color(0xFFE11D48), "hub_cycle_music", onNavigateToMood),
-                            HubItem("مدیتیشن و آوای طبیعت", "تنفس هدایت‌شده، باران، جنگل و دریا", Icons.Filled.SelfImprovement, Color(0xFF10B981), "hub_meditation", onNavigateToMeditation),
+                            HubItem("موسیقی متناسب با دوره", "${com.example.utils.PersianNumbers.toPersianDigits(com.example.data.repository.CycleMusicRepository.allTracks.size)} قطعه برای ۴ فاز و ۸ حال‌وهوا", Icons.Filled.MusicNote, Color(0xFFE11D48), "hub_cycle_music", onNavigateToMood),
+                            HubItem("مدیتیشن و آوای طبیعت", "تنفس، اسکن بدن، کاسه‌ها، رود، باران و دریا", Icons.Filled.SelfImprovement, Color(0xFF10B981), "hub_meditation", onNavigateToMeditation),
                             HubItem("بینش امروز", "پیشنهاد متناسب با فاز فعلی شما", Icons.Filled.Eco, Color(0xFF22C55E), "hub_daily_insight") { openSheet = "daily_insight" },
                             HubItem("نکته هوشمند روز", "پیشنهاد شخصی با هوش مصنوعی", Icons.Filled.TipsAndUpdates, Color(0xFFF59E0B), "hub_ai_tip") { openSheet = "ai_tip" },
                             HubItem("مشاور هوشمند", "پرسش و پاسخ درباره سلامت زنان", Icons.Filled.AutoAwesome, Color(0xFF3B82F6), "hub_chat", onNavigateToChat),

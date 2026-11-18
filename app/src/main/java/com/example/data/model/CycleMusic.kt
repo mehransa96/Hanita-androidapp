@@ -39,6 +39,21 @@ enum class CyclePhaseType(
     )
 }
 
+/**
+ * What the listener wants right now. Every phase offers several intentions, so she can pick by how she
+ * feels today (a sleepy period day, a focused follicular morning, an anxious PMS evening ...).
+ */
+enum class MusicIntent(val label: String, val emoji: String) {
+    CALM("آرامش", "🌿"),
+    SLEEP("خواب", "😴"),
+    PAIN_RELIEF("تسکین درد", "🫶"),
+    BREATHING("تنفس هدایت‌شده", "🌬️"),
+    FOCUS("تمرکز و خلاقیت", "🎯"),
+    MOVEMENT("حرکت و ورزش", "⚡"),
+    JOY("شادی و رقص", "💃"),
+    CONFIDENCE("اعتمادبه‌نفس", "✨")
+}
+
 data class CycleMusic(
     val id: String,
     val title: String,
@@ -48,5 +63,12 @@ data class CycleMusic(
     @RawRes val resId: Int,
     val categoryBadge: String,
     val benefitDescription: String,
-    val frequencyLabel: String
+    val frequencyLabel: String,
+    val intent: MusicIntent = MusicIntent.CALM,
+    /** Tempo in beats per minute, null for beatless soundscapes. */
+    val bpm: Int? = null,
+    /** When and how to listen, e.g. "در رختخواب، با صدای کم". */
+    val howToListen: String = "",
+    /** True when the effect needs stereo headphones (binaural pieces). */
+    val needsHeadphones: Boolean = false
 )

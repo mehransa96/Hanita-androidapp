@@ -43,7 +43,9 @@ data class MeditationTrack(
     val artist: String,
     val categoryId: String,
     val durationSec: Int,
-    @RawRes val rawResId: Int
+    @RawRes val rawResId: Int,
+    /** One-line practice guide: what to do while it plays. */
+    val guide: String = ""
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,21 +65,55 @@ fun MeditationMusicScreen(
     val tracks = remember {
         listOf(
             // Meditation (guided by sound: breathing cues, slow tempo, soft timbres)
-            MeditationTrack("m1", "تنفس ۴-۷-۸ با نویز صورتی (ضد اضطراب PMS)", "استودیو هانیتا • تنفس هدایت‌شده", "meditation", 76, R.raw.luteal_pink_noise_zen),
-            MeditationTrack("m2", "رهاسازی عضلانی با پیانوی آرام (دردهای شکمی)", "استودیو هانیتا • پیانو ۶۰ BPM", "meditation", 64, R.raw.period_piano_calm),
-            MeditationTrack("m3", "تجسم آرام با کالیمبا", "استودیو هانیتا • کالیمبا و پد", "meditation", 60, R.raw.follicular_positive_vibes),
+            MeditationTrack("m1", "تنفس ۴-۷-۸ با نویز صورتی (ضد اضطراب PMS)", "استودیو هانیتا • تنفس هدایت‌شده", "meditation", 76, R.raw.luteal_pink_noise_zen,
+                "زنگ اول: دم از بینی ۴ ثانیه • زنگ دوم: حبس ۷ ثانیه • زنگ سوم: بازدم از دهان ۸ ثانیه. اگر سرگیجه گرفتید عادی نفس بکشید."),
+            MeditationTrack("m2", "رهاسازی عضلانی با پیانوی آرام (دردهای شکمی)", "استودیو هانیتا • پیانو ۶۰ BPM", "meditation", 64, R.raw.period_piano_calm,
+                "از پیشانی تا انگشتان پا، هر گروه عضله را ۵ ثانیه سفت و سپس با بازدم کاملاً رها کنید."),
+            MeditationTrack("m3", "تجسم آرام با کالیمبا", "استودیو هانیتا • کالیمبا و پد", "meditation", 60, R.raw.follicular_positive_vibes,
+                "مکانی امن و آرام را با جزئیات (رنگ، بو، صدا) تصور کنید و با هر نت کالیمبا یک جزء تازه به آن اضافه کنید."),
+            MeditationTrack("m4", "اسکن بدن با کاسه‌های آوازی", "استودیو هانیتا • ۸ ایستگاه توجه", "meditation", 80, R.raw.meditation_body_scan,
+                "با هر صدای کاسه توجه را یک قدم پایین ببرید: سر، شانه‌ها، سینه، شکم، لگن، ران‌ها، ساق‌ها و پاها؛ فقط مشاهده کنید، بدون قضاوت."),
+            MeditationTrack("m5", "تنفس جعبه‌ای ۴-۴-۴-۴", "استودیو هانیتا • تنفس هدایت‌شده", "meditation", 80, R.raw.luteal_box_breathing,
+                "دم ۴ • مکث ۴ • بازدم ۴ • مکث ۴؛ چهار زنگ متفاوت هر مرحله را اعلام می‌کنند. برای لحظه‌های تنش و عصبانیت."),
+            MeditationTrack("m6", "تنفس هم‌آهنگ ۵٫۵ در دقیقه", "استودیو هانیتا • تنفس شکمی", "meditation", 77, R.raw.period_belly_breath,
+                "دست روی شکم: با بالا رفتن صدا دم و با پایین آمدنش بازدم. ۷ دور برای آرام شدن ضربان و گرفتگی‌ها."),
             // Nature
-            MeditationTrack("n1", "جنگل صبحگاهی، جویبار و پرندگان", "استودیو هانیتا • آوای طبیعت", "nature", 64, R.raw.nature_forest_birds),
-            MeditationTrack("n2", "باران شبانه روی برگ‌ها", "استودیو هانیتا • آوای طبیعت", "nature", 64, R.raw.period_rain_nature),
-            MeditationTrack("n3", "امواج آرام ساحل", "استودیو هانیتا • آوای طبیعت", "nature", 72, R.raw.nature_ocean_waves),
+            MeditationTrack("n1", "جنگل صبحگاهی، جویبار و پرندگان", "استودیو هانیتا • آوای طبیعت", "nature", 64, R.raw.nature_forest_birds,
+                "برای شروع آرام روز یا استراحت میان کار؛ پنجره را باز کنید و چند کشش ساده انجام دهید."),
+            MeditationTrack("n2", "باران شبانه روی برگ‌ها", "استودیو هانیتا • آوای طبیعت", "nature", 64, R.raw.period_rain_nature,
+                "صدای یکنواخت باران برای خواب و پوشاندن صداهای مزاحم؛ حالت تکرار را روشن کنید."),
+            MeditationTrack("n3", "امواج آرام ساحل", "استودیو هانیتا • آوای طبیعت", "nature", 72, R.raw.nature_ocean_waves,
+                "دم را با آمدن موج و بازدم را با برگشتنش هماهنگ کنید."),
+            MeditationTrack("n4", "رود کوهستانی و پرندگان", "استودیو هانیتا • آوای طبیعت", "nature", 70, R.raw.nature_river_stream,
+                "پس‌زمینه مطالعه یا کار با صدای کم؛ صدای آب جاری حواس‌پرتی محیط را کم می‌کند."),
+            MeditationTrack("n5", "شب تابستان و جیرجیرک‌ها", "استودیو هانیتا • آوای طبیعت", "nature", 72, R.raw.luteal_night_crickets,
+                "برای بی‌خوابی: در رختخواب با صدای کم، به‌جای دنبال کردن فکرها به صدای جیرجیرک‌ها گوش دهید."),
             // Calm tones
-            MeditationTrack("h1", "تُن ۵۲۸ هرتز با ضربان دوگوش ۴ هرتز (با هدفون)", "استودیو هانیتا • تن‌آرامی", "healing", 64, R.raw.period_frequency_528),
-            MeditationTrack("h2", "کوک ۴۳۲ هرتز با ضربان دوگوش ۶ هرتز (با هدفون)", "استودیو هانیتا • آرامش ذهن", "healing", 64, R.raw.luteal_frequency_432),
-            MeditationTrack("h3", "پد امبینت خواب عمیق و استراحت", "استودیو هانیتا • امبینت", "healing", 64, R.raw.period_ambient_rest),
+            MeditationTrack("h1", "تُن ۵۲۸ هرتز با ضربان دوگوش ۴ هرتز (با هدفون)", "استودیو هانیتا • تن‌آرامی", "healing", 64, R.raw.period_frequency_528,
+                "فقط با هدفون استریو اثر دوگوش ایجاد می‌شود. صدا کم؛ هنگام رانندگی گوش ندهید."),
+            MeditationTrack("h2", "کوک ۴۳۲ هرتز با ضربان دوگوش ۶ هرتز (با هدفون)", "استودیو هانیتا • آرامش ذهن", "healing", 64, R.raw.luteal_frequency_432,
+                "با هدفون، نشسته و چشم‌ها بسته؛ ۱۰ تا ۱۵ دقیقه تکرار. هنگام رانندگی گوش ندهید."),
+            MeditationTrack("h3", "پد امبینت خواب عمیق و استراحت", "استودیو هانیتا • امبینت", "healing", 64, R.raw.period_ambient_rest,
+                "برای چرت ۲۰ دقیقه‌ای؛ زمان‌سنج بگذارید تا خواب طولانی شب را به هم نزند."),
+            MeditationTrack("h4", "کاسه‌های آوازی", "استودیو هانیتا • کاسه و درون", "healing", 78, R.raw.healing_singing_bowls,
+                "به محو شدن هر ضربه کاسه تا سکوت کامل گوش دهید؛ تمرین ساده حضور ذهن."),
+            MeditationTrack("h5", "نویز قهوه‌ای خواب عمیق", "استودیو هانیتا • نویز بم", "healing", 72, R.raw.period_brown_noise_sleep,
+                "صدای بم و گرم برای پوشاندن صداهای محیط هنگام خواب؛ صدا را کم نگه دارید."),
+            MeditationTrack("h6", "نی و تأمل (دستگاه همایون)", "استودیو هانیتا • نی و درون", "healing", 78, R.raw.luteal_ney_reflection,
+                "برای مکث و نوشتن احساسات؛ هر عبارت نی را یک نفس آرام در نظر بگیرید."),
             // Lo-Fi & acoustic
-            MeditationTrack("l1", "بیت‌های لوفای تسکین PMS", "استودیو هانیتا • لوفای جاز", "lofi", 66, R.raw.luteal_lofi_chill),
-            MeditationTrack("l2", "آوای گرم ویولنسل و سازهای زهی", "استودیو هانیتا • آکوستیک", "lofi", 64, R.raw.luteal_warm_acoustic),
-            MeditationTrack("l3", "گیتار صبحگاهی و آواز پرندگان", "استودیو هانیتا • آکوستیک", "lofi", 60, R.raw.follicular_morning_joy)
+            MeditationTrack("l1", "بیت‌های لوفای تسکین PMS", "استودیو هانیتا • لوفای جاز", "lofi", 66, R.raw.luteal_lofi_chill,
+                "پس‌زمینه مطالعه سبک یا استراحت عصرگاهی."),
+            MeditationTrack("l2", "آوای گرم ویولنسل و سازهای زهی", "استودیو هانیتا • آکوستیک", "lofi", 64, R.raw.luteal_warm_acoustic,
+                "همراه یک نوشیدنی گرم بدون کافئین در شب‌های خسته."),
+            MeditationTrack("l3", "گیتار صبحگاهی و آواز پرندگان", "استودیو هانیتا • آکوستیک", "lofi", 60, R.raw.follicular_morning_joy,
+                "برای صبح‌های پرانرژی و آماده شدن."),
+            MeditationTrack("l4", "پیانوی تمرکز عمیق", "استودیو هانیتا • پیانو مینیمال", "lofi", 65, R.raw.follicular_focus_piano,
+                "۲۵ دقیقه کار عمیق، ۵ دقیقه استراحت؛ حالت تکرار را روشن کنید."),
+            MeditationTrack("l5", "جریان یوگا با هنگ‌درام", "استودیو هانیتا • هنگ‌درام", "lofi", 62, R.raw.follicular_yoga_flow,
+                "کشش و یوگای سبک؛ هر دو ضرب یک دم یا یک بازدم."),
+            MeditationTrack("l6", "لالایی چنگ", "استودیو هانیتا • چنگ و پد", "lofi", 53, R.raw.period_harp_lullaby,
+                "در رختخواب با صدای کم برای به خواب رفتن آرام.")
         )
     }
 
@@ -456,6 +492,15 @@ fun MeditationMusicScreen(
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
+                                if (track.guide.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = track.guide,
+                                        fontSize = 11.sp,
+                                        lineHeight = 17.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                                    )
+                                }
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(

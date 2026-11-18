@@ -357,15 +357,24 @@ fun CycleVisualizer(info: CycleInfo, cycleLength: Int, modifier: Modifier = Modi
 
 @Composable
 fun DailyInsightCard(info: CycleInfo) {
-    val insightData = remember(info) {
-        when {
-            info.isLate -> "پریود شما ${PersianNumbers.toPersianDigits(info.daysLate)} روز تأخیر دارد. استرس، تغییر وزن، بیماری یا سفر می‌توانند باعث تأخیر شوند. اگر احتمال بارداری وجود دارد تست بدهید و اگر تأخیر بیش از ۲ هفته شد با پزشک مشورت کنید." to Icons.Filled.Favorite
-            info.isPeriod -> "زمان استراحت و بازتوانی است. سعی کنید مایعات گرم بنوشید و از فعالیت‌های سنگین پرهیز کنید." to Icons.Filled.SelfImprovement
-            info.isFertile -> "انرژی و تمرکز در اوج است! زمان خوبی برای شروع پروژه‌های جدید و فعالیت‌های اجتماعی است." to Icons.Filled.AutoAwesome
-            info.isPms -> "ممکن است کمی خسته یا حساس باشید. به خودتان سخت نگیرید و روی آرامش ذهنی تمرکز کنید." to Icons.Filled.Spa
-            info.phase == CyclePredictor.Phase.FOLLICULAR -> "انرژی شما در حال افزایش است. زمان خوبی برای ورزش‌های هوازی و برنامه‌ریزی‌های جدید است." to Icons.AutoMirrored.Filled.DirectionsRun
-            else -> "سطح هورمون‌ها در فاز لوتئال است. یک رژیم غذایی متعادل و خواب کافی به حفظ انرژی شما کمک می‌کند." to Icons.Filled.Favorite
-        }
+    val insight = remember(info) {
+        val state = com.example.domain.DailyInsights.stateOf(
+            hasData = info.hasData,
+            isLate = info.isLate,
+            isPeriod = info.isPeriod,
+            isFertile = info.isFertile,
+            isPms = info.isPms,
+            phase = info.phase,
+            currentDay = info.currentDay
+        )
+        com.example.domain.DailyInsights.build(state, info.currentDay, info.daysLate)
+    }
+    val icon = when (insight.state) {
+        com.example.domain.DailyInsights.State.PERIOD_EARLY, com.example.domain.DailyInsights.State.PERIOD_LATE -> Icons.Filled.SelfImprovement
+        com.example.domain.DailyInsights.State.FERTILE -> Icons.Filled.AutoAwesome
+        com.example.domain.DailyInsights.State.PMS -> Icons.Filled.Spa
+        com.example.domain.DailyInsights.State.FOLLICULAR -> Icons.AutoMirrored.Filled.DirectionsRun
+        else -> Icons.Filled.Favorite
     }
 
     Card(
@@ -374,34 +383,70 @@ fun DailyInsightCard(info: CycleInfo) {
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(MaterialTheme.colorScheme.primary, CircleShape),
-                contentAlignment = Alignment.Center
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(insightData.second, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp))
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (info.hasData) "نکته سلامتی امروز (روز ${PersianNumbers.toPersianDigits(info.currentDay)} چرخه)" else "نکته سلامتی امروز",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = insight.headline,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 21.sp
+                    )
+                }
             }
-            Column(modifier = Modifier.weight(1f)) {
+            insight.tips.forEach { tip ->
+                Row(verticalAlignment = Alignment.Top) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            tip.label,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        tip.text,
+                        fontSize = 12.5.sp,
+                        lineHeight = 20.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            insight.caution?.let {
                 Text(
-                    text = "نکته سلامتی امروز (روز ${PersianNumbers.toPersianDigits(info.currentDay)} چرخه)",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = insightData.first,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 21.sp
+                    "⚠️ $it",
+                    fontSize = 11.5.sp,
+                    lineHeight = 18.sp,
+                    color = MaterialTheme.colorScheme.error
                 )
             }
         }
