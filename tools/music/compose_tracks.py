@@ -904,6 +904,541 @@ def track_nature_forest_birds():
     return master(out, -20)
 
 
+# ============================================================================= v1.6 library expansion
+# 19 more original pieces so every phase has 8 tracks across different intentions
+# (sleep, pain relief, focus, movement, confidence, calm), plus extra meditation pieces.
+
+def harp(freq, dur, vel=0.7, rng=None):
+    """Bright, quickly decaying plucked string with a soft body resonance."""
+    return pluck(freq, dur, vel, rng, brightness=0.75, decay=0.997) * 0.9
+
+
+def santur(freq, dur, vel=0.7, rng=None):
+    """Hammered double-course string (two slightly detuned partial sets + strike noise)."""
+    out = bell(freq, dur, vel, ratios=(1.0, 2.004, 3.01, 4.03), decays=(2.4, 3.8, 6.0, 9.0))
+    out = out + bell(freq * 1.0018, dur, vel * 0.8, ratios=(1.0, 2.003, 3.02), decays=(2.6, 4.2, 6.5))
+    if rng is not None:
+        t = t_axis(0.03)
+        strike = fft_filter(rng.standard_normal(len(t)), lo=2000, hi=9000) * np.exp(-t * 160) * 0.05 * vel
+        out[: len(strike)] += strike
+    return out * 0.8
+
+
+def ney(freq, dur, vel=0.7, rng=None):
+    """Breathy end-blown reed flute: soft fundamental, strong breath, slow late vibrato."""
+    length = int((dur + 0.5) * SR)
+    t = np.arange(length) / SR
+    vib = 1 + 0.008 * np.sin(TWO_PI * 4.2 * t) * np.clip((t - 0.5) / 0.8, 0, 1)
+    ph = np.cumsum(freq * vib) / SR
+    tone = np.sin(TWO_PI * ph) + 0.12 * np.sin(TWO_PI * 2 * ph) + 0.05 * np.sin(TWO_PI * 3 * ph)
+    breath = fft_filter(rng.standard_normal(length), lo=freq * 0.8, hi=freq * 8) * 0.28
+    env = adsr(length, a=0.25, d=0.3, s=0.85, r=0.5)
+    return (tone + breath) * env * vel * 0.2
+
+
+def frame_drum(rng, vel=1.0, low=True):
+    """Daf-like frame drum: deep membrane (dum) or rim slap (tak) plus ring jingles."""
+    t = t_axis(0.6)
+    if low:
+        f = 62 + 40 * np.exp(-t * 30)
+        body = np.sin(TWO_PI * np.cumsum(f) / SR) * np.exp(-t * 6)
+    else:
+        body = fft_filter(rng.standard_normal(len(t)), lo=400, hi=3000) * np.exp(-t * 35)
+    jingle = fft_filter(rng.standard_normal(len(t)), lo=5000, hi=12000) * np.exp(-t * 11) * 0.35
+    return (body * (0.9 if low else 0.5) + jingle) * vel * 0.6
+
+
+def cricket(m, at, pan):
+    """A short burst of cricket chirps (amplitude-modulated 4.5 kHz tone)."""
+    dur = m.rng.uniform(0.5, 1.4)
+    t = t_axis(dur)
+    pulses = (np.sin(TWO_PI * 30 * t) > 0.2).astype(float)
+    tone = np.sin(TWO_PI * m.rng.uniform(4200, 4900) * t) * pulses * np.sin(np.pi * t / dur)
+    m.add("crickets", tone * m.rng.uniform(0.012, 0.03), at, pan, send=0.3)
+
+
+def breath_guide(m, seconds, pattern, root_hz, cue_notes, noise_gain=0.3):
+    """Generic breathing guide: noise/tone rises on inhale, holds, falls on exhale; a bell marks each stage.
+    pattern = list of (stage, seconds) with stage in {'in', 'hold', 'out', 'rest'}."""
+    L = m.length + m.tail
+    t = np.arange(L) / SR
+    cycle = sum(d for _, d in pattern)
+    env = np.zeros(L)
+    ph = t % cycle
+    start = 0.0
+    level = 0.2
+    for stage, d in pattern:
+        sel = (ph >= start) & (ph < start + d)
+        x = (ph[sel] - start) / d
+        if stage == "in":
+            env[sel] = 0.2 + 0.8 * np.sin(np.pi / 2 * x) ** 2
+            level = 1.0
+        elif stage == "out":
+            env[sel] = 0.2 + 0.8 * np.cos(np.pi / 2 * x) ** 2
+            level = 0.2
+        else:
+            env[sel] = level
+        start += d
+    env = fft_filter(env, hi=3)
+    nl = fft_filter(pink_noise(L, m.rng), lo=120, hi=3500)
+    nr = fft_filter(pink_noise(L, m.rng), lo=120, hi=3500)
+    m.add_stereo("breath", nl * env * noise_gain, nr * env * noise_gain, send=0.05)
+    # tone that glides up a fifth on the in-breath and back down on the out-breath
+    glide = root_hz * 2 ** (7 / 12 * (env - 0.2) / 0.8)
+    tone = np.sin(TWO_PI * np.cumsum(glide) / SR) * (0.35 + 0.65 * env)
+    m.add_stereo("guide", tone * 0.07, tone * 0.07, send=0.3)
+    start = 0.0
+    for c in range(int(np.ceil(seconds / cycle))):
+        start = c * cycle
+        for i, (stage, d) in enumerate(pattern):
+            if start < seconds:
+                m.add("cue", bell(cue_notes[i % len(cue_notes)], 2.2, 0.18), start, 0.2 * (-1) ** i, 1, 0.5)
+            start += d
+
+
+# ---- PERIOD (sleep, pain relief, comfort)
+
+def track_period_harp_lullaby():
+    bpm, bars = 54, 16          # 3/4 lullaby
+    beat = 60 / bpm
+    m = Mix(bars * 3 * beat, 61)
+    prog = [("D3", "maj"), ("B2", "min"), ("G2", "maj"), ("A2", "sus4")]
+    tune = [n("F#5"), n("E5"), n("D5"), n("E5"), n("F#5"), n("A5"), n("G5"), n("F#5"), n("E5"), n("D5"), n("B4"), n("A4")]
+    for bar in range(bars):
+        t0 = bar * 3 * beat
+        notes = chord(*prog[bar % 4])
+        for i, midi in enumerate([notes[0], notes[1] + 12, notes[2] + 12]):
+            m.add("harp", harp(midi_hz(midi), 2.0, 0.45, m.rng), t0 + i * beat + m.rng.normal(0, 0.005),
+                  -0.3 + 0.3 * i, 1, 0.5)
+        if bar % 2 == 0:
+            m.add("pad", soft_pad(hz_list(notes[:3]), 6 * beat - 0.3, attack=1.5, release=2.5), t0, 0, 0.35, 0.6)
+        if 4 <= bar < 14:
+            k = (bar - 4) * 3
+            for j in range(3):
+                if (bar + j) % 3 != 2:
+                    m.add("tune", bell(midi_hz(tune[(k + j) % len(tune)]), 1.6, 0.22, ratios=(1, 2, 3),
+                                       decays=(1.5, 3, 5)), t0 + j * beat, 0.1, 1, 0.55)
+    out = m.render(reverb_seconds=4.0, wet=0.38, hi_cut=8000)
+    return master(out, -21)
+
+
+def track_period_cello_comfort():
+    bpm, bars = 56, 15
+    beat = 60 / bpm
+    m = Mix(bars * 4 * beat, 62)
+    prog = [("G2", "min"), ("Eb2", "maj"), ("Bb2", "maj"), ("D2", "maj"), ("C3", "min"), ("G2", "min")]
+    line = [(n("D4"), 2), (n("G3"), 2), (n("Bb3"), 1), (n("A3"), 1), (n("G3"), 2), (n("F3"), 3), (n("G3"), 1),
+            (n("Eb4"), 2), (n("D4"), 2), (n("C4"), 1.5), (n("Bb3"), 0.5), (n("A3"), 2), (n("G3"), 4)]
+    for bar in range(bars):
+        t0 = bar * 4 * beat
+        notes = chord(*prog[bar % len(prog)])
+        for k, midi in enumerate(notes):
+            m.add("strings", strings(midi_hz(midi + 12), 4 * beat - 0.1, 0.32, attack=1.2, cutoff=1600), t0,
+                  -0.5 + 0.5 * k, 1, 0.55)
+        m.add("bass", strings(midi_hz(notes[0] - 12), 4 * beat - 0.1, 0.45, attack=0.9, cutoff=600), t0, 0, 1, 0.3)
+        m.add("piano", piano(midi_hz(notes[0]), 3.5 * beat, 0.35, m.rng), t0, -0.2, 1, 0.4)
+    at = 2 * 4 * beat
+    for rep in range(2):
+        for midi, ln in line:
+            m.add("cello", strings(midi_hz(midi), ln * beat - 0.05, 1.0, attack=0.3, cutoff=2200), at, 0.1, 1.2, 0.45)
+            at += ln * beat
+        at += 2 * beat
+    out = m.render(reverb_seconds=3.6, wet=0.36, hi_cut=8500)
+    return master(out, -19)
+
+
+def track_period_brown_noise_sleep():
+    seconds = 72
+    m = Mix(seconds, 63)
+    L = m.length + m.tail
+    t = np.arange(L) / SR
+    sway = 0.85 + 0.15 * np.sin(TWO_PI * t / 18.0)
+    nl = fft_filter(brown_noise(L, m.rng), lo=30, hi=900)
+    nr = fft_filter(brown_noise(L, m.rng), lo=30, hi=900)
+    m.add_stereo("noise", nl * sway * 0.7, nr * sway * 0.7, send=0.02)
+    for i, (root, kind) in enumerate([("A2", "sus2"), ("F2", "maj7"), ("C3", "add9"), ("G2", "sus4")]):
+        m.add("pad", soft_pad(hz_list(chord(root, kind)[:3]), 17, attack=5, release=4), i * 18, 0, 0.16, 0.5)
+    out = m.render(reverb_seconds=4.0, wet=0.2, hi_cut=4000)
+    return master(out, -22)
+
+
+def track_period_belly_breath():
+    # coherent / resonance breathing: 5.5 s in, 5.5 s out (about 5.5 breaths per minute)
+    cycle = 11.0
+    seconds = cycle * 7
+    m = Mix(seconds, 64)
+    breath_guide(m, seconds, [("in", 5.5), ("out", 5.5)], midi_hz(n("D3")), [midi_hz(n("A5")), midi_hz(n("D5"))])
+    m.add("drone", soft_pad([midi_hz(n("D2")), midi_hz(n("A2"))], seconds - 2, attack=4, release=3), 0, 0, 0.5, 0.3)
+    out = m.render(reverb_seconds=4.0, wet=0.3, hi_cut=7000)
+    return master(out, -21)
+
+
+# ---- FOLLICULAR (focus, walk, motivation, yoga)
+
+def track_follicular_focus_piano():
+    bpm, bars = 88, 24
+    beat = 60 / bpm
+    m = Mix(bars * 4 * beat, 71)
+    prog = [("A2", "min7"), ("F2", "maj7"), ("C3", "add9"), ("G2", "sus2")]
+    for bar in range(bars):
+        t0 = bar * 4 * beat
+        notes = chord(*prog[bar % 4])
+        cells = [notes[0] + 12, notes[2] + 12, notes[1] + 24, notes[2] + 12]
+        for i in range(8):
+            m.add("ostinato", piano(midi_hz(cells[i % 4]), 0.45 * beat, 0.3 + 0.06 * (i % 4 == 0), m.rng),
+                  t0 + i * 0.5 * beat, 0.3 * np.sin(i), 1, 0.35)
+        m.add("bass", piano(midi_hz(notes[0] - 12), 3.5 * beat, 0.4, m.rng), t0, -0.1, 1, 0.3)
+        if bar % 4 == 0:
+            m.add("pad", soft_pad(hz_list(notes[:3]), 16 * beat - 1, attack=2, release=2), t0, 0, 0.3, 0.5)
+        if 8 <= bar < 20 and bar % 2 == 0:
+            m.add("lead", piano(midi_hz(notes[1] + 24 + 2), 1.8 * beat, 0.4, m.rng), t0 + 2 * beat, 0.05, 1, 0.45)
+    out = m.render(reverb_seconds=2.4, wet=0.26, hi_cut=10000)
+    return master(out, -19)
+
+
+def track_follicular_walk_groove():
+    bpm, bars = 112, 30
+    beat = 60 / bpm
+    m = Mix(bars * 4 * beat, 72)
+    prog = [("C3", "maj"), ("A2", "min"), ("F2", "maj"), ("G2", "maj")]
+    for bar in range(bars):
+        t0 = bar * 4 * beat
+        notes = chord(*prog[bar % 4])
+        for i in range(8):     # ukulele-style chop
+            vel = 0.5 if i % 2 == 0 else 0.33
+            for s, midi in enumerate([notes[2] + 12, notes[0] + 12, notes[1] + 12, notes[0] + 24]):
+                m.add("uke", pluck(midi_hz(midi), 0.22, vel * 0.5, m.rng, 0.8, 0.993),
+                      t0 + i * 0.5 * beat + s * 0.008, -0.2 + 0.1 * s, 1, 0.15)
+        m.add("bass", bass(midi_hz(notes[0] - 12), 0.9 * beat, 0.6, 500, 0.25), t0, 0, 1)
+        m.add("bass", bass(midi_hz(notes[2] - 12), 0.9 * beat, 0.5, 500, 0.25), t0 + 2 * beat, 0, 1)
+        if bar >= 4:
+            m.add("perc", kick(0.7), t0, 0, 0.8, 0)
+            m.add("perc", kick(0.6), t0 + 2 * beat, 0, 0.8, 0)
+            m.add("perc", clap(m.rng, 0.7), t0 + beat, 0.1, 1, 0.25)
+            m.add("perc", clap(m.rng, 0.7), t0 + 3 * beat, 0.1, 1, 0.25)
+            for i in range(8):
+                m.add("perc", shaker(m.rng, 0.7 + 0.4 * (i % 2)), t0 + i * 0.5 * beat, 0.45, 1, 0.1)
+        if bar >= 12 and (bar // 4) % 2 == 1:
+            whistle = [n("E5"), n("G5"), n("C6"), n("B5"), n("A5"), n("G5"), n("E5"), n("D5")]
+            for j in range(4):
+                m.add("whistle", flute(midi_hz(whistle[(bar * 4 + j) % 8] + 12), 0.8 * beat, 0.35, m.rng),
+                      t0 + j * beat, 0.25, 1, 0.35)
+    out = m.render(reverb_seconds=1.8, wet=0.2, hi_cut=12000)
+    return master(out, -16)
+
+
+def track_follicular_sunrise_strings():
+    bpm, bars = 76, 20
+    beat = 60 / bpm
+    m = Mix(bars * 4 * beat, 73)
+    prog = [("D3", "maj"), ("A2", "maj"), ("B2", "min"), ("G2", "maj")]
+    for bar in range(bars):
+        t0 = bar * 4 * beat
+        notes = chord(*prog[bar % 4])
+        grow = min(1.0, 0.35 + bar / 14)
+        for k, midi in enumerate(notes):
+            m.add("strings", strings(midi_hz(midi + 12), 4 * beat - 0.1, 0.45 * grow, attack=0.9, cutoff=1500 + 1500 * grow),
+                  t0, -0.5 + 0.5 * k, 1, 0.5)
+        m.add("bass", strings(midi_hz(notes[0] - 12), 4 * beat - 0.1, 0.5 * grow, attack=0.6, cutoff=700), t0, 0, 1, 0.3)
+        for i in range(8):
+            m.add("piano", piano(midi_hz([notes[0], notes[1], notes[2]][i % 3] + 24), 0.45 * beat, 0.28, m.rng),
+                  t0 + i * 0.5 * beat, 0.3, 1, 0.4)
+        if bar >= 8:
+            m.add("drums", kick(0.45 * grow), t0, 0, 1, 0.1)
+            m.add("drums", frame_drum(m.rng, 0.35, low=False), t0 + 2 * beat, 0.1, 1, 0.3)
+        if bar >= 12 and bar % 2 == 0:
+            line = [n("F#5"), n("A5")] if bar % 4 == 0 else [n("B5"), n("A5")]
+            for j, midi in enumerate(line):
+                m.add("lead", strings(midi_hz(midi), 1.9 * beat, 0.6, attack=0.4, cutoff=3000), t0 + j * 2 * beat,
+                      0.1, 1, 0.45)
+    out = m.render(reverb_seconds=3.0, wet=0.32, hi_cut=11000)
+    return master(out, -18)
+
+
+def track_follicular_yoga_flow():
+    bpm, bars = 70, 18
+    beat = 60 / bpm
+    m = Mix(bars * 4 * beat, 74)
+    scale = [n("D4"), n("A4"), n("C5"), n("D5"), n("E5"), n("F5"), n("A5"), n("C6")]   # D-Kurd-like handpan
+    pattern = [0, 3, 2, 4, 1, 5, 3, 6, 0, 4, 2, 5, 1, 3, 7, 4]
+    m.add("drone", soft_pad([midi_hz(n("D2")), midi_hz(n("A2"))], bars * 4 * beat - 2, attack=4, release=3), 0, 0, 0.45, 0.3)
+    for bar in range(bars):
+        t0 = bar * 4 * beat
+        for i in range(8):
+            if bar % 4 == 3 and i in (5, 7):
+                continue
+            idx = pattern[(bar * 8 + i) % len(pattern)]
+            m.add("handpan", steel_pan(midi_hz(scale[idx]), 1.4, 0.45 + 0.1 * (i % 4 == 0)),
+                  t0 + i * 0.5 * beat + m.rng.normal(0, 0.01), 0.4 * np.sin(i * 0.9), 1, 0.45)
+        m.add("low", steel_pan(midi_hz(n("D3")), 2.5, 0.5), t0, 0, 0.9, 0.4)
+        if bar >= 4:
+            for i in range(4):
+                m.add("perc", shaker(m.rng, 0.45), t0 + (i + 0.5) * beat, -0.4, 1, 0.1)
+    out = m.render(reverb_seconds=3.2, wet=0.32, hi_cut=10000)
+    return master(out, -18)
+
+
+# ---- OVULATION (HIIT, Persian 6/8 dance, confidence, social)
+
+def track_ovulation_hiit_128():
+    bpm, bars = 128, 34
+    beat = 60 / bpm
+    m = Mix(bars * 4 * beat, 81)
+    prog = [("F2", "min"), ("Db2", "maj"), ("Ab2", "maj"), ("Eb2", "maj")]
+    kicks = []
+    for bar in range(bars):
+        t0 = bar * 4 * beat
+        notes = chord(*prog[bar % 4])
+        build = bar % 16 >= 14
+        if not build:
+            for k in range(4):
+                m.add("drums", kick(1.0), t0 + k * beat, 0, 1, 0)
+            kicks += [t0 + k * beat for k in range(4)]
+        for i in range(4):
+            m.add("drums", hat(m.rng, 0.9, open_=True), t0 + (i + 0.5) * beat, 0.25, 0.7, 0.05)
+        m.add("drums", clap(m.rng, 0.9), t0 + beat, 0, 1, 0.2)
+        m.add("drums", clap(m.rng, 0.9), t0 + 3 * beat, 0, 1, 0.2)
+        if build:
+            for i in range(8 * (1 + bar % 2)):
+                m.add("drums", snare(m.rng, 0.4 + 0.04 * i), t0 + i * (0.5 if bar % 2 == 0 else 0.25) * beat, 0, 1, 0.2)
+        for i in range(8):
+            m.add("bass", bass(midi_hz(notes[0] - 12), 0.4 * beat, 0.8, 1100, 0.7), t0 + (i * 0.5 + 0.25) * beat, 0, 1)
+        if (bar // 4) % 2 == 1:
+            stab = pad(hz_list([x + 12 for x in notes]), 0.3 * beat, 0.005, 0.12, 3800, 5, 24, m.rng)
+            for off in (0, 0.75, 1.5, 2.5, 3.25):
+                m.add("stab", stab, t0 + off * beat, 0, 1.2, 0.3)
+    m.duck("bass", kicks, 0.75)
+    m.duck("stab", kicks, 0.5)
+    out = m.render(reverb_seconds=1.4, wet=0.16, hi_cut=15000)
+    return master(out, -13.5)
+
+
+def track_ovulation_persian_68():
+    # 6/8 shesh-o-hasht dance groove in a Shur-like mode on D (E is a quarter-tone flat "koron")
+    eighth = 0.2
+    bars = 54                       # one bar = 6 eighths = 1.2 s
+    m = Mix(bars * 6 * eighth, 82)
+    shur = [n("D4"), n("E4") - 0.5, n("F4"), n("G4"), n("A4"), n("Bb4"), n("C5"), n("D5"), n("E5") - 0.5, n("F5")]
+    phrase = [7, 6, 5, 4, 5, 4, 3, 2, 3, 2, 1, 0,  4, 5, 7, 8, 7, 6, 5, 4, 3, 1, 2, 0]
+    for bar in range(bars):
+        t0 = bar * 6 * eighth
+        m.add("daf", frame_drum(m.rng, 1.0, True), t0, 0, 1, 0.2)
+        m.add("daf", frame_drum(m.rng, 0.7, False), t0 + 2 * eighth, 0.15, 1, 0.25)
+        m.add("daf", frame_drum(m.rng, 0.8, True), t0 + 3 * eighth, 0, 1, 0.2)
+        m.add("daf", frame_drum(m.rng, 0.6, False), t0 + 5 * eighth, 0.15, 1, 0.25)
+        for i in range(6):
+            m.add("tonbak", hat(m.rng, 0.4 + 0.3 * (i % 3 == 0)), t0 + i * eighth, -0.3, 1, 0.1)
+        root = n("D2") if (bar // 4) % 4 != 2 else n("C2")
+        m.add("bass", bass(midi_hz(root), 2.5 * eighth, 0.6, 500, 0.3), t0, 0, 1, 0.05)
+        m.add("bass", bass(midi_hz(root + 7), 2.5 * eighth, 0.5, 500, 0.3), t0 + 3 * eighth, 0, 1, 0.05)
+        if bar >= 6:
+            for j in range(6):
+                if j % 2 == 1 and bar % 2 == 0:
+                    continue
+                note = shur[phrase[(bar * 3 + j // 2) % len(phrase)]]
+                m.add("santur", santur(midi_hz(note), 0.5, 0.45 + 0.1 * (j == 0), m.rng), t0 + j * eighth,
+                      0.25 * np.sin(j), 1, 0.35)
+        if bar % 8 == 0:
+            m.add("drone", soft_pad([midi_hz(n("D3")), midi_hz(n("A3"))], 8 * 6 * eighth - 0.5, attack=1, release=1.5),
+                  t0, 0, 0.3, 0.4)
+    out = m.render(reverb_seconds=2.0, wet=0.24, hi_cut=12000)
+    return master(out, -15)
+
+
+def track_ovulation_confidence_anthem():
+    bpm, bars = 92, 24
+    beat = 60 / bpm
+    m = Mix(bars * 4 * beat, 83)
+    prog = [("C3", "maj"), ("G2", "maj"), ("A2", "min"), ("F2", "maj")]
+    for bar in range(bars):
+        t0 = bar * 4 * beat
+        notes = chord(*prog[bar % 4])
+        big = bar >= 8
+        m.add("drums", kick(1.0), t0, 0, 1, 0.1)
+        m.add("drums", kick(0.8), t0 + 2.5 * beat, 0, 1, 0.1)
+        m.add("drums", snare(m.rng, 1.0), t0 + 2 * beat, 0, 1.2 if big else 0.8, 0.45)
+        if big:
+            m.add("drums", clap(m.rng, 0.8), t0 + 2 * beat, 0, 1, 0.4)
+            for i in range(8):
+                m.add("drums", hat(m.rng, 0.6), t0 + i * 0.5 * beat, 0.3, 1, 0.05)
+        for i in range(8):
+            m.add("piano", piano(midi_hz(notes[i % 3] + 12), 0.45 * beat, 0.42, m.rng), t0 + i * 0.5 * beat, -0.2, 1, 0.3)
+        m.add("bass", bass(midi_hz(notes[0] - 12), 3.8 * beat, 0.7, 600, 0.4), t0, 0, 1)
+        if big:
+            m.add("pad", pad(hz_list([x + 12 for x in notes]), 4 * beat - 0.1, 0.4, 0.6, 2600, 5, 18, m.rng), t0, 0, 0.7, 0.4)
+            hook = [n("E5"), n("G5"), n("A5"), n("G5")] if bar % 2 == 0 else [n("C6"), n("B5"), n("G5"), n("E5")]
+            for j, midi in enumerate(hook):
+                m.add("lead", strings(midi_hz(midi), 0.9 * beat, 0.8, attack=0.05, cutoff=4200), t0 + j * beat, 0.1, 1, 0.4)
+    out = m.render(reverb_seconds=2.2, wet=0.24, hi_cut=13000)
+    return master(out, -15)
+
+
+def track_ovulation_social_bossa():
+    bpm, bars = 132, 40
+    beat = 60 / bpm
+    m = Mix(bars * 4 * beat, 84)
+    prog = [("D3", "maj7"), ("D3", "maj7"), ("E3", "min7"), ("A2", "7"), ("F#3", "min7"), ("B2", "7"),
+            ("E3", "min7"), ("A2", "7")]
+    comp = [0, 1.5, 2.5, 3.5]                # bossa comping
+    for bar in range(bars):
+        t0 = bar * 4 * beat
+        notes = chord(*prog[bar % len(prog)])
+        for off in comp:
+            for s, midi in enumerate(notes[1:]):
+                m.add("guitar", pluck(midi_hz(midi + 12), 0.6 * beat, 0.3, m.rng, 0.35, 0.995),
+                      t0 + off * beat + s * 0.01, -0.3, 1, 0.25)
+        m.add("bass", pluck(midi_hz(notes[0] - 12), 1.4 * beat, 0.6, m.rng, 0.2), t0, 0.05, 1, 0.1)
+        m.add("bass", pluck(midi_hz(notes[0] - 5), 1.4 * beat, 0.5, m.rng, 0.2), t0 + 2 * beat, 0.05, 1, 0.1)
+        for k in (0, 1.5, 2, 3.5):
+            m.add("perc", kick(0.4), t0 + k * beat, 0, 1, 0)
+        for k in (0, 0.75, 1.5, 2.5, 3.25):
+            m.add("perc", rim(0.6), t0 + k * beat, 0.2, 1, 0.2)
+        for i in range(8):
+            m.add("perc", shaker(m.rng, 0.5 + 0.3 * (i % 2)), t0 + i * 0.5 * beat, 0.4, 1, 0.05)
+        if bar >= 8 and (bar // 8) % 2 == 1:
+            mel = [n("F#5"), n("E5"), n("D5"), n("C#5"), n("B4"), n("C#5"), n("D5"), n("E5")]
+            m.add("flute", flute(midi_hz(mel[bar % 8]), 3.5 * beat, 0.45, m.rng), t0, 0.2, 1, 0.4)
+    out = m.render(reverb_seconds=2.0, wet=0.22, hi_cut=11000)
+    return master(out, -17)
+
+
+# ---- LUTEAL (evening calm, anxiety, reflection, sleep)
+
+def track_luteal_rain_piano():
+    bpm, bars = 64, 16
+    beat = 60 / bpm
+    m = Mix(bars * 4 * beat, 91)
+    prog = [("C3", "maj7"), ("E3", "min7"), ("A2", "min9"), ("F2", "maj7")]
+    for bar in range(bars):
+        t0 = bar * 4 * beat
+        notes = chord(*prog[bar % 4])
+        for k, off in enumerate((0, 1.5, 2.5)):
+            m.add("piano", piano(midi_hz(notes[(k + 1) % len(notes)] + 12), 1.5 * beat, 0.32, m.rng),
+                  t0 + off * beat, 0.2 * (k - 1), 1, 0.45)
+        m.add("bass", piano(midi_hz(notes[0] - 12), 3.6 * beat, 0.42, m.rng), t0, -0.1, 1, 0.35)
+        if bar >= 4 and bar % 2 == 0:
+            m.add("melody", piano(midi_hz(notes[2] + 24), 2.5 * beat, 0.42, m.rng), t0 + 0.5 * beat, 0.1, 1, 0.5)
+    L = m.length + m.tail
+    rl = fft_filter(pink_noise(L, m.rng), lo=400, hi=6000)
+    rr = fft_filter(pink_noise(L, m.rng), lo=400, hi=6000)
+    m.add_stereo("rain", rl * 0.14, rr * 0.14, send=0.05)
+    out = m.render(reverb_seconds=3.2, wet=0.32, hi_cut=9000)
+    return master(out, -20)
+
+
+def track_luteal_box_breathing():
+    # box breathing 4-4-4-4 (in, hold, out, hold) x 5
+    seconds = 16 * 5
+    m = Mix(seconds, 92)
+    breath_guide(m, seconds, [("in", 4), ("hold", 4), ("out", 4), ("rest", 4)], midi_hz(n("F3")),
+                 [midi_hz(n("C6")), midi_hz(n("G5")), midi_hz(n("F5")), midi_hz(n("C5"))])
+    m.add("drone", soft_pad([midi_hz(n("F2")), midi_hz(n("C3"))], seconds - 2, attack=4, release=3), 0, 0, 0.5, 0.3)
+    out = m.render(reverb_seconds=4.0, wet=0.3, hi_cut=7000)
+    return master(out, -21)
+
+
+def track_luteal_ney_reflection():
+    # slow ney improvisation in a Homayoun-like mode on G (A is "koron") over a tanpura-style drone
+    seconds = 78
+    m = Mix(seconds, 93)
+    homa = [n("G3"), n("A3") - 0.5, n("B3"), n("C4"), n("D4"), n("Eb4"), n("F4"), n("G4"), n("A4") - 0.5]
+    m.add("drone", soft_pad([midi_hz(n("G2")), midi_hz(n("D3"))], seconds - 2, attack=5, release=3), 0, 0, 0.55, 0.35)
+    for at in np.arange(0, seconds, 2.6):
+        m.add("tanpura", pluck(midi_hz(n("G2") + (7 if int(at / 2.6) % 4 == 1 else 0)), 2.4, 0.18, m.rng, 0.3, 0.999),
+              at, -0.3, 1, 0.4)
+    phrases = [[(4, 2.2), (3, 1.0), (2, 1.6), (1, 1.2), (0, 3.2)],
+               [(2, 1.2), (3, 1.2), (4, 1.0), (5, 2.0), (4, 1.0), (3, 1.4), (2, 2.6)],
+               [(7, 2.4), (6, 1.0), (5, 1.2), (4, 2.0), (3, 1.0), (1, 1.2), (0, 3.4)]]
+    at = 5.0
+    k = 0
+    while at < seconds - 8:
+        for idx, ln in phrases[k % len(phrases)]:
+            m.add("ney", ney(midi_hz(homa[idx] + 12), ln, 0.8, m.rng), at, 0.1, 1, 0.5)
+            at += ln * 0.95
+        at += 3.0
+        k += 1
+    out = m.render(reverb_seconds=4.5, wet=0.4, hi_cut=8000)
+    return master(out, -20)
+
+
+def track_luteal_night_crickets():
+    seconds = 72
+    m = Mix(seconds, 94)
+    L = m.length + m.tail
+    air_l = fft_filter(pink_noise(L, m.rng), lo=100, hi=1200)
+    air_r = fft_filter(pink_noise(L, m.rng), lo=100, hi=1200)
+    m.add_stereo("air", air_l * 0.08, air_r * 0.08, send=0.05)
+    for _ in range(90):
+        cricket(m, m.rng.uniform(0, seconds), m.rng.uniform(-0.9, 0.9))
+    for i, (root, kind) in enumerate([("A2", "min9"), ("F2", "maj7"), ("D3", "min7"), ("E2", "sus4")]):
+        m.add("pad", soft_pad(hz_list(chord(root, kind)[:4]), 17, attack=4, release=4), i * 18, 0, 0.22, 0.6)
+    for k, at in enumerate(np.arange(6, seconds, 9)):
+        m.add("bell", bell(midi_hz([n("E5"), n("C5"), n("A4"), n("D5")][k % 4]), 3, 0.12), at, 0.3 * (-1) ** k, 1, 0.7)
+    out = m.render(reverb_seconds=4.5, wet=0.35, hi_cut=9000)
+    return master(out, -21)
+
+
+# ---- extra meditation / nature pieces
+
+def track_meditation_body_scan():
+    # one soft bowl every 10 s, stepping down in pitch: head -> shoulders -> chest -> belly -> pelvis -> legs -> feet
+    seconds = 80
+    m = Mix(seconds, 95)
+    m.add("drone", soft_pad([midi_hz(n("C2")), midi_hz(n("G2"))], seconds - 2, attack=5, release=3), 0, 0, 0.5, 0.3)
+    for i, (root, kind) in enumerate([("C3", "sus2"), ("A2", "min7"), ("F2", "maj7"), ("G2", "sus4")]):
+        m.add("pad", soft_pad(hz_list(chord(root, kind)[:3]), 19, attack=4, release=4), i * 20, 0, 0.3, 0.6)
+    steps = [n("G5"), n("E5"), n("D5"), n("C5"), n("A4"), n("G4"), n("E4"), n("C4")]
+    for i, midi in enumerate(steps):
+        m.add("bowl", bell(midi_hz(midi), 6, 0.3, ratios=(1.0, 2.71, 5.12), decays=(0.35, 0.9, 2.0)), 1 + i * 10,
+              0.25 * (-1) ** i, 1, 0.6)
+    out = m.render(reverb_seconds=5.5, wet=0.42, hi_cut=7000)
+    return master(out, -21)
+
+
+def track_nature_river_stream():
+    seconds = 70
+    m = Mix(seconds, 96)
+    L = m.length + m.tail
+    for ch in (0, 1):
+        g = fft_filter(m.rng.standard_normal(L), hi=3)
+        g = 0.65 + 0.35 * g / (np.max(np.abs(g)) + 1e-9)
+        water = fft_filter(m.rng.standard_normal(L), lo=300, hi=2500) * g * 0.09
+        water += fft_filter(pink_noise(L, m.rng), lo=2500, hi=7000) * 0.05
+        if ch == 0:
+            left = water
+        else:
+            right = water
+    m.add_stereo("river", left, right, send=0.1)
+    for _ in range(400):    # bubbles
+        at = m.rng.uniform(0, seconds)
+        t = t_axis(0.05)
+        f0 = m.rng.uniform(500, 1400)
+        b = np.sin(TWO_PI * np.cumsum(f0 * (1 + 2.5 * t / 0.05)) / SR) * np.exp(-t * 70)
+        m.add("bubbles", b * m.rng.uniform(0.02, 0.06), at, m.rng.uniform(-0.8, 0.8), send=0.2)
+    for _ in range(20):
+        add_bird(m, m.rng.uniform(0, seconds))
+    out = m.render(reverb_seconds=2.0, wet=0.2, hi_cut=12000)
+    return master(out, -20)
+
+
+def track_healing_singing_bowls():
+    seconds = 78
+    m = Mix(seconds, 97)
+    bowls = [n("C4"), n("G4"), n("E4"), n("A3"), n("D4")]
+    for k, at in enumerate(np.arange(0, seconds, 6.5)):
+        midi = bowls[k % len(bowls)]
+        m.add("bowl", bell(midi_hz(midi), 7, 0.4, ratios=(1.0, 2.71, 5.12, 8.6), decays=(0.25, 0.6, 1.4, 2.6)),
+              at, 0.5 * np.sin(k), 1, 0.5)
+        # gentle "singing" rim tone with slow beating
+        t = t_axis(6)
+        f = midi_hz(midi)
+        sing = (np.sin(TWO_PI * f * t) + np.sin(TWO_PI * (f + 1.5) * t)) * np.sin(np.pi * t / 6) ** 2 * 0.05
+        m.add("sing", sing, at + 0.5, -0.5 * np.sin(k), 1, 0.5)
+    m.add("drone", soft_pad([midi_hz(n("C2"))], seconds - 2, attack=5, release=3), 0, 0, 0.5, 0.3)
+    out = m.render(reverb_seconds=6.0, wet=0.4, hi_cut=8000)
+    return master(out, -21)
+
+
 TRACKS = {
     "period_piano_calm": track_period_piano_calm,
     "period_rain_nature": track_period_rain_nature,
@@ -923,6 +1458,25 @@ TRACKS = {
     "luteal_pink_noise_zen": track_luteal_pink_noise_zen,
     "nature_ocean_waves": track_nature_ocean_waves,
     "nature_forest_birds": track_nature_forest_birds,
+    "period_harp_lullaby": track_period_harp_lullaby,
+    "period_cello_comfort": track_period_cello_comfort,
+    "period_brown_noise_sleep": track_period_brown_noise_sleep,
+    "period_belly_breath": track_period_belly_breath,
+    "follicular_focus_piano": track_follicular_focus_piano,
+    "follicular_walk_groove": track_follicular_walk_groove,
+    "follicular_sunrise_strings": track_follicular_sunrise_strings,
+    "follicular_yoga_flow": track_follicular_yoga_flow,
+    "ovulation_hiit_128": track_ovulation_hiit_128,
+    "ovulation_persian_68": track_ovulation_persian_68,
+    "ovulation_confidence_anthem": track_ovulation_confidence_anthem,
+    "ovulation_social_bossa": track_ovulation_social_bossa,
+    "luteal_rain_piano": track_luteal_rain_piano,
+    "luteal_box_breathing": track_luteal_box_breathing,
+    "luteal_ney_reflection": track_luteal_ney_reflection,
+    "luteal_night_crickets": track_luteal_night_crickets,
+    "meditation_body_scan": track_meditation_body_scan,
+    "nature_river_stream": track_nature_river_stream,
+    "healing_singing_bowls": track_healing_singing_bowls,
 }
 
 

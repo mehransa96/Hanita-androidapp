@@ -3,6 +3,7 @@ package com.example
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.model.CyclePhaseType
+import com.example.data.model.MusicIntent
 import com.example.data.repository.CycleMusicRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -17,23 +18,42 @@ import org.robolectric.annotation.Config
 class CycleMusicTest {
 
     @Test
-    fun `verify all 16 cycle music tracks exist and are partitioned correctly`() {
+    fun `every phase has 8 tracks covering at least 4 different intentions`() {
         val allTracks = CycleMusicRepository.allTracks
-        assertEquals(16, allTracks.size)
+        assertEquals(32, allTracks.size)
+        assertEquals("track ids must be unique", allTracks.size, allTracks.map { it.id }.toSet().size)
+        assertEquals("every track must use its own audio file", allTracks.size, allTracks.map { it.resId }.toSet().size)
 
-        val periodTracks = CycleMusicRepository.getTracksForPhase(CyclePhaseType.PERIOD)
-        val follicularTracks = CycleMusicRepository.getTracksForPhase(CyclePhaseType.FOLLICULAR)
-        val ovulationTracks = CycleMusicRepository.getTracksForPhase(CyclePhaseType.OVULATION)
-        val lutealTracks = CycleMusicRepository.getTracksForPhase(CyclePhaseType.LUTEAL)
-
-        assertEquals("دوره قاعدگی باید ۴ موزیک اختصاصی داشته باشد", 4, periodTracks.size)
-        assertEquals("فاز فولیکولار باید ۴ موزیک اختصاصی داشته باشد", 4, follicularTracks.size)
-        assertEquals("فاز تخمک‌گذاری باید ۴ موزیک اختصاصی داشته باشد", 4, ovulationTracks.size)
-        assertEquals("فاز لوتئال باید ۴ موزیک اختصاصی داشته باشد", 4, lutealTracks.size)
+        CyclePhaseType.values().forEach { phase ->
+            val tracks = CycleMusicRepository.getTracksForPhase(phase)
+            assertEquals("${phase.persianTitle} باید ۸ قطعه داشته باشد", 8, tracks.size)
+            assertTrue(
+                "${phase.persianTitle} باید دست‌کم ۴ حال‌وهوای مختلف داشته باشد",
+                CycleMusicRepository.intentsFor(phase).size >= 4
+            )
+        }
     }
 
     @Test
-    fun `verify all 16 music tracks have real playable non-empty audio files`() {
+    fun `filters by phase and intention and every track has listening guidance`() {
+        val sleepDuringPeriod = CycleMusicRepository.filter(CyclePhaseType.PERIOD, MusicIntent.SLEEP)
+        assertTrue(sleepDuringPeriod.isNotEmpty())
+        assertTrue(sleepDuringPeriod.all { it.phase == CyclePhaseType.PERIOD && it.intent == MusicIntent.SLEEP })
+        assertEquals(CycleMusicRepository.allTracks, CycleMusicRepository.filter(null, null))
+        assertEquals(MusicIntent.values().toList(), CycleMusicRepository.intentsFor(null))
+
+        CycleMusicRepository.allTracks.forEach { track ->
+            assertTrue("${track.id} needs a how-to-listen line", track.howToListen.isNotBlank())
+            assertTrue("${track.id} duration must be realistic", track.durationSeconds in 45..120)
+            track.bpm?.let { assertTrue("${track.id} bpm out of range", it in 40..180) }
+        }
+        // binaural pieces only work on headphones and must say so
+        assertTrue(CycleMusicRepository.getTrackById("period_frequency_528")!!.needsHeadphones)
+        assertTrue(CycleMusicRepository.getTrackById("luteal_frequency_432")!!.needsHeadphones)
+    }
+
+    @Test
+    fun `verify all music tracks have real playable non-empty audio files`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
 
         CycleMusicRepository.allTracks.forEach { track ->

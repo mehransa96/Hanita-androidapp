@@ -1,9 +1,10 @@
 Hanita music and soundscapes (app/src/main/res/raw/*.mp3)
 
-All 18 audio files were composed and rendered for the Hanita project by the
+All 37 audio files were composed and rendered for the Hanita project by the
 script tools/music/compose_tracks.py, using only synthesis code contained in that
 script (additive piano, Karplus-Strong strings, FM electric piano, synthesized
-drums, filtered-noise rain/sea/wind and synthesized bird calls). No third-party
+drums, frame drum and hammered-string (santur-like) models, breathy reed (ney-like)
+flute, filtered-noise rain/sea/wind/river and synthesized bird and cricket calls). No third-party
 recordings, samples, loops or melodies were used.
 
 To the extent possible under law, the Hanita project has waived all copyright and

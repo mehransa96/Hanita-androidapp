@@ -438,15 +438,7 @@ fun DailyPhysicalSymptomsCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     todaySymptoms.take(3).forEach { sym ->
-                        val emoji = when (sym.symptomName) {
-                            "سردرد" -> "🤕"
-                            "خستگی" -> "🥱"
-                            "درد شکم" -> "⚡"
-                            "کمردرد" -> "🩹"
-                            "نفخ" -> "🎈"
-                            "حالت تهوع" -> "🤢"
-                            else -> "🌸"
-                        }
+                        val emoji = com.example.domain.SymptomGuide.forSymptom(sym.symptomName)?.emoji ?: "🌸"
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
@@ -475,6 +467,44 @@ fun DailyPhysicalSymptomsCard(
                             )
                         }
                     }
+                }
+
+                // What helps, and when to see a doctor, for each symptom logged today (most severe first).
+                val guides = todaySymptoms
+                    .sortedByDescending { it.severityScore }
+                    .distinctBy { it.symptomName }
+                    .mapNotNull { sym -> com.example.domain.SymptomGuide.forSymptom(sym.symptomName)?.let { sym to it } }
+                if (guides.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "چه کمکی می‌کند؟",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    guides.take(4).forEach { (sym, guide) ->
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "${guide.emoji} ${sym.symptomName}: ${guide.selfCare}",
+                            fontSize = 11.5.sp,
+                            lineHeight = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (sym.severityScore >= 3) {
+                            Text(
+                                text = "⚠️ مراجعه به پزشک اگر: ${guide.seeDoctor}",
+                                fontSize = 11.sp,
+                                lineHeight = 17.sp,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "اطلاعات عمومی است و جایگزین معاینه پزشک نیست.",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
                 }
             } else {
                 Text(

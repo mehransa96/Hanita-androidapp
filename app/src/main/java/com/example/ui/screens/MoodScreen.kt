@@ -35,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.CycleMusic
 import com.example.data.model.CyclePhaseType
+import com.example.data.model.MusicIntent
+import com.example.utils.PersianNumbers
 import com.example.data.repository.CycleMusicRepository
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.MahitaViewModel
@@ -64,12 +66,15 @@ fun MoodScreen(
     // Phase filter selection: null means "All phases", otherwise specific phase
     var selectedPhaseFilter by remember { mutableStateOf<CyclePhaseType?>(currentCyclePhase) }
 
-    val displayedTracks = remember(selectedPhaseFilter) {
-        if (selectedPhaseFilter == null) {
-            CycleMusicRepository.allTracks
-        } else {
-            CycleMusicRepository.getTracksForPhase(selectedPhaseFilter!!)
-        }
+    // Second filter: what she needs right now (sleep, focus, energy ...). Reset when it no longer applies.
+    var selectedIntent by remember { mutableStateOf<MusicIntent?>(null) }
+    val availableIntents = remember(selectedPhaseFilter) { CycleMusicRepository.intentsFor(selectedPhaseFilter) }
+    LaunchedEffect(availableIntents) {
+        if (selectedIntent != null && selectedIntent !in availableIntents) selectedIntent = null
+    }
+
+    val displayedTracks = remember(selectedPhaseFilter, selectedIntent) {
+        CycleMusicRepository.filter(selectedPhaseFilter, selectedIntent)
     }
 
     // Media Player and interactive playback states
@@ -309,7 +314,7 @@ fun MoodScreen(
                             FilterChip(
                                 selected = selectedPhaseFilter == null,
                                 onClick = { selectedPhaseFilter = null },
-                                label = { Text("همه ۱۶ قطعه 🎶", fontSize = 12.sp) },
+                                label = { Text("همه ${PersianNumbers.toPersianDigits(CycleMusicRepository.allTracks.size)} قطعه 🎶", fontSize = 12.sp) },
                                 leadingIcon = {
                                     if (selectedPhaseFilter == null) {
                                         Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -317,6 +322,42 @@ fun MoodScreen(
                                 },
                                 modifier = Modifier.testTag("filter_all_tracks")
                             )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "امروز به چه چیزی نیاز دارید؟",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = selectedIntent == null,
+                                onClick = { selectedIntent = null },
+                                label = { Text("همه حال‌ها", fontSize = 12.sp) },
+                                modifier = Modifier.testTag("filter_intent_all")
+                            )
+                            availableIntents.forEach { intent ->
+                                val count = CycleMusicRepository.filter(selectedPhaseFilter, intent).size
+                                FilterChip(
+                                    selected = selectedIntent == intent,
+                                    onClick = { selectedIntent = if (selectedIntent == intent) null else intent },
+                                    label = {
+                                        Text(
+                                            "${intent.emoji} ${intent.label} (${PersianNumbers.toPersianDigits(count)})",
+                                            fontSize = 12.sp
+                                        )
+                                    },
+                                    modifier = Modifier.testTag("filter_intent_${intent.name.lowercase()}")
+                                )
+                            }
                         }
                     }
                 }
@@ -346,7 +387,7 @@ fun MoodScreen(
                                         color = MaterialTheme.colorScheme.onSecondaryContainer
                                     )
                                     Text(
-                                        text = "۴ قطعه اختصاصی، تست‌شده و با بالاترین کیفیت صوتی",
+                                        text = "${PersianNumbers.toPersianDigits(CycleMusicRepository.getTracksForPhase(selectedPhaseFilter!!).size)} قطعه اختصاصی برای ${PersianNumbers.toPersianDigits(CycleMusicRepository.intentsFor(selectedPhaseFilter).size)} حال‌وهوای مختلف • ساخته استودیو هانیتا",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
                                     )
@@ -485,12 +526,34 @@ fun MoodScreen(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
+                            if (track.howToListen.isNotBlank()) {
+                                Row(verticalAlignment = Alignment.Top) {
+                                    Icon(
+                                        Icons.Filled.Headphones,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp).padding(top = 2.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "روش گوش دادن: ${track.howToListen}",
+                                        fontSize = 11.sp,
+                                        lineHeight = 17.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+
                             Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                TrackTag("${track.intent.emoji} ${track.intent.label}", MaterialTheme.colorScheme.tertiary)
                                 TrackTag(track.categoryBadge, MaterialTheme.colorScheme.primary)
                                 TrackTag(track.frequencyLabel, MaterialTheme.colorScheme.secondary)
+                                if (track.needsHeadphones) TrackTag("🎧 با هدفون", MaterialTheme.colorScheme.error)
                             }
                         }
                     }
