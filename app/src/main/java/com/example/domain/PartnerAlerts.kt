@@ -56,6 +56,10 @@ object PartnerAlerts {
         val length = CyclePredictor.clampCycleLength(cycleLength)
         val before = daysBeforePeriod.coerceIn(MIN_DAYS_BEFORE, MAX_DAYS_BEFORE)
         val ovulation = CyclePredictor.ovulationDay(length)
+        // While the period is due or late its start is unknown (the app expects it any day), so
+        // no dated message is planned: it would announce a projected date the app no longer shows.
+        val overdue = ChronoUnit.DAYS.between(lastPeriodStart.plusDays(length.toLong()), today)
+        if (overdue in 0..CyclePredictor.MAX_LATE_DAYS.toLong()) return emptyList()
         val result = mutableListOf<Upcoming>()
         for (event in enabled) {
             val cycleDay = when (event) {

@@ -49,6 +49,15 @@ class PartnerAlertsTest {
     }
 
     @Test
+    fun upcoming_isEmptyWhileThePeriodIsDueOrLate() {
+        // lastStart + 28 = due day; nothing is planned from then until the period is logged.
+        val due = lastStart.plusDays(28)
+        assertTrue(PartnerAlerts.upcoming(lastStart, 28, due, allEvents, 2).isEmpty())
+        assertTrue(PartnerAlerts.upcoming(lastStart, 28, due.plusDays(10), allEvents, 2).isEmpty())
+        assertFalse(PartnerAlerts.upcoming(lastStart, 28, due.minusDays(1), allEvents, 2).isEmpty())
+    }
+
+    @Test
     fun upcoming_withoutDataOrEventsIsEmpty() {
         assertTrue(PartnerAlerts.upcoming(null, 28, lastStart, allEvents, 2).isEmpty())
         assertTrue(PartnerAlerts.upcoming(lastStart, 28, lastStart, emptySet(), 2).isEmpty())

@@ -490,7 +490,7 @@ fun SettingsDialog(
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
                                     Text(
-                                        text = "ثبت شروع جدید",
+                                        text = if (lastPeriodStart == null) "ثبت تاریخ" else "تغییر یا ثبت جدید",
                                         fontSize = 11.sp,
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
@@ -502,15 +502,22 @@ fun SettingsDialog(
 
                         if (showStartDatePickerInSettings) {
                             ProfessionalDatePickerDialog(
-                                initialDate = java.time.LocalDate.now(),
-                                title = "اولین روز پریود را انتخاب کنید 🩸",
+                                initialDate = lastPeriodStart ?: java.time.LocalDate.now(),
+                                title = "اولین روز آخرین پریود را انتخاب کنید 🩸",
                                 maxDate = java.time.LocalDate.now(),
                                 onDismissRequest = { showStartDatePickerInSettings = false },
                                 onDateSelected = { pickedDate ->
-                                    // Adds the bleeding day; anything else logged that day is kept.
-                                    viewModel.markPeriodStart(pickedDate)
+                                    // A date within the last cycle corrects the last period instead of
+                                    // adding a second one (which used to create a fake short cycle).
+                                    val change = viewModel.setLastPeriodStart(pickedDate)
                                     showStartDatePickerInSettings = false
-                                    android.widget.Toast.makeText(context, "شروع پریود در ${com.example.utils.PersianDates.long(pickedDate)} ثبت شد.", android.widget.Toast.LENGTH_SHORT).show()
+                                    val day = com.example.utils.PersianDates.long(pickedDate)
+                                    val message = when (change) {
+                                        MahitaViewModel.StartChange.MOVED -> "شروع آخرین پریود به $day تغییر کرد."
+                                        MahitaViewModel.StartChange.ADDED -> "شروع پریود در $day ثبت شد."
+                                        MahitaViewModel.StartChange.IGNORED -> "همین تاریخ از قبل ثبت شده است."
+                                    }
+                                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
                                 }
                             )
                         }

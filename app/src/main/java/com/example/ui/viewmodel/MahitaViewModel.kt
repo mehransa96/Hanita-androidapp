@@ -43,6 +43,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 @OptIn(FlowPreview::class)
@@ -466,6 +467,33 @@ class MahitaViewModel(application: Application) : AndroidViewModel(application) 
     fun markPeriodStart(date: LocalDate) {
         if (date.isAfter(LocalDate.now())) return
         viewModelScope.launch { markPeriodStartInternal(date) }
+    }
+
+    /** What [setLastPeriodStart] did, for the confirmation message. */
+    enum class StartChange { MOVED, ADDED, IGNORED }
+
+    /**
+     * "The first day of my last period was [date]" (settings). A date before the logged last
+     * period, or less than one cycle ([CyclePredictor.MIN_CYCLE_LENGTH] days) after its start, is a
+     * correction: the last period is moved there and keeps its length and notes. Only a date at
+     * least one cycle later is a new period. Adding a corrected date as one more period used to
+     * create a fake short cycle, which replaced the user's 28 days and moved every prediction.
+     */
+    fun setLastPeriodStart(date: LocalDate): StartChange {
+        val today = LocalDate.now()
+        if (date.isAfter(today)) return StartChange.IGNORED
+        val last = periodRuns.value.lastOrNull()
+        val sinceLast = last?.let { ChronoUnit.DAYS.between(it.start, date) }
+        if (last == null || sinceLast == null || sinceLast >= CyclePredictor.MIN_CYCLE_LENGTH) {
+            markPeriodStart(date)
+            return StartChange.ADDED
+        }
+        if (sinceLast == 0L) return StartChange.IGNORED
+        val flow = allLogs.value.firstOrNull { it.dateStr == last.start.toString() }?.periodFlow
+            ?.takeIf { it in FLOWS && it != "NONE" } ?: "MEDIUM"
+        val notes = allCycleRecords.value.firstOrNull { it.startDate == last.start.toString() }?.notes.orEmpty()
+        editPeriod(last.start, date, date.plusDays(last.lengthDays - 1L), flow, notes)
+        return StartChange.MOVED
     }
 
     private suspend fun markPeriodStartInternal(date: LocalDate) {
