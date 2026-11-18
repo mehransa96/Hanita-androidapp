@@ -215,6 +215,21 @@ object Sources {
             "شاخص ۴ سؤالی رضایت زوجین؛ نمره زیر ۱۳٫۵ نشانه نارضایتی قابل‌توجه است.",
             "https://doi.org/10.1037/0893-3200.21.4.572"
         ),
+        // ---- Deeper self-checks (4.1) ----
+        Source(
+            "ipip50", "Lewis R. Goldberg (1992)", "The development of markers for the Big-Five factor structure. Psychological Assessment, 4(1)",
+            "نسخه ۵۰ سؤالی نشانگرهای پنج‌عاملی شخصیت از بانک عمومی IPIP (مالکیت عمومی)؛ هر ویژگی با ۱۰ سؤال سنجیده می‌شود.",
+            "https://doi.org/10.1037/1040-3590.4.1.26"
+        ),
+        Source(
+            "norman-half-sd", "Norman, Sloan و Wyrwich (2003)", "Interpretation of changes in health-related quality of life: the remarkable universality of half a standard deviation. Medical Care, 41(5)",
+            "قاعده «نیم انحراف معیار» برای تشخیص اینکه تغییر نمره میان دو آزمون واقعاً معنادار است یا نوسان طبیعی.",
+            "https://doi.org/10.1097/01.MLR.0000062554.74615.4C"
+        ),
+        Source(
+            "who-waist", "World Health Organization (2008)", "Waist circumference and waist–hip ratio: report of a WHO expert consultation",
+            "دور کمر مردان: ۹۴ سانتی‌متر به بالا خطر بیشتر و ۱۰۲ به بالا خطر بسیار بیشتر برای بیماری‌های قلبی و متابولیک."
+        ),
         // ---- Pillars and tools added in 4.0 ----
         Source(
             "fisher-ury", "Fisher, Ury و Patton (2011)", "Getting to Yes: Negotiating Agreement Without Giving In (3rd ed.)",

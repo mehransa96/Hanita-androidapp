@@ -19,7 +19,96 @@ object PartnerContent {
         val messages: List<String>
     )
 
-    fun phaseInfo(phase: Phase, fertileShared: Boolean = false): PhaseInfo = when (phase) {
+    /** Tips and messages for [phase], with the extra choices of 4.1 after the original ones. */
+    fun phaseInfo(phase: Phase, fertileShared: Boolean = false): PhaseInfo {
+        val base = basePhaseInfo(phase, fertileShared)
+        val key = if (phase in GENERAL_PHASES) null else phase
+        return base.copy(
+            tips = base.tips + (key?.let { MORE_TIPS[it] } ?: MORE_GENERAL_TIPS),
+            messages = base.messages + (key?.let { MORE_MESSAGES[it] } ?: MORE_GENERAL_MESSAGES)
+        )
+    }
+
+    private val GENERAL_PHASES = setOf(Phase.AWAITING_UPDATE, Phase.STALE, Phase.PAUSED, Phase.NO_DATA)
+
+    private val MORE_TIPS: Map<Phase, List<String>> = mapOf(
+        Phase.PERIOD to listOf(
+            "غذای گرم و مقوی (سوپ، عدسی، غذای آهن‌دار) درست کن یا بگیر؛ بدنش در این روزها آهن از دست می‌دهد.",
+            "یک پتو، فیلم سبک و فضای آرام در خانه، بهتر از هر برنامه بیرون است.",
+            "اگر درد شدید است، مسکن یا مشورت با پزشک را پیشنهاد بده و خودت داروخانه برو.",
+            "درباره تمیزی و خرید وسایل بهداشتی بی‌منت کمک کن؛ از خرید پد یا مسکن خجالت نکش."
+        ),
+        Phase.AFTER_PERIOD to listOf(
+            "برای کاری که مدتی عقب افتاده (خرید، مهمانی، سفر کوتاه) با هم برنامه بریزید.",
+            "یک کلاس یا تجربه تازه دونفره (کوهنوردی، آشپزی، بازی) امتحان کنید.",
+            "اگر ورزش می‌کند، همراهی‌اش کن یا تشویقش کن."
+        ),
+        Phase.MID_CYCLE to listOf(
+            "برای عکس گرفتن، مهمانی یا دیدار با دوستان، این روزها انتخاب خوبی است.",
+            "یک خاطره خوب مشترک را یادآوری کن و از آینده‌ای که با هم می‌سازید حرف بزن.",
+            "صمیمیت فقط جسمی نیست؛ وقت بی‌گوشی و گفت‌وگوی عمیق هم بگذار."
+        ),
+        Phase.LUTEAL to listOf(
+            "قرارها و مهمانی‌های شلوغ را کمتر کن و شب‌های آرام در خانه را بیشتر.",
+            "پیاده‌روی ملایم یا یوگا را با هم پیشنهاد بده؛ به کم شدن تنش کمک می‌کند.",
+            "اگر کمی دیرتر جواب داد یا کم‌حرف‌تر بود، به خودت نگیر."
+        ),
+        Phase.PMS to listOf(
+            "نمک، کافئین و شیرینی زیاد علائم را بدتر می‌کنند؛ میوه، آجیل و آب بیشتر را پیشنهاد بده، نه تحمیل کن.",
+            "اگر بحثی شد، بگو «بیا بعداً درباره‌اش حرف بزنیم» و واقعاً بعداً برگرد.",
+            "اگر هر ماه این روزها خیلی سخت است (غم شدید، خشم، اضطراب)، مراجعه به پزشک زنان را با مهربانی پیشنهاد بده."
+        ),
+        Phase.PERIOD_DUE to listOf(
+            "وسایل بهداشتی و مسکن را در خانه چک کن و اگر کم است، بخر.",
+            "اگر برنامه سفر یا مهمانی داری، از او بپرس راحت است یا بهتر است عقب بیندازید."
+        )
+    )
+
+    private val MORE_MESSAGES: Map<Phase, List<String>> = mapOf(
+        Phase.PERIOD to listOf(
+            "{name} جان، سوپ گرم سفارش دادم، فقط استراحت کن 🍲",
+            "اگه دردت زیاده بگو، می‌رم داروخونه 💊❤️",
+            "امروز هر چی تو بگی، همون. ملکه امروز تویی 👑"
+        ),
+        Phase.AFTER_PERIOD to listOf(
+            "{name}، یه برنامه تازه برای این هفته بچینیم؟ 🗓️",
+            "انرژیت بهم انرژی می‌ده عزیزم 🌞",
+            "بیا این هفته یه چیز جدید با هم امتحان کنیم 🌿"
+        ),
+        Phase.MID_CYCLE to listOf(
+            "امروز خیلی خوشگل شدی {name} 😍",
+            "هر روز بیشتر از دیروز دوستت دارم 💞",
+            "یه شب خاص فقط برای ما دوتا بذاریم؟ 🕯️"
+        ),
+        Phase.LUTEAL to listOf(
+            "امشب شام ساده و یه فیلم آروم؟ 🎞️",
+            "{name} جان، اگه خسته‌ای امروز کارها با من 🤍",
+            "یه قدم آروم عصرگاهی با هم؟ 🍃"
+        ),
+        Phase.PMS to listOf(
+            "هر حسی داری اشکالی نداره، من همین‌جام 🤍",
+            "{name} جان، امروز با هیچی خودتو اذیت نکن ☕",
+            "برات یه چیز خوشمزه گرفتم، فقط لبخند بزن 🍓"
+        ),
+        Phase.PERIOD_DUE to listOf(
+            "{name}، وسایل لازم رو گرفتم، خیالت راحت 🌸",
+            "این چند روز هر چی خواستی فقط بگو ❤️"
+        )
+    )
+
+    private val MORE_GENERAL_TIPS = listOf(
+        "هفته‌ای یک قرار دونفره، حتی یک چای در کافه، را ثابت نگه دار.",
+        "یک قدردانی مشخص بگو: «ممنونم که امروز…» بهتر از «ممنون» کلی است.",
+        "از برنامه‌های او در این هفته بپرس و یکی را یادت بماند تا بعداً پیگیری کنی."
+    )
+
+    private val MORE_GENERAL_MESSAGES = listOf(
+        "به فکرت بودم، روزت قشنگ باشه 🌼",
+        "{name}، ممنونم که هستی 🤍",
+        "آخر هفته یه برنامه دونفره داشته باشیم؟ 🗓️"
+    )
+
+    private fun basePhaseInfo(phase: Phase, fertileShared: Boolean): PhaseInfo = when (phase) {
         Phase.PERIOD -> PhaseInfo(
             "🩸", "روزهای پریود",
             "بدنش خسته‌تر است و ممکن است درد داشته باشد. آرامش، گرما و کمک عملی بیشترین اثر را دارد.",
