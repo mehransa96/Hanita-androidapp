@@ -297,8 +297,14 @@ private fun WaterAndMoodRow(
 /** One-line summary at the top of the cycle tab. */
 @Composable
 fun CycleSummaryStrip(cycleInfo: CycleInfo, predictionInfo: PredictionInfo) {
-    val next = predictionInfo.predictedNextStart ?: cycleInfo.predictedPeriodStart
-    val nextJalali = runCatching { JalaliCalendar.gregorianToJalali(next).formatShort() }.getOrDefault("-")
+    // Same date as the cycle ring and the calendar: a late or overdue period is expected now,
+    // never shown as an already-past "next period" date.
+    val nextJalali = when {
+        !cycleInfo.hasData -> "-"
+        cycleInfo.isLate -> "${com.example.utils.PersianNumbers.toPersianDigits(cycleInfo.daysLate)} روز تأخیر"
+        cycleInfo.isPeriod -> "در جریان"
+        else -> runCatching { JalaliCalendar.gregorianToJalali(cycleInfo.predictedPeriodStart).formatShort() }.getOrDefault("-")
+    }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SummaryChip("روز چرخه", com.example.utils.PersianNumbers.toPersianDigits(cycleInfo.currentDay), Modifier.weight(1f))
         SummaryChip("میانگین", "${com.example.utils.PersianNumbers.toPersianDigits(predictionInfo.calculatedAverage)} روز", Modifier.weight(1f))

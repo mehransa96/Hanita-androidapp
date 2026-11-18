@@ -11,7 +11,11 @@ import java.time.temporal.ChronoUnit
  *
  * Medical model (standard calendar method, for information only, not contraception):
  *  - A new period starts when a bleeding day follows a gap of more than [NEW_PERIOD_GAP_DAYS] days.
- *  - Cycle length = average of the last [MAX_CYCLES_FOR_AVERAGE] plausible cycles (21..45 days).
+ *  - Cycle length = average of the last [MAX_CYCLES_FOR_AVERAGE] typical cycles (21..45 days).
+ *    Gaps outside that range (a missed log, spotting logged as a new period, a corrected date)
+ *    are shown in the history but never averaged: one such gap used to pull a 28-day cycle down
+ *    to 21 days (or up to 45) and shift every future prediction.
+ *  - Until one typical cycle is logged, the cycle length the user entered is used.
  *  - The luteal phase is ~14 days, so ovulation ≈ cycleLength - 14 (never before day 10).
  *  - Fertile window = 5 days before ovulation up to 1 day after it.
  *  - PMS window = the last 5 days before the next expected period.
@@ -27,8 +31,6 @@ object CyclePredictor {
     const val MAX_CYCLES_FOR_AVERAGE = 6
     /** How long a missing period is reported as "late" before the projection takes over again. */
     const val MAX_LATE_DAYS = 45
-    private const val MIN_PLAUSIBLE_INTERVAL = 15
-    private const val MAX_PLAUSIBLE_INTERVAL = 60
 
     enum class Phase { MENSTRUAL, FOLLICULAR, OVULATION, LUTEAL }
 
@@ -107,9 +109,35 @@ object CyclePredictor {
      * reminders (ovulation = cycle day [ovulationDay]). Null when no period was logged yet.
      */
     fun nextOvulation(prediction: Prediction, today: LocalDate): LocalDate? {
-        val lastStart = prediction.lastPeriodStart ?: return null
+        val anchor = projectionAnchor(prediction, today) ?: return null
         val day = ovulationDay(prediction.averageCycleLength)
-        return nextOccurrenceOfCycleDay(lastStart, prediction.averageCycleLength, day, today.minusDays(1))
+        return nextOccurrenceOfCycleDay(anchor, prediction.averageCycleLength, day, today.minusDays(1))
+    }
+
+    /**
+     * The cycle start every forecast after [today] is projected from, exactly as [dayStatus] does:
+     *  - normally the first day of the last logged period;
+     *  - while the period is due or late (up to [MAX_LATE_DAYS] days) the next period is assumed to
+     *    start tomorrow, so the anchor is one cycle before tomorrow;
+     *  - after a longer gap the data is probably just missing and the plain projection is used.
+     * Null before the first period is logged.
+     */
+    fun projectionAnchor(prediction: Prediction, today: LocalDate): LocalDate? {
+        val lastStart = prediction.lastPeriodStart ?: return null
+        val length = clampCycleLength(prediction.averageCycleLength).toLong()
+        val overdue = ChronoUnit.DAYS.between(lastStart.plusDays(length), today)
+        return if (overdue in 0..MAX_LATE_DAYS.toLong()) today.plusDays(1).minusDays(length) else lastStart
+    }
+
+    /**
+     * The next period starts after [today] that the calendar shows, oldest first (same model as
+     * [dayStatus]: a due or late period is expected from tomorrow).
+     */
+    fun upcomingPeriodStarts(prediction: Prediction, today: LocalDate, count: Int): List<LocalDate> {
+        val anchor = projectionAnchor(prediction, today) ?: return emptyList()
+        val length = clampCycleLength(prediction.averageCycleLength).toLong()
+        val first = nextOccurrenceOfCycleDay(anchor, prediction.averageCycleLength, 1, today)
+        return (0 until count.coerceAtLeast(0)).map { first.plusDays(it * length) }
     }
 
     /** Fertile window around an ovulation day: 5 days before up to 1 day after (same as [dayStatus]). */
@@ -162,7 +190,7 @@ object CyclePredictor {
         }
 
         val intervals = starts.zipWithNext { a, b -> ChronoUnit.DAYS.between(a, b).toInt() }
-            .filter { it in MIN_PLAUSIBLE_INTERVAL..MAX_PLAUSIBLE_INTERVAL }
+            .filter { it in MIN_CYCLE_LENGTH..MAX_CYCLE_LENGTH }
             .takeLast(MAX_CYCLES_FOR_AVERAGE)
 
         val hasEnoughData = intervals.isNotEmpty()
